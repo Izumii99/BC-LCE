@@ -1,3 +1,4 @@
+import { isWceFeatureEnabled } from '../../core/wce-compat.js';
 import { resolvePoseConflicts } from './calculations.js';
 import { activeStepIndex, isEventActive } from './calculations.js';
 import { prepareExpressionEvent } from './calculations.js';
@@ -33,7 +34,6 @@ import { observeResponsive, responsiveOwns } from '../../core/responsive-compat.
 //   WCE 這三項全錯，開了 animationEngine 就會鎖死這類模組的眼睛，別拿它當標準。
 // ════════════════════════════════════════════════════════════════════════════
 
-import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
 import { deepCopy } from '../../core/util.js';
 import { ArousalExpressionStages, EventExpressions, ActivityTriggers } from './data.js';
@@ -99,7 +99,7 @@ const broadcast = {};
 const lastSentAt = {};
 const EXPR_KEEPALIVE_MS = 1000;   // 同值最短補送間隔；echo 鏡射在兩次補送間會自行持住
 let lastUniqueId = 0;
-let lastOrgasm = 0, orgasmCount = 0, wasDefault = false;
+let lastOrgasm = 0, orgasmCount = 0;
 let PreviousArousal = null;
 let PreviousDirection = DIR.Up;
 let engineStarted = false;   // 進過聊天室、250ms 迴圈已在跑（engineOn 用）
@@ -117,7 +117,14 @@ const mustNum = (v, d = 0) => (typeof v === 'number' && !isNaN(v) ? v : d);
  *   2. 引擎真的啟動了（已進過聊天室）—— 否則鉤子會吞掉表情變更卻沒有引擎能套用，
  *      表情就這樣憑空消失。未啟動時一律讓 BC 走自己的原生路徑。
  */
-const engineOn = () => engineStarted && !!getFeature('animationEngine') && !responsiveOwns('expressions');
+const anotherEngineOwnsExpressions = () =>
+    responsiveOwns('expressions') || isWceFeatureEnabled('animationEngine');
+const engineOn = () => engineStarted
+    && Array.isArray(globalThis.Player?.Appearance)
+    && !!globalThis.Player?.AppearanceLayers
+    && !!globalThis.Player?.ArousalSettings
+    && !!getFeature('animationEngine')
+    && !anotherEngineOwnsExpressions();
 
 const hook = createHook('expressions');
 
@@ -187,7 +194,7 @@ function bcxRule(name) {
 
 // ───────────────────────── 佇列 ─────────────────────────
 export function pushEvent(evt) {
-    if (responsiveOwns('expressions')) return;
+    if (anotherEngineOwnsExpressions()) { queue.length = 0; return; }
     if (!evt) return;
     // 依事件類型分別由兩個設定控制（取代 WCE 的總開關）
     switch (evt.Type) {
@@ -195,6 +202,7 @@ export function pushEvent(evt) {
         case POST_ORGASM_EVT:
             if (!getFeature('autoArousalExpression')) return;
             break;
+        case GAME_TIMED_EVT:
         case MANUAL_EVT:
             break;   // 手動覆寫一律接受
         default:
@@ -307,17 +315,8 @@ function customArousalExpression() {
     if (orgasmCount < oCount) orgasmCount = oCount;
     else if (orgasmCount > oCount) { Player.ArousalSettings.OrgasmCount = orgasmCount; ActivityChatRoomArousalSync(Player); }
 
-    // 臉部完全恢復預設時，重設佇列（只看內建部位，模組群組不該讓佇列一直活著）
-    let isDefault = true;
-    for (const t of BASE_FACE_COMPONENTS) if (expression(t)[0]) isDefault = false;
-    if (isDefault) {
-        PreviousArousal.Progress = 0;
-        PreviousDirection = DIR.Up;
-        if (!wasDefault) {
-            for (const q of queue) { if (q.Type !== AROUSAL_EVT) q.Expression = {}; }
-        }
-        wasDefault = true;
-    } else wasDefault = false;
+    // 表情為空不代表使用者要求清空事件。手動事件尚未套用時，臉也可能仍是預設。
+    // 清除操作由明確的 null 表情事件處理，不依目前外觀丟棄剛入列的事件。
 
     const arousal = Player.ArousalSettings.Progress;
     let direction = PreviousDirection;
@@ -451,14 +450,13 @@ function customArousalExpression() {
     let needsRefresh = false;
     let poseUpdate = false;
     if (Player.ActivePose) {
-        for (let i = 0; i < Player.ActivePose.length; i++) {
-            const pose = Player.ActivePose[i];
+        const retained = Player.ActivePose.filter(pose => {
             const p = PoseFemale3DCG.find(pp => pp.Name === pose);
-            if (!p?.Category && Object.values(desiredPose).every(v => v.Pose !== pose)) {
-                poseUpdate = [...Player.ActivePose];
-                poseUpdate.splice(i, 1); i--;
-                needsRefresh = true;
-            }
+            return p?.Category || Object.values(desiredPose).some(v => v.Pose === pose);
+        });
+        if (retained.length !== Player.ActivePose.length) {
+            poseUpdate = retained;
+            needsRefresh = true;
         }
     }
 
@@ -524,7 +522,7 @@ function customArousalExpression() {
     // 引擎只在「本地值有變」時才送 ChatRoomCharacterExpressionUpdate（見上方套用區塊）。
     // 但本地表情可能被「引擎以外」的路徑改掉而沒補送 —— 最典型是 BC 的
     // ValidationSanitizeProperties 在換裝／增減帶 AllowExpression 的物品時 delete
-    // property.Expression（見 installPatches），或其他模組直接改 Property。此時本地已是
+    // property.Expression（見 installExpressionIntegration），或其他模組直接改 Property。此時本地已是
     // 新值、伺服器卻停在舊值，而引擎下一輪比對「本地==期望」判定沒變，於是永遠不補送 ——
     // 症狀就是「自己看正常、別人看到卡住的舊表情，連 dialog-expression-menubar-clear
     // 都救不回（因為本地本來就正常，clear 不產生本地變化 → 一樣不送）」。
@@ -567,8 +565,7 @@ function customArousalExpression() {
 
 /**
  * BC 的兩個函式會「直接」改臉，繞過我們的佇列，必須改導進引擎（同 WCE）。
- * 這兩段是用 patchFunction 把 BC 原始碼裡的那一行換掉，取代碼跑在 BC 的全域範疇，
- * 所以引擎的入口要先掛到 window 上才叫得到。
+ * 使用 hook 處理計時事件與驗證結果，不替換原始碼，以便與 WCE patch 共存。
  *
  *   TimerInventoryRemove
  *     BC 的限時表情到期時會直接呼叫 CharacterSetFacialExpression。不改導的話，
@@ -579,49 +576,41 @@ function customArousalExpression() {
  *     其他插件塞了非法表情時 BC 會 delete property.Expression，而引擎不知情、
  *     下一幀又寫回去，兩邊無限互踢。這裡通知引擎「這個部位已被清掉」。
  */
-function installPatches() {
-    try {
-        // 供 patch 出來的程式碼呼叫（它們在 BC 的全域範疇執行，看不到模組作用域）
-        window.lceAnimationEngineEnabled = engineOn;
-        window.lcePushEvent = pushEvent;
-
-        // WCE 生態相容旗標：ECHO（服装拓展）等模組是用 bceAnimationEngineEnabled
-        // 判斷「動畫引擎在不在跑」，據以切到專為引擎設計的鏡射路徑
-        // （CharacterLoadCanvas 每次重繪重鏡 Eyes→右眼_Luzi/Eyes2→左眼_Luzi＋ServerSend 改寫群組）。
-        // 不設它 → ECHO 誤判引擎沒開，走原版鏡射路徑，撐不住引擎直接寫 Property 的做法，
-        // 自訂眼睛套用後約 0.5 秒被慾望表情打回（基礎 Eyes 由引擎作主故不受影響）。
-        // 我們的引擎與 WCE 同構，語意上就是 true，設成同一個判斷即可。
+function installExpressionIntegration() {
+    // 保留已公開的 LCE 入口供外部整合使用；內部 hook 直接呼叫模組函式。
+    window.lceAnimationEngineEnabled = engineOn;
+    window.lcePushEvent = pushEvent;
+    // 不覆寫 WCE 的旗標；WCE 尚未載入時才提供 LCE 的相容入口。
+    if (typeof window.bceAnimationEngineEnabled !== 'function') {
         window.bceAnimationEngineEnabled = engineOn;
-
-        modApi.patchFunction('TimerInventoryRemove', {
-            'CharacterSetFacialExpression(C, C.ExpressionQueue[0].Group, C.ExpressionQueue[0].Expression, undefined, undefined, true);':
-            `if (window.lceAnimationEngineEnabled()) {
-                window.lcePushEvent({
-                    Type: "${GAME_TIMED_EVT}",
-                    Duration: -1,
-                    Expression: {
-                        [C.ExpressionQueue[0].Group]: [{ Expression: C.ExpressionQueue[0].Expression, Duration: -1 }]
-                    }
-                });
-            } else {
-                CharacterSetFacialExpression(C, C.ExpressionQueue[0].Group, C.ExpressionQueue[0].Expression, undefined, undefined, true);
-            }`,
-        });
-
-        modApi.patchFunction('ValidationSanitizeProperties', {
-            'delete property.Expression;':
-            `delete property.Expression;
-            if (window.lceAnimationEngineEnabled()) {
-                if (item?.Asset?.Group?.Name) {
-                    CharacterSetFacialExpression(C, item.Asset.Group.Name, null);
-                } else {
-                    console.warn("🐈‍⬛ [LCE] 無法判斷物品的部位名稱", item);
-                }
-            }`,
-        });
-    } catch (e) {
-        console.warn(LOG, '表情 patch 未套用（限時表情可能與引擎互搶）:', e?.message ?? e);
     }
+
+    // 先消費玩家到期事件，再讓 BC 處理 NPC、物品與鎖；不修改函式原始碼。
+    hook('TimerInventoryRemove', 10, (args, next) => {
+        if (isWceFeatureEnabled('animationEngine')) queue.length = 0;
+        if (engineOn() && Player?.OnlineSharedSettings?.ItemsAffectExpressions
+            && Array.isArray(Player.ExpressionQueue)) {
+            Player.ExpressionQueue.sort((a, b) => a.Time - b.Time);
+            while (Player.ExpressionQueue.length && Player.ExpressionQueue[0].Time <= CurrentTime) {
+                const entry = Player.ExpressionQueue.shift();
+                pushEvent({ Type: GAME_TIMED_EVT, Duration: -1,
+                    Expression: { [entry.Group]: [{ Expression: entry.Expression, Duration: -1 }] } });
+            }
+        }
+        return next(args);
+    });
+
+    // 由實際驗證結果判定是否清除了表情，不替換 delete 敘述。
+    hook('ValidationSanitizeProperties', 10, (args, next) => {
+        const [C, item] = args;
+        const previous = item?.Property?.Expression;
+        const result = next(args);
+        if (engineOn() && C?.IsPlayer?.() && previous != null
+            && item?.Property?.Expression == null && item?.Asset?.Group?.Name) {
+            CharacterSetFacialExpression(C, item.Asset.Group.Name, null);
+        }
+        return result;
+    });
 }
 
 let installed = false;
@@ -682,11 +671,11 @@ export function installExpressions() {
         bind();
         hook('ServerInit', 10, (args, next) => { const r = next(args); bind(); return r; });
 
-        resetExpressionQueue([MANUAL_EVT, GAME_TIMED_EVT]);
+        // 保留剛採樣的表情與 BC 計時器；不可在初始化時清除。
         setInterval(() => { try { customArousalExpression(); } catch (e) { console.warn(LOG, 'expressions:', e); } }, 250);
     })();
 
-    installPatches();
+    installExpressionIntegration();
 
     // 玩家手動改姿勢 → 記成手動覆寫。
     // 少了這段，引擎每 250ms 會把 ActivePose 打回預設的 BaseUpper/BaseLower，姿勢根本改不動。

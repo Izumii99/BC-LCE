@@ -55,7 +55,7 @@ import { injectLoginStyles } from './loginpage/styles.js';
 import { refreshAccounts } from './loginpage/account-carousel.js';
 import { installLoginPage, teardownLoginPage } from './loginpage/index.js';
 import { ensureAddonManagersVisible } from './loginpage/bc.js';
-import { isWceLoaded, isWceFeatureEnabled, shouldLceHandle, WCE_OVERLAPS } from './core/wce-compat.js';
+import { isWceLoaded, isWceFeatureEnabled, shouldLceHandle, waitForWceReady, WCE_OVERLAPS } from './core/wce-compat.js';
 import { normalizeOrigin, getTrustedOrigins, isOriginTrusted, isTrustedOrigin, addTrustedOrigin, removeTrustedOrigin, requestOriginTrust, sessionCustomOrigins } from './features/trusted-domains.js';
 
 const TrustedImageOrigins = Object.freeze({
@@ -106,51 +106,61 @@ if (LCE_ALREADY_LOADED) {
         }
 
         safe('登入頁樣式', injectLoginStyles);
+        // 圖示染色在 ElementButton.Create 當下執行，不能等 WCE 才掛 hook。
+        // 色盤已由第一階段全域設定提供；此處只安裝主題 hook，套用仍在帳號設定載入後。
+        safe('主題引擎', installThemeEngine);
         getCryptoKey().catch(e => console.warn(LOG, '加密系統初始化失敗:', e));
 
         // 功能設定：等帳號就緒 → 載入 → 依序安裝各功能（每步各自 try/catch）。
         // 登入頁的全域設定（lce_settings）不受影響，仍可在未登入時運作。
         loadFeatureSettings()
-            .then(() => {
-                // 順序有意義：themeEngine 必須最先（否則漏染其他步驟建立的 HTML 按鈕）、
-                // applyTheme 必須最後（等所有 sideEffects 套好再統一上色）。中間順序不敏感。
-                const steps = [
-                    ['主題引擎', installThemeEngine],
+            .then(async () => {
+                // 帳號設定就緒即安裝獨立功能。混合模組若所有重疊行為都在執行時
+                // 判斷 WCE，也可立即掛 hook，不能讓整個模組的獨有功能跟著等待。
+                const immediateSteps = [
                     ['主題字型', installThemeFont],
                     ['設定頁', installSettingsPage],
                     ['設定副作用', postFeatureSettings],
-                    ['指令', installCommander],
                     ['行為', installBehaviors],
-                    ['個人檔案', installProfile],
                     ['聊天', installChat],
                     ['安全詞保留權限', installSafeword],
-                    ['聊天嵌入', installChatAugments],
                     ['信息凍結', installChatScrollFreeze],
-                    ['私聊對象自動解除', installWhisperTarget],
-                    ['待送訊息', installPendingMessages],
-                    ['好友上下線', installFriendPresence],
                     ['本地訊息', installLocalMessages],
                     ['歡迎訊息', installWelcome],
                     ['打招呼', installHello],
                     ['徽章', installBadges],
-                    ['歷史檔案', installPastProfiles],
-                    ['即時通訊', installInstantMessenger],
                     ['角色對話', installCharTalk],
-                    ['防亂碼', installAntiGarble],
                     ['慾望', installArousal],
                     ['效能', installPerformance],
-                    ['作弊/反作弊', installCheats],
                     ['雜項', installMisc],
                     ['區域切換', installRegionSwitch],
                     ['隱藏興奮條', installHiddenArousal],
+                    ['直式版面', installVertical],
+                    ['套用主題', applyTheme],
+                ];
+                for (const [label, fn] of immediateSteps) safe(label, fn);
+
+                // 僅共存模組等待；WCE 已就緒立即繼續，否則最多 3 秒。
+                // 等待不是關閉 LCE：各模組仍依 WCE 即時功能開關決定是否接手。
+                await waitForWceReady();
+                const sharedSteps = [
+                    ['指令', installCommander],
+                    ['個人檔案', installProfile],
+                    ['聊天嵌入', installChatAugments],
+                    ['私聊對象自動解除', installWhisperTarget],
+                    ['待送訊息', installPendingMessages],
+                    ['好友上下線', installFriendPresence],
+                    ['歷史檔案', installPastProfiles],
+                    ['即時通訊', installInstantMessenger],
+                    ['防亂碼', installAntiGarble],
+                    ['作弊/反作弊', installCheats],
                     ['衣櫃', installWardrobe],
                     ['圖層隱藏', installLayeringHide],
                     ['自動重連', installRelogin],
                     ['表情引擎', installExpressions],
-                    ['直式版面', installVertical],
-                    ['套用主題', applyTheme],
                 ];
-                for (const [label, fn] of steps) safe(label, fn);
+                for (const [label, fn] of sharedSteps) safe(label, fn);
+                console.log(LOG, '登入後功能初始化完成');
             })
             .catch(e => console.warn(LOG, '功能設定載入失敗（各功能未安裝）:', e));
 

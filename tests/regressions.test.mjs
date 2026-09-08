@@ -2,6 +2,50 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runtime, documentFixture, Element } from './helpers/runtime.mjs';
 
+test('expression integration preserves WCE flag and uses pass-through hooks instead of patches', async () => {
+    const wceFlag = () => true;
+    const patches = [];
+    const hooks = new Map();
+    const rt = runtime({ globals: { bceAnimationEngineEnabled: wceFlag, addEventListener() {}, removeEventListener() {} },
+        mocks: { 'src/modsdk.js': { default: {
+            hookFunction: (name, priority, callback) => { hooks.set(name, callback); return () => {}; },
+            patchFunction: name => patches.push(name),
+        } } } });
+    const expressions = await rt.load('src/features/expressions/index.js');
+    expressions.installExpressions();
+    assert.equal(rt.context.bceAnimationEngineEnabled, wceFlag);
+    assert.deepEqual(patches, []);
+    for (const name of ['TimerInventoryRemove', 'ValidationSanitizeProperties']) {
+        const args = [{ IsPlayer: () => true }, { Property: { Expression: 'Happy' } }];
+        assert.equal(hooks.get(name)(args, received => { assert.equal(received, args); return 42; }), 42);
+    }
+});
+
+test('post-login WCE wait continues immediately, on readiness, or at the 3 second deadline', async () => {
+    for (const readyAt of [0, 750, Infinity]) {
+        let now = 0;
+        const pending = [];
+        const player = {};
+        const rt = runtime({ globals: {
+            Player: player, FBC_VERSION: '6.3.19', fbcSettingValue: () => false,
+            Date: { now: () => now },
+            setTimeout: (callback, delay) => { pending.push({ callback, delay }); return 1; },
+        } });
+        if (readyAt === 0) player.FBC = '6.3.19';
+        const compat = await rt.load('src/core/wce-compat.js');
+        const result = compat.waitForWceReady();
+        while (pending.length) {
+            const { callback, delay } = pending.shift();
+            now += delay;
+            assert.ok(now <= 3000);
+            if (now >= readyAt) player.FBC = '6.3.19';
+            callback();
+        }
+        assert.equal(await result, readyAt !== Infinity);
+        assert.equal(now, Math.min(readyAt, 3000));
+    }
+});
+
 test('cache controls yield dynamically to WCE and cancel a waiting automatic clear', async () => {
     const wce = { manualCacheClear: true, automateCacheClear: true };
     let interval, retry, refreshes = 0;
@@ -615,4 +659,44 @@ test('past profiles can be enabled after initial opt-out and retry a failed data
     settings.setFeature('pastProfiles', false); settings.setFeature('pastProfiles', true);
     await new Promise(resolve => setImmediate(resolve)); assert.equal(opens, 2);
     assert.ok(rt.hooks.has('OnlineProfileRun')); assert.ok(rt.window.Liko.LCE.pastProfiles);
+});
+
+
+ test('standalone expression engine applies the first manual face and subsequent changes', async () => {
+    let tick;
+    const player = { MemberNumber: 1, IsPlayer: () => true,
+        Appearance: ['Eyes', 'Eyes2', 'Mouth'].map(Name => ({ Asset: { Group: { Name, AllowExpression: ['Happy', 'Closed'] } }, Property: {} })),
+        AppearanceLayers: [], ActivePose: ['BaseUpper', 'BaseLower'], ArousalSettings: { Progress: 0 },
+    };
+    const rt = runtime({ globals: { Player: player, CurrentScreen: 'ChatRoom',
+        addEventListener() {}, removeEventListener() {}, setInterval: cb => { tick = cb; return 1; },
+        PoseFemale3DCG: [{ Name: 'BaseUpper', Category: 'BodyUpper' }, { Name: 'BaseLower', Category: 'BodyLower' }], DialogSelfMenuSelected: '', CharacterRefresh() {}, ServerSend() {},
+        ServerAppearanceBundle: x => x, CharacterSetFacialExpression() {},
+    } });
+    const settings = await rt.load('src/core/feature-settings.js');
+    settings.setFeature('animationEngine', true);
+    settings.setFeature('autoArousalExpression', false);
+    const ex = await rt.load('src/features/expressions/index.js'); ex.installExpressions();
+    const change = rt.hooks.get('CharacterSetFacialExpression');
+    for (const value of ['Happy', null, 'Closed']) {
+        change([player, 'Eyes', value], () => { throw Error('unexpected fallback'); });
+        assert.equal(player.Appearance[0].Property.Expression, value);
+        assert.equal(player.Appearance[1].Property.Expression, value);
+        tick();
+        assert.equal(player.Appearance[0].Property.Expression, value);
+    }
+    player.ActivePose.push('UnknownAddonPose');
+    tick(); // Previously looped forever while removing a pose without a category.
+    assert.ok(!player.ActivePose.includes('UnknownAddonPose'));
+    settings.setFeature('activityExpressions', false);
+    player.OnlineSharedSettings = { ItemsAffectExpressions: true };
+    player.ExpressionQueue = [{ Group: 'Eyes', Expression: 'Happy', Time: 0 }];
+    rt.context.CurrentTime = 1;
+    rt.hooks.get('TimerInventoryRemove')([], () => {});
+    tick();
+    assert.equal(player.Appearance[0].Property.Expression, 'Happy');
+    delete player.AppearanceLayers;
+    let forwarded = false;
+    change([player, 'Eyes', null], () => { forwarded = true; });
+    assert.equal(forwarded, true);
 });

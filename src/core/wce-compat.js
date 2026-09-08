@@ -7,6 +7,20 @@ export function isWceLoaded() {
         && typeof globalThis.fbcSettingValue === 'function';
 }
 
+/** 登入後呼叫；WCE 就緒立即繼續，否則最多等待 3 秒。 */
+export function waitForWceReady() {
+    const deadline = Date.now() + 3000;
+    return new Promise(resolve => {
+        function check() {
+            if (isWceLoaded()) return resolve(true);
+            const remaining = deadline - Date.now();
+            if (remaining <= 0) return resolve(false);
+            setTimeout(check, Math.min(50, remaining));
+        }
+        check();
+    });
+}
+
 /**
  * 讀 WCE 記憶體中的即時設定，而不是只讀可能過期的 ExtensionSettings 快照。
  * WCE 不存在、尚未完成啟動、設定不存在或讀取失敗時一律回 false，LCE 不會盲目避讓。
@@ -23,6 +37,7 @@ export function shouldLceHandle(lceKey, wceKey = lceKey) {
 }
 
 export const WCE_OVERLAPS = Object.freeze({
+    animationEngine: 'animationEngine',
     manualCacheClear: 'manualCacheClear',
     automateCacheClear: 'automateCacheClear',
     whisperTargetReset: 'whisperTargetFixes',

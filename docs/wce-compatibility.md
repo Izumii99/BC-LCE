@@ -31,13 +31,21 @@ WCE 對應實作：`functions/cacheClearer.ts`、`chatRoomWhisperFixes.ts`、`fr
 
 部分 LCE 名稱與 WCE 不同：`antiCheatLevelEnabled` 對 `itemAntiCheat`，上／下線通知需組合判斷。不要直接遍歷同名表就假設已避讓。
 
-## 高風險待處理：表情引擎
+## 表情與圖層整合（後續修正）
 
-WCE `automaticExpressions.js` 與 LCE `expressions/index.js` 都有自己的佇列與表情／姿勢 hooks，並 patch `TimerInventoryRemove`、`ValidationSanitizeProperties`。兩者也會寫 `bceAnimationEngineEnabled`；WCE 的事件入口則是 fbcPushEvent，LCE 是 lcePushEvent。
+- 表情計時與驗證已改為 hook，不再 patch `TimerInventoryRemove`、`ValidationSanitizeProperties`。
+- 表情引擎統一查詢 Responsive／WCE 所有權，WCE animationEngine 啟用時 LCE 避讓。
+- 保留 `lceAnimationEngineEnabled`、`lcePushEvent` 公開入口；不覆寫已存在的 `bceAnimationEngineEnabled`。
+- 圖層隱藏與玩家外觀同步仍需兩處 patch；替換字串與本機 WCE 完全一致，共用 `wceServerAppearance` 入口。
+- 修正首次表情事件遭清除、姿勢清理無限迴圈、初始化清除表情及計時事件被活動開關阻擋。
+- 使用者已回報不再出現 patch 警告，表情修正後測試正常；尚不代表所有動態切換與載入順序均已實機驗收。
+- 仍需驗證：WCE 引擎中途關閉後，LCE 接手的臉部／姿勢基準，以及共用旗標對第三方模組的影響。
 
-LCE engineOn 目前避讓 Responsive，沒有避讓 WCE animationEngine。只加一個 boolean gate 不足：全域旗標與已註冊 patch 可能仍指向不同引擎，且交接時尚有佇列與表情狀態。
+## 啟動分流
 
-後續應選定整套引擎所有權，處理旗標、patch、佇列、廣播與動態交接，再測兩種載入順序。未完成前，不建議兩邊同時啟用 animationEngine。本次不改表情列表或引擎執行邏輯。
+登入介面與帳號記憶不避讓 WCE。主題 hook 在 BC 核心就緒時安裝，避免錯過按鈕建立。
+帳號設定載入後先安裝獨立功能與可即時避讓的混合模組，再等待 WCE 就緒（最多 3 秒），安裝其餘共存模組。
+`src/app.js` 的 immediateSteps／sharedSteps 是實際安裝清單；3 秒等待不取代執行時功能判斷或 patch 共存。
 
 ## 非完全相同，不自動關閉
 

@@ -261,19 +261,22 @@ export function installLayeringHide() {
 
     // ── 讓 wceOverrideHide 真的生效：覆蓋 CharacterAppearanceVisible 的遮蔽判斷 ──
     // BC 把 item.Asset.Hide 寫死在函式內，只能用 patch 換成「有 override 就用 override」。
-    // 與 WCE 同一段替換字串；若 WCE 也在（已先替換過），這裡找不到原字串會靜靜失敗，
-    // 交由 WCE 那份處理即可，行為一致。
+    // 與 WCE 使用逐字相同的替換；ModSDK 可共用相同 patch，無關載入順序。
     patch('CharacterAppearanceVisible', {
         'if ((item.Asset.Hide != null) && (item.Asset.Hide.indexOf(GroupName) >= 0) && !Excluded) HidingItem = true;':
-            `const hide = item.Property?.${HIDE_PROP} != null ? item.Property.${HIDE_PROP} : item.Asset.Hide;`
-            + ' if ((hide != null) && (hide.indexOf(GroupName) >= 0) && !Excluded) HidingItem = true;',
+            `
+        const hide = item.Property?.wceOverrideHide != null ? item.Property.wceOverrideHide : item.Asset.Hide;
+        if ((hide != null) && (hide.indexOf(GroupName) >= 0) && !Excluded) HidingItem = true;`,
     }, 'override item hide');
 
-    // ── 送出外觀前把 override 抽出另存（避免寫進 BC 資料庫）──
-    globalThis.lceServerAppearance = stripOverridesForServer;
+    // 相同資料格式共用 WCE 的入口；尚未載入 WCE 時提供等價實作。
+    // WCE 晚載入可替換此入口，不會有兩個不同的 patch 搶同一段原始碼。
+    if (typeof globalThis.wceServerAppearance !== 'function') {
+        globalThis.wceServerAppearance = stripOverridesForServer;
+    }
     patch('ServerPlayerAppearanceSync', {
         'D.Appearance = ServerAppearanceBundle(Player.Appearance);':
-            'D.Appearance = lceServerAppearance(ServerAppearanceBundle(Player.Appearance));',
+            'D.Appearance = wceServerAppearance(ServerAppearanceBundle(Player.Appearance));',
     }, 'strip overrides before DB write');
 
     // ── 載入外觀後把 override 從 ExtensionSettings 貼回 item.Property ──
