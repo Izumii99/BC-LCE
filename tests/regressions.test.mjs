@@ -700,3 +700,55 @@ test('past profiles can be enabled after initial opt-out and retry a failed data
     change([player, 'Eyes', null], () => { forwarded = true; });
     assert.equal(forwarded, true);
 });
+
+test('BIO yields protection, rendering and clicks to WCE and releases prior LCE ownership', async () => {
+    let wce = true;
+    const doc = documentFixture();
+    const ta = doc.createElement('textarea'); ta.id = 'DescriptionInput'; ta.readOnly = false; ta.style.display = 'none'; doc.body.appendChild(ta);
+    const rich = doc.createElement('div'); rich.id = 'bceRichOnlineProfile'; rich.textContent = 'WCE rich content'; doc.body.appendChild(rich);
+    const player = { FBC: '6', IsPlayer: () => true };
+    const rt = runtime({ globals: { document: doc, Player: player, InformationSheetSelection: player,
+        FBC_VERSION: '6', fbcSettingValue: key => key === 'richOnlineProfile' && wce,
+        DrawButton() {}, MouseIn: () => false,
+    } });
+    const settings = await rt.load('src/core/feature-settings.js');
+    settings.setFeature('richOnlineProfile', false); settings.setFeature('profileEditProtect', true);
+    const profile = await rt.load('src/features/social/profile.js'); profile.installProfile();
+    for (const name of ['OnlineProfileLoad', 'OnlineProfileRun', 'OnlineProfileClick']) {
+        assert.equal(rt.hooks.get(name)([], () => { assert.equal(player.IsPlayer(), true); return 42; }), 42);
+        assert.equal(ta.style.display, 'none'); assert.equal(ta.readOnly, false);
+        assert.equal(doc.body.classList.contains('lce-owns-bio'), false);
+    }
+    wce = false; rt.hooks.get('OnlineProfileLoad')([], () => {});
+    assert.equal(ta.readOnly, true);
+    assert.equal(doc.body.classList.contains('lce-owns-bio'), true);
+    wce = true; ta.style.display = 'none';
+    rt.hooks.get('OnlineProfileRun')([], () => { assert.equal(player.IsPlayer(), true); });
+    assert.equal(ta.style.display, 'none'); assert.equal(ta.readOnly, false);
+    assert.equal(doc.body.classList.contains('lce-owns-bio'), false);
+    assert.equal(rich.textContent, 'WCE rich content');
+});
+
+test('BIO edit button and hit area are available only for self', async () => {
+    const doc = documentFixture();
+    const ta = doc.createElement('textarea'); ta.id = 'DescriptionInput'; doc.body.appendChild(ta);
+    const player = { IsPlayer: () => true };
+    let draws = 0, clicks = 0;
+    const rt = runtime({ globals: { document: doc, Player: player, InformationSheetSelection: player,
+        DrawButton: () => draws++, MouseIn: () => true,
+    } });
+    const settings = await rt.load('src/core/feature-settings.js');
+    settings.setFeature('richOnlineProfile', false); settings.setFeature('profileEditProtect', true);
+    const profile = await rt.load('src/features/social/profile.js'); profile.installProfile();
+    rt.hooks.get('OnlineProfileLoad')([], () => {});
+    rt.hooks.get('OnlineProfileRun')([], () => {});
+    rt.hooks.get('OnlineProfileClick')([], () => clicks++);
+    assert.equal(draws, 1); assert.equal(clicks, 0); assert.equal(ta.readOnly, false);
+    assert.equal(player.IsPlayer(), true);
+    rt.hooks.get('OnlineProfileUnload')([], () => {});
+    rt.context.InformationSheetSelection = { IsPlayer: () => false };
+    rt.hooks.get('OnlineProfileLoad')([], () => {});
+    rt.hooks.get('OnlineProfileRun')([], () => {});
+    rt.hooks.get('OnlineProfileClick')([], () => clicks++);
+    assert.equal(draws, 1); assert.equal(clicks, 1); assert.equal(ta.readOnly, true);
+});

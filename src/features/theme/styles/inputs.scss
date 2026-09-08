@@ -25,7 +25,7 @@ input:focus {
 }
 
 /*
- * BIO 檢視使用主題色，編輯保留指定背景。富文本可能由 LCE 或 WCE 建立；
+ * BIO 檢視與編輯使用相同背景、文字色，編輯僅亮起邊框。富文本可能由 LCE 或 WCE 建立；
  * WCE 使用行內樣式，需以 !important 覆蓋。這些規則隨主題關閉一起移除。
  */
 #DescriptionInput {
@@ -48,10 +48,8 @@ input:focus {
 }
 
 #DescriptionInput:not(:read-only) {
-  /* 編輯中：染色，背景用指定的 #6A89A1 */
-  background: #6A89A1;
-  color: var(--lce-text);
-  border: min(0.2vh, 0.1vw) solid var(--lce-accent);
+  border-color: var(--lce-accent);
+  box-shadow: 0 0 4px var(--lce-accent), 0 0 12px var(--lce-accent);
 }
 
 :not(:has(.toast-button)) {

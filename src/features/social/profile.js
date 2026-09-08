@@ -9,25 +9,11 @@ import { createHook } from '../../core/hooks.js';
 //   編輯狀態 = BC 原生輸入框，可編輯
 //
 // ── 與 WCE 並存 ──
-// WCE 也有一模一樣的 BIO 富文本／編輯鈕（同位置、同 hook）。之前的做法是「偵測到 WCE 就整個讓位」，
-// 但那樣一來檢視畫面變成 WCE 那張未染色的羊皮紙、且「同意/取消」會直接離開 BIO ——都不是我們要的。
-// 改成：LCE 一律自己管（畫自己的染色檢視、掌控編輯流程），並用 CSS 把 WCE 的富文本層
-// (#bceRichOnlineProfile) 藏起來。WCE（優先權較低、在 next 內層）誤以為仍在檢視、每幀想把輸入框
-// 藏起來，我們在 next 之後（外層、最後跑）再把它顯示回來蓋過去，編輯就不會被 WCE 搶著關掉。
-//
-// ── 編輯時卷軸拖不動的修法（WCE + LCE 同時開）──
-// WCE 每幀在 OnlineProfileRun 內把 DescriptionInput 設 inline display:none，緊接著
-// resizeRichTextArea() 的 ElementPositionFix 觸發一次 reflow —— 那一瞬間 textarea 被算成
-// display:none，原生卷軸的拖曳（pointer capture）就被取消。光靠我們在 next 之後再顯示回來救不了：
-// 拖曳早在 WCE 那次 hidden-reflow 就被打斷了。
-// 解法：編輯狀態掛 body.lce-bio-editing，用 !important 強制 #DescriptionInput 可見。CSS !important
-// 壓得過 WCE 的 inline display:none，textarea 全程沒真的隱藏過，reflow 不再取消拖曳。WCE 只讀自己
-// 的 originalShown 閉包、不讀 DOM，不會被搞混，其餘功能也不受影響。
+// WCE richOnlineProfile 啟用時，LCE 整套 BIO 行為避讓（含編輯保護與按鈕）。
+// 僅主題 CSS 可染色，不干預 WCE 富文本、輸入框或捲動。
 // ════════════════════════════════════════════════════════════════════════════
 
-import modApi from '../../modsdk.js';
-import { getFeature } from '../../core/feature-settings.js';
-import { shouldLceHandle } from '../../core/wce-compat.js';
+import { isWceFeatureEnabled, shouldLceHandle } from '../../core/wce-compat.js';
 import { createPositionableButton, exposeButton } from '../../core/public-api.js';
 import { T } from '../../core/i18n.js';
 import { positionElement, injectStyle } from '../../core/util.js';
@@ -46,17 +32,24 @@ const {
 const SAVE_BTN = [1720, 60, 90, 90];     // BC 的「接受並儲存」鈕
 const CANCEL_BTN = [1820, 60, 90, 90];   // BC 的「取消/離開」鈕
 
+let ownsBio = false;
 let editing = false;                     // false = 檢視/保護中
 
 const hook = createHook('profile');
 
 const richOn = () => shouldLceHandle('richOnlineProfile');
-const protectOn = () => !!getFeature('profileEditProtect');
+const protectOn = () => shouldLceHandle('profileEditProtect', 'richOnlineProfile');
 const anyOn = () => richOn() || protectOn();
+// 必須在 fakeViewButtons 暫時覆寫 IsPlayer 之前取得結果。
+const editButtonEnabled = () => {
+    const target = globalThis.InformationSheetSelection;
+    return anyOn() && !!target && (target === globalThis.Player || target.IsPlayer?.() === true);
+};
 
 /** LCE 是否正在管 BIO：掛/卸 body class，讓 CSS 藏掉 WCE 的富文本層。 */
 function setOwns(on) {
-    document.body?.classList.toggle(LCE_OWNS_CLASS, !!on);
+    ownsBio = !!on;
+    document.body?.classList.toggle(LCE_OWNS_CLASS, ownsBio);
 }
 
 /** 編輯狀態：掛/卸 body class，讓 !important 樣式強制 textarea 可見（擋 WCE 每幀的 display:none）。 */
@@ -66,7 +59,7 @@ function setEditingClass(on) {
 
 // ───────────────────────── 唯讀輸入框（保護） ─────────────────────────
 // 只切換 readOnly，不再改 opacity —— 外觀由主題 CSS 依 :read-only 決定：
-// 檢視（唯讀）使用主題色，編輯（可輸入）背景為 #6A89A1（見 styles/inputs.scss）。
+// 檢視與編輯維持相同底色與文字，編輯僅亮起霓虹邊框（見 styles/inputs.scss）。
 function setReadOnly(on) {
     const ta = document.getElementById(TA_ID);
     if (!ta) return;
@@ -77,7 +70,7 @@ function setReadOnly(on) {
 // BC 在「編輯自己的檔案」時於 (1720,60) 畫「接受並儲存」鈕。保護／檢視狀態下不該出現它 ——
 // 把 IsPlayer / IsFullyOwnedByPlayer 在 BC 繪製/點擊當下暫時當成 false，BC 就改畫「檢視他人檔案」
 // 的版面（只剩離開鈕，沒有儲存/取消鈕）。編輯狀態不動、儲存鈕照常出現。
-// 這段依「輸入框是否可編輯」判斷，與是誰在管理無關 —— WCE 也在時一樣有效。
+// 僅在 LCE 管理 BIO 時執行；WCE 接管時整個 hook 放行。
 
 /** BIO 目前是否處於可編輯狀態（輸入框可見且非唯讀）。 */
 function bioEditing() {
@@ -158,11 +151,20 @@ function enterEditMode() {
 }
 
 function cleanup() {
+    if (!ownsBio) return;
     editing = false;
     setOwns(false);
     setEditingClass(false);
-    disableRich();
+    document.getElementById(RICH_ID)?.remove();
+    // 交給 WCE 時不改 display，避免打斷其捲動；只解除 LCE 的唯讀狀態。
+    if (!isWceFeatureEnabled('richOnlineProfile')) showTextArea(true);
     setReadOnly(false);
+}
+
+function syncOwnership() {
+    if (!anyOn()) { cleanup(); return false; }
+    if (!ownsBio) enterViewMode();
+    return true;
 }
 
 // ───────────────────────── 儲存／取消（不離開 BIO 畫面）─────────────────────────
@@ -208,7 +210,7 @@ let installed = false;
 export function installProfile() {
     if (installed) return;
     installed = true;
-    exposeButton('EditProfile', { ...editProfileButtonApi, isEnabled: anyOn });
+    exposeButton('EditProfile', { ...editProfileButtonApi, isEnabled: editButtonEnabled });
 
     // LCE 管 BIO 時藏掉 WCE 的富文本層（用 !important 蓋過它的 inline 樣式），只留我們自己那張染色檢視。
     // 編輯狀態則反過來強制 textarea 可見，壓過 WCE 每幀的 inline display:none（見頂部「卷軸拖不動」說明）。
@@ -218,23 +220,23 @@ export function installProfile() {
 
     hook('OnlineProfileLoad', 10, (args, next) => {
         const ret = next(args);
-        try { if (anyOn()) enterViewMode(); } catch (e) { console.warn('🐈‍⬛ [LCE]', e); }
+        try { if (anyOn()) enterViewMode(); else cleanup(); } catch (e) { console.warn('🐈‍⬛ [LCE]', e); }
         return ret;
     });
 
     hook('OnlineProfileRun', 10, (args, next) => {
-        // 隱藏儲存鈕（檢視狀態）——獨立於下方管理，即使 WCE 也在也生效
+        if (!syncOwnership()) return next(args);
+        const buttonEnabled = editButtonEnabled();
         const faked = fakeViewButtons();
         try {
-            if (!anyOn()) return next(args);
-            if (!isEditProfileButtonHidden() && !isEditProfileButtonVisualHidden()) {
+            if (buttonEnabled && !isEditProfileButtonHidden() && !isEditProfileButtonVisualHidden()) {
                 DrawButton(...getEditProfileButtonPosition(), '', 'White', 'Icons/Crafting.png', T(editing ? 'profile_edit_on' : 'profile_edit_off'));
             }
             const ret = next(args);
-            // BC/WCE 每幀可能重建或藏起元素，這裡（最外層、最後跑）把狀態蓋回來：
+            // 在原生繪製後維持 LCE 的檢視／編輯狀態：
             try {
                 if (editing) {
-                    // WCE 誤以為仍在檢視、會把輸入框藏起來 —— 強制顯示、可編輯，蓋過它
+                    // LCE 編輯狀態保持輸入框可見、可編輯。
                     showTextArea(true); setReadOnly(false);
                 } else if (richOn()) {
                     showTextArea(false); resizeRich();
@@ -247,11 +249,12 @@ export function installProfile() {
     });
 
     hook('OnlineProfileClick', 10, (args, next) => {
+        if (!syncOwnership()) return next(args);
+        const buttonEnabled = editButtonEnabled();
         const faked = fakeViewButtons();
         try {
-            if (!anyOn()) return next(args);
             // 編輯鈕：切換編輯／檢視
-            if (!isEditProfileButtonHidden() && MouseIn(...getEditProfileButtonPosition())) {
+            if (buttonEnabled && !isEditProfileButtonHidden() && MouseIn(...getEditProfileButtonPosition())) {
                 if (editing) enterViewMode(); else enterEditMode();
                 return true;
             }
