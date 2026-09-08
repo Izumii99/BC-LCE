@@ -27,9 +27,17 @@ const LOG = '🐈‍⬛ [LCE]';
 const NOTE_ID = 'lceNoteInput';
 const STYLE_ID = 'lce-notes-style';
 
-// 與 WCE 一致（勿更動，否則資料不互通）
+// 與 WCE 共用的固定相容版本。未經使用者明確指定，不得調高版本。
+// 新功能若需要新增 store/index 或其他 schema 變更，必須先討論；
+// 推送較高資料庫版本會使仍指定舊版本的其他插件遇到 VersionError。
+// v31 沿用 WCE 刪除舊索引的 schema；不是新增個資或備註欄位。
 const DB_NAME = 'bce-past-profiles';
 const DB_VER = 31;
+
+// 模組載入時即公開，與 pastProfiles 功能是否啟用無關。
+// version 是指定的相容版本，不是現存資料庫版本或自動升版授權。
+// 查詢此 API 不會開啟或建立資料庫。
+LCE_API.profileDatabase = Object.freeze({ name: DB_NAME, version: DB_VER });
 
 // ── WCE Profile Share（WPS）互通協定 ──
 // 移植自 Liko - WPS 外掛：把個資切塊後用隱藏聊天訊息傳給房內其他人，對方能一鍵開啟並存下。
