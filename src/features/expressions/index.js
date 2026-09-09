@@ -1,4 +1,5 @@
 import { isWceFeatureEnabled } from '../../core/wce-compat.js';
+import { hscExpressionGroups } from '../../core/hsc-compat.js';
 import { resolvePoseConflicts } from './calculations.js';
 import { activeStepIndex, isEventActive } from './calculations.js';
 import { prepareExpressionEvent } from './calculations.js';
@@ -88,6 +89,8 @@ const DIR = { None: 0, Down: 1, Up: 2 };
 
 const queue = [];
 const manualComponents = {};
+// If installed during hypnosis, the visible face is not the underlying baseline.
+const pendingHscBaseline = new Set();
 // broadcast[t] = 引擎「上一次真的送給伺服器」的表情值（見 customArousalExpression 末尾的對外校正）。
 // 用來偵測「本地被引擎以外的路徑改掉、但沒補送」造成的 self/others 表情不同步。
 const broadcast = {};
@@ -210,6 +213,10 @@ export function pushEvent(evt) {
     }
 
     const event = prepareExpressionEvent(evt, Date.now(), newUniqueId);
+    // Hypnosis owns these groups until its own effect stack releases them.
+    // Filter after eye expansion; never replay suppressed events after hypnosis ends.
+    for (const group of hscExpressionGroups()) delete event.Expression?.[group];
+    if (!Object.keys(event.Expression || {}).length && !event.Poses?.length) return;
     queue.push(event);
 }
 
@@ -302,11 +309,19 @@ function customArousalExpression() {
     if (!PreviousArousal) PreviousArousal = { ...Player.ArousalSettings };
 
     const faceParts = faceComponents();
+    const protectedGroups = hscExpressionGroups();
+    for (const group of pendingHscBaseline) {
+        if (protectedGroups.has(group)) continue;
+        pushEvent({ Type: MANUAL_EVT, Duration: -1,
+            Expression: { [group]: [{ Expression: expression(group)[0], Duration: -1 }] } });
+        pendingHscBaseline.delete(group);
+    }
 
     // 我們自己管理計時，清掉 BC 的移除計時器。
     // 只碰內建部位：模組新增的表情群組由該模組自己維護，它的計時器不歸我們管。
     Player.Appearance
-        .filter(a => BASE_FACE_COMPONENTS.includes(a.Asset.Group.Name) && a.Property?.RemoveTimer)
+        .filter(a => BASE_FACE_COMPONENTS.includes(a.Asset.Group.Name)
+            && !protectedGroups.has(a.Asset.Group.Name) && a.Property?.RemoveTimer)
         .forEach(a => { delete a.Property.RemoveTimer; });
 
     Player.ArousalSettings.AffectExpression = false;   // 取代 BC 原生的慾望表情
@@ -463,6 +478,7 @@ function customArousalExpression() {
     // 慾望 → 表情分級
     outer:
     for (const t of Object.keys(ArousalExpressionStages)) {
+        if (protectedGroups.has(t)) continue;
         const [exp] = expression(t);
         let chosen = null, chose = false;
         for (const face of ArousalExpressionStages[t]) {
@@ -478,6 +494,7 @@ function customArousalExpression() {
     }
 
     for (const t of faceParts) {
+        if (protectedGroups.has(t)) continue;
         // 內建部位一律由引擎作主：佇列沒東西就代表「該回到無表情」，強制歸零。
         // 模組新增的群組不能這樣對待 —— 它們由該模組自己維護（「服装拓展」是在自己的
         // 鉤子裡寫 Property，不經過我們的佇列）。若比照內建部位歸零，引擎每 250ms
@@ -532,6 +549,7 @@ function customArousalExpression() {
     // 只認 BASE_FACE_COMPONENTS：模組新增的群組（如服装拓展的 左眼_Luzi）由該模組自行同步
     // （見 bceAnimationEngineEnabled 那段），我們不越界代送以免打架。
     for (const t of BASE_FACE_COMPONENTS) {
+        if (protectedGroups.has(t)) continue;
         const cur = expression(t)[0];
         if (!(t in broadcast)) { broadcast[t] = cur; continue; }   // 首見僅記錄，不送（避免開場亂送）
         if (broadcast[t] === cur) continue;
@@ -649,6 +667,7 @@ export function installExpressions() {
         PreviousArousal = { ...Player.ArousalSettings };
 
         // 初始化時把目前臉部記成手動覆寫，避免一開場就被自動表情蓋掉
+        for (const group of hscExpressionGroups()) pendingHscBaseline.add(group);
         pushEvent({
             Type: MANUAL_EVT, Duration: -1,
             Expression: faceComponents()
@@ -728,10 +747,13 @@ export function installExpressions() {
         //   也收到 "Eyes2"；但 notifyMods（WCE 沒有、LCE 後加）在套用後會走完整鉤子鏈重發，
         //   BC 本體的 Eyes→Eyes2 遞迴會在其中觸發，右眼照樣收得到 —— 補遞迴已多餘，只剩害處。
         const types = AssetGroup === 'Eyes' ? ['Eyes', 'Eyes2'] : AssetGroup === 'Eyes1' ? ['Eyes'] : [AssetGroup];
+        const protectedGroups = hscExpressionGroups();
         for (const t of types) {
+            if (protectedGroups.has(t)) continue;
             e[t] = [{ Expression, Duration: duration, Color }];
             if (duration < 0) manualComponents[t] = Expression;
         }
+        if (!Object.keys(e).length) return;
         pushEvent({ Type: MANUAL_EVT, Duration: duration, Expression: e });
         return customArousalExpression();
     });
