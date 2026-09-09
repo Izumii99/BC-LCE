@@ -1,4 +1,6 @@
 {
+  "s_staggerCharacterBuild": "Stagger room character rebuilds (experimental)",
+  "sd_staggerCharacterBuild": "Spreads subsequent rebuilds of other room characters over time. Pose and outfit updates remain live but may be delayed. Does not limit initial loads or image downloads, or guarantee protection from memory exhaustion.",
   "welcome": "Добро пожаловать в Bondage Club",
   "enter_hint": "Введите аккаунт и пароль",
   "label_account": "Аккаунт",

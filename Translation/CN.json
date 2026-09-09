@@ -1,4 +1,6 @@
 {
+  "s_staggerCharacterBuild": "多人角色重绘分流（实验）",
+  "sd_staggerCharacterBuild": "将聊天室其他人物的后续重绘分散至不同时间，保留姿势与换装更新，但可能稍有延迟。不限制首次加载或图片下载，无法保证避免内存不足。",
   "welcome": "欢迎来到束缚俱乐部",
   "enter_hint": "请输入账号与密码",
   "label_account": "账号",

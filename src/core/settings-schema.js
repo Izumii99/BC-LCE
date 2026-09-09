@@ -490,6 +490,11 @@ export const DEFAULT_FEATURE_SETTINGS = {
         category: 'performance', withToggle: true, toggleDefault: false,
         disabled: () => false, sideEffects: logChange('textureQuality'),
     },
+    staggerCharacterBuild: {
+        label: 's_staggerCharacterBuild', desc: 'sd_staggerCharacterBuild',
+        type: 'checkbox', value: false, category: 'performance', disabled: () => false,
+        sideEffects: logChange('staggerCharacterBuild'),
+    },
     // 同上：舊版 lowFrameRate 是布林（固定 30fps），改名成可調上限。
     lowFrameRateFps: {
         label: 's_lowFrameRateFps', desc: 'sd_lowFrameRateFps',
