@@ -15,9 +15,8 @@ import { getFeature } from '../../core/feature-settings.js';
 import { isPortrait } from '../../core/util.js';
 import { SETTING_CHANGED_EVENT } from '../../core/constants.js';
 import {
-    crApply, crRemove, crMaintain, isCrActive, isFakeInputVisible,
-    drApply, drRemove, drMaintain, drMoveDomElements, isDrActive,
-    injectChatRoomStyles, removeChatRoomStyles,
+    crApply, crRemove, crMaintain, crUpdateViewport, isCrActive, isKeyboardLayoutLocked, getDialogRect,
+    drApply, drRemove, drMaintain, isDrActive,
 } from './chatroom.js';
 import {
     csApply, csRemove, buildCsBg, isCsActive,
@@ -30,8 +29,18 @@ const registerHook = createHook('vertical');
 let scope = null;
 function hook(name, priority, fn) { scope.add(registerHook(name, priority, fn)); }
 
-const wantCr = () => isPortrait() && getFeature('verticalChatRoom');
+const wantCr = () => (isPortrait() || isKeyboardLayoutLocked()) && getFeature('verticalChatRoom');
 const wantCsh = () => isPortrait() && getFeature('verticalChatSearch');
+
+export const Vertical = Object.freeze({
+    getState: () => ({
+        version: 1,
+        active: isCrActive() || isDrActive() || isCsActive() || isCshActive(),
+        mode: isDrActive() ? 'dialog' : isCrActive() ? 'chatroom' : isCshActive() ? 'search' : isCsActive() ? 'select' : null,
+        dialogRect: isDrActive() ? getDialogRect() : null,
+        keyboardLocked: isKeyboardLayoutLocked(),
+    }),
+});
 
 /** 關掉所有直式模組（轉橫向、關設定、離開相關畫面時）。 */
 function removeAll() {
@@ -76,10 +85,8 @@ function checkScene() {
 
 function handleResize() {
     if (!installed) return;
-    // 假輸入框開著時不重算：手機鍵盤彈出會觸發 resize，重算會把版面弄爛
-    if (isFakeInputVisible()) return;
     if (isCrActive()) { if (!wantCr()) crRemove(); else crMaintain(); }
-    if (isDrActive()) { if (!wantCr()) drRemove(); else { drMaintain(); drMoveDomElements(); } }
+    if (isDrActive()) { drRemove(); if (wantCr()) drApply(); }
     if (isCsActive()) { csRemove(); if (wantCsh()) csApply(); }
     if (isCshActive()) { if (!wantCsh()) cshRemove(); else renderCshList(false); }
 }
@@ -91,12 +98,13 @@ export function installVertical() {
     installed = true;
     scope = createScope();
 
-    injectChatRoomStyles();
-
     // 註：新版 BC 已移除 ChatRoomTopMenuPosition（頂部選單改為 #chat-room-div 內的
     // flex 子元素、由 CSS 排版），不再有「單獨定位頂部選單」的函式可攔。重新套用直式
     // 版面的責任由下面的 ChatRoomResize hook 與 resize 監聽器承擔。
-    hook('ChatRoomResize', 0, (args, next) => { const r = next(args); crMaintain(); return r; });
+    hook('ChatRoomResize', 0, (args, next) => {
+        if (isKeyboardLayoutLocked()) { crUpdateViewport(); return; }
+        const r = next(args); crMaintain(); return r;
+    });
     hook('ChatRoomLeave', 0, (args, next) => { crRemove(); return next(args); });
 
     hook('DialogLoad', 0, (args, next) => {
@@ -133,14 +141,19 @@ export function installVertical() {
         return r;
     });
 
+    // Capture before ordinary resize listeners: keyboard animation must not trigger
+    // the game's whole-canvas resize on every intermediate viewport size.
+    scope.listen(window, 'resize', e => {
+        if (!isKeyboardLayoutLocked()) return;
+        e.stopImmediatePropagation();
+        crUpdateViewport();
+    }, true);
     scope.listen(window, 'resize', handleResize);
     scope.listen(window, 'orientationchange', () => scope.timeout(handleResize, 100));
 
-    // 鍵盤彈出時 visualViewport 會縮小，假輸入框覆蓋層要跟著縮才不會被推走
-    scope.listen(window.visualViewport, 'resize', () => {
-        const overlay = document.getElementById('lce-cr-fake-input-overlay');
-        if (overlay) overlay.style.height = window.visualViewport.height + 'px';
-    });
+    // 鍵盤改變 visual viewport 時只搬動原生輸入列，不重算人物區基準高度。
+    scope.listen(window.visualViewport, 'resize', crUpdateViewport);
+    scope.listen(window.visualViewport, 'scroll', crUpdateViewport);
 
     // 設定被關掉時立刻還原，不用等使用者轉螢幕
     scope.listen(window, SETTING_CHANGED_EVENT, (e) => {
@@ -156,5 +169,4 @@ export function uninstallVertical() {
     scope?.dispose();
     scope = null;
     removeAll();
-    removeChatRoomStyles();
 }

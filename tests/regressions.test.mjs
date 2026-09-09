@@ -547,7 +547,8 @@ test('vertical uninstall removes hooks, events and delayed work, and supports re
     }, mocks: {
         'src/features/vertical/chatroom.js': {
             crApply: () => { active = true; applied++; }, crRemove: () => { active = false; },
-            crMaintain: noop, isCrActive: () => active, isFakeInputVisible: () => false,
+            crMaintain: noop, crUpdateViewport: noop, isCrActive: () => active,
+            isKeyboardLayoutLocked: () => false, getDialogRect: () => null,
             drApply: noop, drRemove: noop, drMaintain: noop, drMoveDomElements: noop, isDrActive: () => false,
             injectChatRoomStyles: noop, removeChatRoomStyles: noop,
         },
@@ -565,6 +566,69 @@ test('vertical uninstall removes hooks, events and delayed work, and supports re
     vertical.uninstallVertical(); assert.equal(active, false); assert.equal(rt.hooks.size, 0); assert.equal(callbacks.size, 0);
     rt.window.dispatchEvent({ type: 'resize' }); assert.equal(applied, 1);
     vertical.installVertical(); rt.hooks.get('DrawProcess')([], noop); assert.equal(applied, 2);
+});
+
+test('vertical chat canvas keeps the 1000 by 1000 character area square on tall and short portraits', async () => {
+    for (const [width, canvasHeight] of [[400, 450], [500, 350]]) {
+        const rt = runtime();
+        rt.window.innerWidth = width;
+        const canvas = rt.document.createElement('canvas'); canvas.id = 'MainCanvas'; rt.document.body.append(canvas);
+        const { forceCanvasStyle, clearCanvasStyle } = await rt.load('src/features/vertical/common.js');
+        forceCanvasStyle(canvasHeight, true);
+        assert.equal(Number.parseFloat(canvas.style.width) / 2, Number.parseFloat(canvas.style.height));
+        assert.ok(Number.parseFloat(canvas.style.height) <= canvasHeight);
+        assert.ok(Number.parseFloat(canvas.style.height) <= width);
+        assert.equal(canvas.style['clip-path'], 'inset(0 50% 0 0)');
+        clearCanvasStyle();
+    }
+});
+
+test('vertical dialog bounds stay square on both portrait aspect ratios', async () => {
+    const rt = runtime();
+    const room = await rt.load('src/features/vertical/chatroom.js');
+    for (const [w, h] of [[400, 900], [500, 700]]) {
+        rt.window.innerWidth = w; rt.window.innerHeight = h;
+        const d = room.getDialogRect();
+        assert.equal(d.width, d.height);
+        assert.ok(d.left >= 0 && d.left + d.width <= w);
+        assert.ok(d.top >= h / 2 && d.top + d.height <= h);
+    }
+});
+
+test('vertical chat resizes one flex container while keyboard leaves canvas unchanged', async () => {
+    const rt = runtime();
+    rt.window.innerWidth = 400; rt.window.innerHeight = 800;
+    rt.window.visualViewport.height = 800; rt.window.visualViewport.offsetTop = 0;
+    const canvas = rt.document.createElement('canvas'); canvas.id = 'MainCanvas';
+    const chat = rt.document.createElement('div'); chat.id = 'chat-room-div';
+    const menu = rt.document.createElement('div'); menu.id = 'chat-room-top-menu';
+    const log = rt.document.createElement('div'); log.id = 'TextAreaChatLog';
+    const bot = rt.document.createElement('div'); bot.id = 'chat-room-bot';
+    const input = rt.document.createElement('textarea'); input.id = 'InputChat';
+    bot.append(input); chat.append(menu, log, bot); rt.document.body.append(canvas, chat);
+
+    const room = await rt.load('src/features/vertical/chatroom.js');
+    room.crApply(); room.crMaintain();
+    const style = rt.document.documentElement.style;
+    assert.equal(style['--lce-cr-top'], '400px');
+    assert.equal(style['--lce-cr-menu-h'], '32px');
+    assert.equal(style['--lce-cr-height'], '400px');
+
+    rt.document.dispatchEvent({ type: 'focusin', target: input });
+    rt.window.visualViewport.height = 600;
+    room.crUpdateViewport();
+    assert.equal(style['--lce-cr-top'], '400px');
+    assert.equal(style['--lce-cr-height'], '200px');
+    assert.equal(canvas.style.height, '400px');
+    rt.window.visualViewport.height = 300;
+    room.crMaintain();
+    assert.equal(style['--lce-cr-top'], '204px');
+    assert.equal(style['--lce-cr-height'], '96px');
+    assert.equal(canvas.style.height, '400px');
+    assert.equal(room.isKeyboardLayoutLocked(), true);
+    room.crRemove();
+    assert.equal(style['--lce-cr-top'], undefined);
+    assert.equal(rt.document.listeners.get('focusin').size, 0);
 });
 
 test('an old uploaded wallpaper read cannot replace a newer URL or allocate a stale object URL', async () => {

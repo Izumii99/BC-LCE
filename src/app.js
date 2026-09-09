@@ -50,7 +50,7 @@ import {
     getExpressionQueue, getExpressionHookOrder, faceComponents,
 } from './features/expressions/index.js';
 import { ArousalExpressionStages, EventExpressions, ActivityTriggers } from './features/expressions/data.js';
-import { installVertical } from './features/vertical/index.js';
+import { installVertical, Vertical } from './features/vertical/index.js';
 import { injectLoginStyles } from './loginpage/styles.js';
 import { refreshAccounts } from './loginpage/account-carousel.js';
 import { installLoginPage, teardownLoginPage } from './loginpage/index.js';
@@ -166,6 +166,7 @@ if (LCE_ALREADY_LOADED) {
 
         // 公開 API（供其他插件或 console 使用）
         Object.assign(window.Liko.LCE, {
+            Vertical,
             version:         MOD_VER,
             refreshI18n,
             reloadSettings,

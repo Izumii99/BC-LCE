@@ -14,7 +14,8 @@ export function isPortrait() { return window.innerWidth < window.innerHeight; }
  * 直式版面靠這個值算高度才不會被鍵盤推爆。
  */
 export function getLockedVH() {
-    return window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    const visualHeight = window.visualViewport?.height;
+    return Number.isFinite(visualHeight) && visualHeight > 0 ? visualHeight : window.innerHeight;
 }
 
 /** @returns {HTMLCanvasElement|null} 主 canvas 元素 */

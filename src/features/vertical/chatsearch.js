@@ -234,8 +234,10 @@ function findChatSearchButton(...keywords) {
 
 function cshStyles() {
     return `
+        #lce-csh-shell input { user-select:text; -webkit-user-select:text; }
         html, body { overflow-x:hidden !important }
         #lce-csh-shell {
+            user-select:none; -webkit-user-select:none;
             position:fixed; inset:0; z-index:50;
             display:flex; flex-direction:column;
             background:var(--lce-background, #0a0a14); overflow:hidden;
@@ -692,9 +694,16 @@ export function renderCshList(resetPage = false) {
 function cshBindSwipe(list) {
     if (!list || list._lceSwipeBound) return;
     list._lceSwipeBound = true;
+    let suppressClick = false;
+    list.addEventListener('click', e => {
+        if (!suppressClick && !cshAnimating) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+    }, true);
 
     list.addEventListener('pointerdown', (e) => {
         if (cshAnimating) return;
+        suppressClick = false;
         cshDrag = { startX: e.clientX, dx: 0, dragging: true };
     });
 
@@ -704,6 +713,7 @@ function cshBindSwipe(list) {
         if (!track) return;
 
         let dx = e.clientX - cshDrag.startX;
+        if (Math.abs(dx) > 10) suppressClick = true;
         const perPage = Math.max(1, calcCshPerPage());
         const totalPages = Math.max(1, Math.ceil(cshRoomsCache.length / perPage));
         if ((dx > 0 && cshPage <= 1) || (dx < 0 && cshPage >= totalPages)) dx *= 0.22;
@@ -713,13 +723,18 @@ function cshBindSwipe(list) {
         track.style.transform = `translateX(${dx}px)`;
     }, { passive: true });
 
-    const endDrag = () => {
+    const endDrag = (e) => {
         if (!cshDrag?.dragging) return;
         const track = document.getElementById('lce-csh-shell')?._track;
         if (!track) return;
 
         const dx = cshDrag.dx;
         cshDrag = null;
+        if (e.type === 'pointercancel') {
+            suppressClick = true;
+            track.style.transform = 'translateX(0)';
+            return;
+        }
 
         const perPage = Math.max(1, calcCshPerPage());
         const totalPages = Math.max(1, Math.ceil(cshRoomsCache.length / perPage));
