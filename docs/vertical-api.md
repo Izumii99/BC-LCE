@@ -1,5 +1,19 @@
 # LCE vertical layout API (v1)
 
+## AEE panel mapping
+
+LCE now calls `window.Liko?.AEE?.ColorPickerLayout.setMapping(bounds)` after
+moving the native dialog DOM. The API exposes `version: 1`. Bounds contain
+`left`, `width`, `headingTop`, `top`, and `bottom`, all in CSS viewport pixels.
+Horizontal bounds come from the mapped `color-picker-header`; the panel starts
+below the menu and heading. AEE fits its existing interactive panel into these
+bounds and docks it to their right edge. Passing `null` restores native AEE
+placement. LCE clears the mapping on dialog exit or picker disappearance.
+
+Both plugins must support this API for panel mapping.
+
+## Layout state
+
 Read current state on each layout update; do not cache it across screen changes.
 
 ```js
@@ -14,13 +28,6 @@ if (state?.mode === 'dialog' && state.dialogRect) {
 Fields: `version: 1`, `active: boolean`, `mode: 'chatroom' | 'dialog' | 'search' | 'select' | null`,
 `dialogRect: { left, top, width, height, scale } | null`, `keyboardLocked: boolean`.
 Optional chaining supports old LCE versions and either plugin load order.
-
-AEE integration location: `src/components/color-picker/ColorPickerPanel.tsx`.
-Its current `defaultLeft = canvasRect.left + canvasRect.width * 0.65` places the
-picker outside the visible left half of LCE's canvas. In dialog mode use
-`dialogRect.left/top/width` for picker placement and available width instead of
-the full canvas rectangle. Clamp saved picker coordinates to that region and
-allow scrolling when the panel is taller than `dialogRect.height`.
 
 The API describes active LCE room/search layouts, not the login layout. No
 change event is emitted; read it during the consumer's existing layout updates.

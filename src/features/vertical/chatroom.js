@@ -230,6 +230,30 @@ const DIALOG_SEL = '.dialog-root, #color-picker, #layering';
 // 疊加，畫面會漂移抖動。
 const drMovedElements = new WeakMap();
 
+// AEE owns its React DOM; LCE owns the source-to-destination layout mapping.
+// Pass the native header's mapped horizontal bounds, never the full canvas width.
+let mappedPickerApi = null;
+function drMapColorPicker() {
+    const api = window.Liko?.AEE?.ColorPickerLayout;
+    if (mappedPickerApi && mappedPickerApi !== api) mappedPickerApi.setMapping(null);
+    mappedPickerApi = api?.version === 1 ? api : null;
+    if (!mappedPickerApi) return;
+    const header = document.getElementById('color-picker-header');
+    const menu = document.getElementById('color-picker-menu');
+    if (!drActive || !header || !menu) { mappedPickerApi.setMapping(null); return; }
+    const area = getDialogRect();
+    const h = header.getBoundingClientRect();
+    const m = menu.getBoundingClientRect();
+    const heading = document.getElementById('color-picker-hgroup')
+        || document.getElementById('color-picker-h1')?.closest('hgroup');
+    const left = Math.max(0, h.width > 0 ? h.left : area.left);
+    const right = Math.min(window.innerWidth, h.width > 0 ? h.right : area.left + area.width);
+    const headingTop = Math.max(area.top, m.bottom) + 4;
+    mappedPickerApi.setMapping({left, width: right - left, headingTop,
+        top: headingTop + (heading?.getBoundingClientRect().height || 30) + 4,
+        bottom: window.innerHeight});
+}
+
 /** 每幀把 dialog 頂層容器搬到下半螢幕（只動頂層，子元素相對定位不變）。 */
 export function drMoveDomElements() {
     if (!drActive) return;
@@ -251,6 +275,7 @@ export function drMoveDomElements() {
         if (el.classList.contains('dialog-root')) el.style.setProperty('width', getDialogRect().width + 'px', 'important');
         drMovedElements.set(el, { lastSetLeft: newLeft, lastSetTop: newTop });
     });
+    drMapColorPicker();
 }
 
 /** 建立 mirror canvas，持續把主 canvas 右半複製到下半螢幕（每 2 幀一次，30fps 夠用）。 */
@@ -332,6 +357,8 @@ export function drApply() {
 export function drRemove() {
     if (!drActive) return;
     drActive = false;
+    mappedPickerApi?.setMapping(null);
+    mappedPickerApi = null;
 
     if (drMirrorRAF) { cancelAnimationFrame(drMirrorRAF); drMirrorRAF = null; }
     document.getElementById('lce-dr-mirror')?.remove();
