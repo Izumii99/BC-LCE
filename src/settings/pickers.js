@@ -1,13 +1,13 @@
-import { fSettings, setFeature, saveFeatureSettings } from '../core/feature-settings.js';
+import { fSettings, setFeature } from '../core/feature-settings.js';
 import { DEFAULT_FEATURE_SETTINGS } from '../core/settings-schema.js';
-import { gameLanguages } from '../game/language.js';
+import { currentGameLanguage, gameLanguages, switchGameLanguage } from '../game/language.js';
 import { T } from '../core/i18n.js';
 import { listSystemFonts } from '../features/theme/theme-font.js';
 
-export function langLabel(code) {
-    const { codes, labels } = gameLanguages();
+export function langFlag(code) {
+    const { codes, icons } = gameLanguages();
     const i = codes.indexOf(code);
-    return i >= 0 ? labels[i] : String(code ?? '');
+    return i >= 0 ? icons[i] : '🌐';
 }
 
 let langPickerOpen = false;
@@ -16,54 +16,50 @@ let langPickerOpen = false;
  * 開出「遊戲語言」下拉清單（canvas 設定頁上的 HTML 覆蓋層，與字型/調色器同一套做法）。
  * 直接點選要的語言即可，不必用 ◀▶ 一個個繞。語言清單取自 BC 的 TranslationDictionary。
  */
-export function openLanguagePicker(key, def) {
+export function openLanguageDropdown(anchor = { right: 1805, y: 165, width: 320 }) {
     if (langPickerOpen) return;
     langPickerOpen = true;
 
-    const backdrop = document.createElement('div');
-    backdrop.id = 'lce-langpicker-backdrop';
-    Object.assign(backdrop.style, {
-        position: 'fixed', inset: '0', background: 'rgba(0,0,0,0.5)', zIndex: '10000',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-    });
-
-    const panel = document.createElement('div');
-    Object.assign(panel.style, {
-        width: 'min(420px,90vw)', maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+    const listWrap = document.createElement('div');
+    listWrap.id = 'lce-langpicker-dropdown';
+    Object.assign(listWrap.style, {
+        position: 'fixed', zIndex: '10000', boxSizing: 'border-box', width: `${anchor.width}px`, maxHeight: '55vh',
+        overflowY: 'auto', overflowX: 'hidden', padding: '8px',
         background: 'var(--lce-main,#222)', color: 'var(--lce-text,#eee)',
         border: '2px solid var(--lce-login-accent,#7214ff)', borderRadius: '8px',
-        overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
-        // 國旗:與登入頁同招,白嫖 BC country-flag polyfill 注入的 "Twemoji Country Flags"
-        // @font-face;heading 與每個語言 row 都繼承此棧,國旗碼點用它、文字 fallback 到後面。
+        boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
         fontFamily: '"Twemoji Country Flags",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif',
     });
+    document.body.appendChild(listWrap);
 
-    const heading = document.createElement('div');
-    heading.textContent = T(def.label);
-    Object.assign(heading.style, {
-        padding: '10px', borderBottom: '1px solid var(--lce-login-accent,#7214ff)',
-        background: 'var(--lce-element,#111)', fontSize: '16px', fontWeight: 'bold',
-    });
-
-    const listWrap = document.createElement('div');
-    Object.assign(listWrap.style, { overflowY: 'auto', overflowX: 'hidden', padding: '8px' });
-
-    panel.append(heading, listWrap);
-    backdrop.appendChild(panel);
-    document.body.appendChild(backdrop);
+    const position = () => {
+        const canvas = document.getElementById('MainCanvas') || document.querySelector('canvas');
+        const rect = canvas?.getBoundingClientRect();
+        if (!rect) return;
+        const width = Math.min(window.innerWidth - 16, Math.max(180, anchor.width / 2000 * rect.width));
+        const right = rect.left + anchor.right / 2000 * rect.width;
+        listWrap.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, right - width))}px`;
+        listWrap.style.top = `${rect.top + anchor.y / 1000 * rect.height}px`;
+        listWrap.style.width = `${width}px`;
+    };
+    position();
+    window.addEventListener('resize', position);
 
     const close = () => {
         langPickerOpen = false;
-        backdrop.remove();
+        listWrap.remove();
         document.removeEventListener('keydown', onKey, true);
+        document.removeEventListener('mousedown', onOutside, true);
+        window.removeEventListener('resize', position);
     };
     const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); close(); } };
+    const onOutside = (e) => { if (!listWrap.contains(e.target)) close(); };
     document.addEventListener('keydown', onKey, true);
-    backdrop.addEventListener('mousedown', (e) => { if (e.target === backdrop) close(); });
-    panel.addEventListener('mousedown', e => e.stopPropagation());
+    setTimeout(() => document.addEventListener('mousedown', onOutside, true));
+    listWrap.addEventListener('mousedown', e => e.stopPropagation());
 
     const pick = (code) => {
-        if (code !== fSettings[key]) { setFeature(key, code); }
+        if (code !== currentGameLanguage()) switchGameLanguage(code, false);
         close();
     };
 
@@ -71,7 +67,7 @@ export function openLanguagePicker(key, def) {
     codes.forEach((code, i) => {
         const row = document.createElement('div');
         row.textContent = labels[i];
-        const selected = fSettings[key] === code;
+        const selected = currentGameLanguage() === code;
         Object.assign(row.style, {
             padding: '8px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '18px',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -176,52 +172,55 @@ export function promptInput(key, def) {
 
 let colorPickerOpen = false;
 
-/** 叫出 BC 內建調色器（跟 Themed 一樣）。無此 API 時退回瀏覽器原生調色器。 */
+/** LCE 自有的 RGB / HEX 調色視窗，不呼叫瀏覽器 prompt 或原生選色彈窗。 */
 export function openColorPicker(key, def) {
+    if (colorPickerOpen) return;
     const cur = /^#([0-9a-fA-F]{6})$/.test(fSettings[key]) ? fSettings[key] : '#000000';
-
-    if (typeof ColorPickerInit === 'function' && typeof ColorPicker === 'object') {
-        if (colorPickerOpen) return;
-        colorPickerOpen = true;
-        const paddingTop = 75;
-        const paddingRight = 2000 - (1815 + 90);
-        const shape = [2000 - ColorPicker.defaultShape[2] - paddingRight + 25, paddingTop, ColorPicker.defaultShape[2], 1000 - paddingTop * 2];
-        ColorPickerInit({
-            colorState: { colors: [cur], defaultColors: [DEFAULT_FEATURE_SETTINGS[key]?.value ?? '#ffffff'], opacity: [1], editOpacity: false },
-            heading: T(def.label),
-            shape,
-            // BC 呼叫 onInput 的簽名是 (inputElement, event)，不是狀態物件；
-            // 跟 Themed 一樣設為 no-op，顏色只在 onExit（(state, save, root)）套用。
-            onInput: () => null,
-            onExit: (state, save) => {
-                if (save && state?.colors) { setFeature(key, state.colors[0]); }
-                colorPickerOpen = false;
-                document.getElementById('lce-colorpicker-backdrop')?.toggleAttribute('hidden', true);
-            },
-        }).then((el) => {
-            let backdrop = document.getElementById('lce-colorpicker-backdrop');
-            if (!backdrop) {
-                backdrop = document.createElement('div');
-                backdrop.id = 'lce-colorpicker-backdrop';
-                Object.assign(backdrop.style, { backgroundColor: 'rgba(0,0,0,0.3)', width: '100%', height: '100%', position: 'absolute', top: '0', left: '0' });
-                backdrop.appendChild(el);
-                document.body.appendChild(backdrop);
-            } else {
-                backdrop.toggleAttribute('hidden', false);
-            }
-        }).catch(() => { colorPickerOpen = false; });
-        return;
-    }
-
-    // fallback：瀏覽器原生調色器
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.value = cur;
-    input.style.cssText = 'position:fixed;left:-9999px;top:0';
-    document.body.appendChild(input);
-    const apply = () => { setFeature(key, input.value, { persist: false }); };
-    input.addEventListener('input', apply);
-    input.addEventListener('change', () => { apply(); saveFeatureSettings(); input.remove(); });
-    input.click();
+    colorPickerOpen = true;
+    const backdrop = document.createElement('div');
+    backdrop.id = 'lce-colorpicker-backdrop';
+    backdrop.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:#0009';
+    const panel = document.createElement('section');
+    panel.style.cssText = 'box-sizing:border-box;width:min(440px,90vw);padding:20px;border:2px solid var(--lce-login-accent,#7214ff);border-radius:12px;background:var(--lce-main,#222);color:var(--lce-text,#eee);box-shadow:0 16px 50px #000;font:16px Arial,sans-serif';
+    const title = document.createElement('h2'); title.textContent = T(def.label); title.style.cssText = 'margin:0 0 16px;font-size:20px';
+    const preview = document.createElement('div'); preview.style.cssText = `height:70px;margin-bottom:14px;border:1px solid #ffffff55;border-radius:8px;background:${cur}`;
+    const hex = document.createElement('input'); hex.type = 'text'; hex.value = cur.toUpperCase(); hex.maxLength = 7;
+    hex.style.cssText = 'box-sizing:border-box;width:100%;margin-bottom:12px;padding:9px;border:1px solid #ffffff55;border-radius:7px;background:#0005;color:inherit;font:inherit';
+    const channels = [];
+    const values = [1, 3, 5].map(index => Number.parseInt(cur.slice(index, index + 2), 16));
+    const sliders = document.createElement('div');
+    ['R', 'G', 'B'].forEach((name, index) => {
+        const row = document.createElement('label'); row.style.cssText = 'display:grid;grid-template-columns:24px 1fr 44px;gap:10px;align-items:center;margin:10px 0';
+        const range = document.createElement('input'); range.type = 'range'; range.min = '0'; range.max = '255'; range.value = String(values[index]);
+        const output = document.createElement('span'); output.textContent = range.value; output.style.textAlign = 'right';
+        row.append(name, range, output); sliders.appendChild(row); channels.push({ range, output });
+    });
+    const error = document.createElement('div'); error.style.cssText = 'min-height:22px;color:#ffb4ab';
+    const actions = document.createElement('div'); actions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin-top:10px';
+    const makeButton = (label) => { const el = document.createElement('button'); el.type = 'button'; el.textContent = label; el.style.cssText = 'padding:8px 14px;border:0;border-radius:8px;cursor:pointer;font:inherit;font-weight:700'; return el; };
+    const cancel = makeButton(T('picker_cancel'));
+    const reset = makeButton(T('picker_reset'));
+    const apply = makeButton(T('picker_apply')); apply.style.background = 'var(--lce-login-accent,#7214ff)'; apply.style.color = '#fff';
+    const rgbHex = () => `#${channels.map(({ range }) => Number(range.value).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
+    const show = value => { hex.value = value; preview.style.background = value; error.textContent = ''; };
+    for (const { range, output } of channels) range.addEventListener('input', () => { output.textContent = range.value; show(rgbHex()); });
+    hex.addEventListener('input', () => {
+        const value = hex.value.trim();
+        if (!/^#[0-9a-f]{6}$/i.test(value)) { error.textContent = T('picker_invalid_color'); return; }
+        [1, 3, 5].forEach((start, index) => { channels[index].range.value = String(Number.parseInt(value.slice(start, start + 2), 16)); channels[index].output.textContent = channels[index].range.value; });
+        preview.style.background = value; error.textContent = '';
+    });
+    const close = () => { colorPickerOpen = false; backdrop.remove(); document.removeEventListener('keydown', onKey, true); };
+    const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } };
+    cancel.addEventListener('click', close);
+    reset.addEventListener('click', () => {
+        const value = DEFAULT_FEATURE_SETTINGS[key]?.value ?? '#ffffff'; hex.value = value;
+        hex.dispatchEvent(new Event('input'));
+    });
+    apply.addEventListener('click', () => { const value = hex.value.trim(); if (!/^#[0-9a-f]{6}$/i.test(value)) { error.textContent = T('picker_invalid_color'); return; } setFeature(key, value); close(); });
+    backdrop.addEventListener('mousedown', e => { if (e.target === backdrop) close(); });
+    panel.addEventListener('mousedown', e => e.stopPropagation());
+    document.addEventListener('keydown', onKey, true);
+    actions.append(reset, cancel, apply); panel.append(title, preview, hex, sliders, error, actions); backdrop.appendChild(panel); document.body.appendChild(backdrop); hex.focus(); hex.select();
 }
 

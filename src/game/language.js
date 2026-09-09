@@ -12,16 +12,17 @@ export function gameLanguages() {
     if (_langCache) return _langCache;
     try {
         if (typeof TranslationDictionary !== 'undefined' && Array.isArray(TranslationDictionary) && TranslationDictionary.length) {
-            const codes = [], labels = [];
+            const codes = [], labels = [], icons = [];
             for (const l of TranslationDictionary) {
                 if (!l?.LanguageCode) continue;
                 codes.push(l.LanguageCode);
+                icons.push(l.Icon || '🌐');
                 labels.push((l.Icon ? l.Icon + ' ' : '') + (l.LanguageName || l.EnglishName || l.LanguageCode));
             }
-            if (codes.length) { _langCache = { codes, labels }; return _langCache; }
+            if (codes.length) { _langCache = { codes, labels, icons }; return _langCache; }
         }
     } catch { /* ignore */ }
-    return { codes: ['EN'], labels: ['English'] };   // 後備（不快取，等字典載入）
+    return { codes: ['EN'], labels: ['English'], icons: ['🌐'] };   // 後備（不快取，等字典載入）
 }
 
 /** BC 目前語言碼（讀不到就退回 localStorage / EN）。 */
@@ -34,7 +35,7 @@ export function currentGameLanguage() {
  * 切換遊戲語言。
  *   init  → 只把顯示值對齊「實際語言」，不觸發切換（避免每次登入強制覆寫使用者當下的語言）。
  *   非 init → 真的切語言並重載文字/活動字典/物品說明（同登入頁的手續）。
- * gameLanguage 只是 BC 語言狀態的鏡射，BC 自己把選擇存進 localStorage，這裡不另外持久化。
+ * BC 自己把選擇存進 localStorage；LCE 的偏好設定旗幟按鈕直接呼叫此函式，不另存鏡射值。
  */
 export function switchGameLanguage(code, init, s) {
     try {
@@ -52,4 +53,3 @@ export function switchGameLanguage(code, init, s) {
         console.debug('🐈‍⬛ [LCE] setting changed: gameLanguage =', code);
     } catch (e) { console.warn('🐈‍⬛ [LCE] 切換遊戲語言失敗:', e); }
 }
-

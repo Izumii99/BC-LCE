@@ -1,4 +1,5 @@
-import { DEFAULT_FEATURE_SETTINGS, clampBar, gameLanguages } from './settings-schema.js';
+import { DEFAULT_FEATURE_SETTINGS, clampBar } from './settings-schema.js';
+import { gameLanguages } from '../game/language.js';
 
 export function resolveSettingKey(key) {
     if (typeof key !== 'string') return null;

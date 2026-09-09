@@ -1,8 +1,6 @@
 import { createThemeActions } from '../settings/theme-actions.js';
 import { applyAnimationEngineSetting } from '../game/setting-effects.js';
 import { grantWardrobe } from '../game/setting-effects.js';
-import { switchGameLanguage } from '../game/language.js';
-export { gameLanguages } from '../game/language.js';
 // ════════════════════════════════════════════════════════════════════════════
 // 功能設定 Schema（仿 WCE src/util/settings.ts 的 defaultSettings）
 // 每一項描述一個設定：型別、預設值、所屬分類、停用條件、切換副作用。
@@ -32,7 +30,7 @@ export { gameLanguages } from '../game/language.js';
 
 // 設定頁分類（順序即設定頁清單順序）
 export const CATEGORIES = [
-    'chat', 'theme', 'ui', 'immersion', 'wardrobe', 'performance', 'cheats', 'storage', 'misc',
+    'chat', 'theme', 'ui', 'immersion', 'wardrobe', 'performance', 'cheats', 'misc', 'storage',
 ];
 
 // 主題所有顏色鍵（供紀錄快照 / 恢復預設 / 染色引擎使用）
@@ -237,7 +235,7 @@ export const DEFAULT_FEATURE_SETTINGS = {
     themeAccentColor:   { label: 's_c_accent',   desc: 'sd_c_accent',   type: 'input', subtype: 'color', value: '#440171', category: 'theme', disabled: themeOff, sideEffects: logChange('themeAccentColor') },
     themeTextColor:     { label: 's_c_text',     desc: 'sd_c_text',     type: 'input', subtype: 'color', value: '#cccccc', category: 'theme', disabled: themeOff, sideEffects: logChange('themeTextColor') },
     // 進階：強調色狀態
-    themeAccentHover:   { label: 's_c_accentHover',   desc: 'sd_c_state', type: 'input', subtype: 'color', value: '#5a0194', category: 'theme', disabled: themeAdv, sideEffects: logChange('themeAccentHover') },
+    themeAccentHover:   { label: 's_c_accentHover',   desc: 'sd_c_state', type: 'input', subtype: 'color', value: '#5a0194', category: 'theme', sectionBreakBefore: true, disabled: themeAdv, sideEffects: logChange('themeAccentHover') },
     themeAccentDisabled:{ label: 's_c_accentDisabled',desc: 'sd_c_state', type: 'input', subtype: 'color', value: '#2e014d', category: 'theme', disabled: themeAdv, sideEffects: logChange('themeAccentDisabled') },
     // 進階：元件（按鈕）狀態
     themeElement:       { label: 's_c_element',       desc: 'sd_c_button',type: 'input', subtype: 'color', value: '#2e2e2e', category: 'theme', disabled: themeAdv, sideEffects: logChange('themeElement') },
@@ -261,6 +259,7 @@ export const DEFAULT_FEATURE_SETTINGS = {
     themeSlot: {
         label: 's_themeSlot', desc: 'sd_themeSlot',
         type: 'select', value: '1', options: ['1', '2', '3'], category: 'theme',
+        sectionBreakBefore: true,
         disabled: themeOff, sideEffects: logChange('themeSlot'),
     },
     saveThemeSlot: {
@@ -305,7 +304,7 @@ export const DEFAULT_FEATURE_SETTINGS = {
     loginAccentColor: {
         label: 's_loginAccentColor', desc: 'sd_loginAccentColor',
         type: 'input', subtype: 'color', value: '#7214ff', category: 'ui',
-        pageBreakBefore: true,   // 4 項 UI 替換一頁，5 項染色另起一頁
+        sectionBreakBefore: true,
         disabled: () => false, sideEffects: logChange('loginAccentColor'),
     },
     sysMsgBgColor: {
@@ -540,14 +539,6 @@ export const DEFAULT_FEATURE_SETTINGS = {
     },
 
     // ───────────────────────── misc 雜項 ─────────────────────────
-    // 遊戲語言：登入後也能改（BC 原本只能在登入頁選）。點右側按鈕會開出下拉清單
-    // （語言取自 BC 的 TranslationDictionary，見 settings-page 的 openLanguagePicker），
-    // 直接挑選、不必用 ◀▶ 繞一圈。儲存的是語言碼，按鈕顯示對應語言名。
-    gameLanguage: {
-        label: 's_gameLanguage', desc: 'sd_gameLanguage',
-        type: 'input', subtype: 'language', value: 'EN', category: 'misc',
-        disabled: () => false, sideEffects: switchGameLanguage,
-    },
     relogin: {
         label: 's_relogin', desc: 'sd_relogin',
         type: 'checkbox', value: true, category: 'misc', disabled: () => false, sideEffects: logChange('relogin'),

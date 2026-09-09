@@ -4,10 +4,11 @@
 // 透過 PreferenceRegisterExtensionSetting 註冊，繪製走 BC 全域 DrawText/DrawButton/…。
 // ════════════════════════════════════════════════════════════════════════════
 
-import { CATEGORIES, DEFAULT_FEATURE_SETTINGS, clampBar } from '../core/settings-schema.js';
-import { fSettings, saveFeatureSettings, setFeature, runSettingAction } from '../core/feature-settings.js';
+import { CATEGORIES, DEFAULT_FEATURE_SETTINGS, clampBar, defaultValues } from '../core/settings-schema.js';
+import { fSettings, saveFeatureSettings, setFeature, runSettingAction, updateSettings } from '../core/feature-settings.js';
 import { T } from '../core/i18n.js';
-import { langLabel, openLanguagePicker, openFontPicker, promptInput, openColorPicker } from './pickers.js';
+import { langFlag, openLanguageDropdown, openFontPicker, promptInput, openColorPicker } from './pickers.js';
+import { currentGameLanguage } from '../game/language.js';
 import { openStorageManager, closeStorageManager, isStorageManagerOpen, positionStorageManager } from './storage-manager.js';
 import { closeTrustedDomainManager, isTrustedDomainManagerOpen, openTrustedDomainManager, positionTrustedDomainManager } from './trusted-domain-manager.js';
 import iconUrl from '../assets/lce-icon.svg';
@@ -19,9 +20,27 @@ const SOUND_GAP = 10;
 
 const SETTINGS_PER_PAGE = 8;
 const Y_START = 225;
-const Y_INC = 70;
+const ITEM_H = 65;
+const Y_INC = 81;
 const SEL_OFFSET = 900;   // select / input / bar / action 控制項起始 X
 const SEL_WIDTH = 340;
+const HOME_COLUMNS = [300, 800, 1300];
+const HOME_ITEMS_PER_COLUMN = 8;
+const PANEL_CATEGORIES = new Set(['ui', 'theme']);
+const PANEL_X = 300;
+const PANEL_Y = 180;
+const PANEL_W = 1400;
+const PANEL_H = 650;
+const PANEL_ROWS = 6;
+const HEADER_RECTS = { reset: [1615, 75, 90, 90], language: [1715, 75, 90, 90], exit: [1815, 75, 90, 90] };
+const TOOLTIP_Y = 870;
+
+// Share option rectangles between drawing and hit testing. Labels are drawn
+// separately because BC's checkbox renderer assumes a 100px label offset.
+function slotOptions(layout, options) {
+    const width = layout.controlW / options.length;
+    return options.map((value, index) => ({ value, rect: [layout.controlX + index * width, layout.y, width, ITEM_H] }));
+}
 
 // 說明框：左緣 200、右緣維持在 1900（跟頁面其他內容的右界一致）
 const TOOLTIP_X = 200;
@@ -35,6 +54,7 @@ const BAR_VAL_W = 110;    // 數值文字欄寬
 // 導覽狀態
 let currentCategory = null;   // null = 分類清單
 let currentPage = 0;
+let currentSection = 0;
 let currentSetting = '';      // 目前選中的設定 key（顯示描述用）
 const actionDone = new Set(); // 已點過的動作按鈕（顯示回饋文字）
 
@@ -43,9 +63,60 @@ const actionDone = new Set(); // 已點過的動作按鈕（顯示回饋文字�
 // 仍要能拿到正確的 min/max/step 做 clampBar。
 let dragKey = null;
 let dragDef = null;
+let dragLayout = null;
 
 function settingsInCategory(category) {
-    return Object.entries(DEFAULT_FEATURE_SETTINGS).filter(([, def]) => def.category === category);
+    return Object.entries(DEFAULT_FEATURE_SETTINGS).filter(([key, def]) => def.category === category && key !== 'resetTheme');
+}
+
+function computeSections(category) {
+    const sections = [];
+    let current = [];
+    for (const entry of settingsInCategory(category)) {
+        if (entry[1].sectionBreakBefore && current.length) { sections.push(current); current = []; }
+        current.push(entry);
+    }
+    if (current.length) sections.push(current);
+    return sections.length ? sections : [[]];
+}
+
+const SECTION_LABELS = {
+    ui: ['settings_tab_ui', 'settings_tab_ui_colors'],
+    theme: ['settings_tab_theme_basic', 'settings_tab_theme_advanced', 'settings_tab_theme_saved'],
+};
+
+function visibleSettings() {
+    if (PANEL_CATEGORIES.has(currentCategory)) {
+        const sections = computeSections(currentCategory);
+        return sections[Math.min(currentSection, sections.length - 1)] || [];
+    }
+    return pageSlice(currentCategory);
+}
+
+function settingLayouts() {
+    const entries = visibleSettings();
+    if (!PANEL_CATEGORIES.has(currentCategory)) {
+        return entries.map((entry, index) => ({ entry, x: 300, y: Y_START + index * Y_INC, width: 1200, controlX: SEL_OFFSET, controlW: SEL_WIDTH }));
+    }
+    const rows = currentCategory === 'theme' && currentSection === 0 ? 5 : PANEL_ROWS;
+    const columns = Math.max(1, Math.ceil(entries.length / rows));
+    const columnW = PANEL_W / columns;
+    return entries.map((entry, index) => {
+        const column = Math.floor(index / rows);
+        const x = PANEL_X + 15 + column * columnW;
+        const width = columnW - 30;
+        const controlW = columns === 1 ? SEL_WIDTH : Math.max(190, Math.min(320, width * 0.48));
+        return { entry, x, y: 270 + (index % rows) * Y_INC, width, controlX: x + width - controlW, controlW };
+    });
+}
+
+function homeItems() {
+    return [...CATEGORIES.map(category => ({ type: 'category', category, label: T('cat_' + category) })),
+        { type: 'domains', label: T('trusted_domains_title') }];
+}
+
+function homeRect(index) {
+    return [HOME_COLUMNS[Math.floor(index / HOME_ITEMS_PER_COLUMN)], Y_START + (index % HOME_ITEMS_PER_COLUMN) * Y_INC, 400, ITEM_H];
 }
 
 /** 將某分類切成多頁：每頁最多 8 項，遇到 pageBreakBefore 強制換頁。 */
@@ -111,6 +182,7 @@ function drawTooltip(x, y, width, text) {
 function load() {
     currentCategory = null;
     currentPage = 0;
+    currentSection = 0;
     currentSetting = '';
     actionDone.clear();
     stopBarDrag();
@@ -134,92 +206,122 @@ function run() {
 
     const title = currentCategory ? `${T('lce_settings_title')} — ${T('cat_' + currentCategory)}` : T('lce_settings_title');
     DrawText(title, 300, 125, 'Black', 'Gray');
-    DrawButton(1815, 75, 90, 90, '', 'White', 'Icons/Exit.png');
+    DrawButton(...HEADER_RECTS.exit, '', 'White', 'Icons/Exit.png');
+    if (PANEL_CATEGORIES.has(currentCategory)) {
+        DrawButton(...HEADER_RECTS.reset, '', 'White', 'Icons/Reset.png', T(currentCategory === 'ui' ? 'settings_reset_ui' : 's_resetTheme'));
+    }
+    DrawButton(...HEADER_RECTS.language, '', 'White');
+    ctx.save();
+    ctx.font = '48px "Twemoji Country Flags", "Segoe UI Emoji", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = fSettings.themeEnabled ? uiColor('themeTextColor') : 'Black';
+    ctx.fillText(langFlag(currentGameLanguage()), HEADER_RECTS.language[0] + 45, HEADER_RECTS.language[1] + 45);
+    ctx.restore();
     if (isStorageManagerOpen()) positionStorageManager();
     if (isTrustedDomainManagerOpen()) positionTrustedDomainManager();
 
-    let y = Y_START;
     if (!currentCategory) {
-        for (const category of CATEGORIES) {
-            DrawButton(300, y, 400, 64, '', 'White');
-            DrawTextFit(T('cat_' + category), 310, y + 32, 380, 'Black');
-            y += Y_INC;
-        }
-        DrawButton(800, Y_START, 400, 64, '', 'White');
-        DrawTextFit(T('trusted_domains_title'), 810, Y_START + 32, 380, 'Black');
+        homeItems().forEach((item, index) => {
+            const [x, y, width, height] = homeRect(index);
+            DrawButton(x, y, width, height, '', 'White');
+            DrawTextFit(item.label, x + 10, y + height / 2, width - 20, 'Black');
+        });
         ctx.textAlign = 'center';
         return;
     }
 
-    DrawText(T('lce_click_hint'), 300, 190, 'Gray', 'Silver');
+    if (PANEL_CATEGORIES.has(currentCategory)) {
+        DrawEmptyRect(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, 'Black', 3);
+        const sections = computeSections(currentCategory);
+        const labels = SECTION_LABELS[currentCategory];
+        const tabW = PANEL_W / sections.length;
+        centered(() => sections.forEach((_, index) => {
+            const x = PANEL_X + index * tabW;
+            DrawButton(x, PANEL_Y, tabW, ITEM_H, T(labels[index]), currentSection === index ? (fSettings.themeEnabled ? '%accent' : '#b98be0') : 'White');
+        }));
+    } else {
+        DrawText(T('lce_click_hint'), 300, 190, 'Gray', 'Silver');
+    }
 
-    for (const [key, def] of pageSlice(currentCategory)) {
+    for (const layout of settingLayouts()) {
+        const [key, def] = layout.entry;
+        const { x, y, width, controlX, controlW } = layout;
         const disabled = !!def.disabled?.(fSettings);
-        const hovered = !disabled && MouseIn(300, y, SEL_OFFSET + SEL_WIDTH + SOUND_GAP + SOUND_W - 300, 64);
+        const hovered = !disabled && MouseIn(x, y, width, ITEM_H);
         if (hovered) {
             const alpha = ctx.globalAlpha;
             try {
                 ctx.globalAlpha = 0.14;
-                DrawRect(294, y - 2, SEL_OFFSET + SEL_WIDTH + SOUND_GAP + SOUND_W - 288, 68, 'Cyan');
+                DrawRect(x - 4, y - 2, width + 8, ITEM_H + 4, 'Cyan');
             } finally { ctx.globalAlpha = alpha; }
         }
         const highlight = currentSetting === key ? 'Red' : 'Black';
 
-        if (def.type === 'checkbox') {
-            DrawCheckbox(300, y, 64, 64, T(def.label), !!fSettings[key], disabled, highlight);
+        if (key === 'themeSlot') {
+            DrawTextFit(T(def.label), x + 70, y + ITEM_H / 2, Math.max(80, controlX - x - 85), highlight, 'Gray');
+            for (const { value, rect: [left, top, optionW] } of slotOptions(layout, def.options)) {
+                DrawButton(left + 6, top + 12, 40, 40, '', disabled ? '#ebebe4' : 'White', '', '', disabled);
+                if (fSettings[key] === value) {
+                    DrawRect(left + 16, top + 22, 20, 20, fSettings.themeEnabled ? '%accent' : '#7214ff');
+                }
+                centered(() => DrawTextFit(value, left + 46 + (optionW - 52) / 2, top + ITEM_H / 2, optionW - 52, disabled ? 'Gray' : highlight));
+            }
+        } else if (def.type === 'checkbox') {
+            DrawCheckbox(x, y, ITEM_H, ITEM_H, '', !!fSettings[key], disabled, highlight);
+            DrawTextFit(T(def.label), x + ITEM_H + 10, y + ITEM_H / 2, width - ITEM_H - 20, highlight, 'Gray');
         } else if (def.withToggle) {
             // 左側勾選箱 + 右側控制項（關閉時右側停用）
             const enabled = !!fSettings[`${key}Enabled`];
-            DrawCheckbox(300, y, 64, 64, T(def.label), enabled, disabled, highlight);
+            DrawCheckbox(x, y, ITEM_H, ITEM_H, '', enabled, disabled, highlight);
+            DrawTextFit(T(def.label), x + ITEM_H + 10, y + ITEM_H / 2, Math.max(80, controlX - x - ITEM_H - 25), highlight, 'Gray');
             const ctrlDisabled = disabled || !enabled;
             if (def.type === 'select') {
                 const idx = def.options.indexOf(fSettings[key]);
                 const len = def.options.length;
                 DrawBackNextButton(
-                    SEL_OFFSET, y, SEL_WIDTH, 64, selDisplay(def, fSettings[key]),
+                    controlX, y, controlW, ITEM_H, selDisplay(def, fSettings[key]),
                     ctrlDisabled ? '#ebebe4' : 'White', '',
                     () => selDisplay(def, def.options[(idx - 1 + len) % len]),
                     () => selDisplay(def, def.options[(idx + 1 + len) % len]),
                     ctrlDisabled,
                 );
             } else if (def.type === 'bar') {
-                drawBarControl(key, def, y, ctrlDisabled);
+                drawBarControl(key, def, layout, ctrlDisabled);
             } else { // input
-                drawInputControl(key, def, y, ctrlDisabled);
+                drawInputControl(key, def, layout, ctrlDisabled);
             }
-            if (def.withSound) drawSoundToggle(key, y, ctrlDisabled);
+            if (def.withSound) drawSoundToggle(key, layout, ctrlDisabled);
         } else if (def.type === 'select') {
-            DrawText(T(def.label), 400, y + 33, highlight, 'Gray');
+            DrawTextFit(T(def.label), x + 70, y + ITEM_H / 2, Math.max(80, controlX - x - 85), highlight, 'Gray');
             const idx = def.options.indexOf(fSettings[key]);
             const len = def.options.length;
             DrawBackNextButton(
-                SEL_OFFSET, y, SEL_WIDTH, 64, selDisplay(def, fSettings[key]),
+                controlX, y, controlW, ITEM_H, selDisplay(def, fSettings[key]),
                 disabled ? '#ebebe4' : 'White', '',
                 () => selDisplay(def, def.options[(idx - 1 + len) % len]),
                 () => selDisplay(def, def.options[(idx + 1 + len) % len]),
                 disabled,
             );
         } else if (def.type === 'bar') {
-            DrawText(T(def.label), 400, y + 33, highlight, 'Gray');
-            drawBarControl(key, def, y, disabled);
+            DrawTextFit(T(def.label), x + 70, y + ITEM_H / 2, Math.max(80, controlX - x - 85), highlight, 'Gray');
+            drawBarControl(key, def, layout, disabled);
         } else if (def.type === 'input') {
-            DrawText(T(def.label), 400, y + 33, highlight, 'Gray');
-            drawInputControl(key, def, y, disabled);
+            DrawTextFit(T(def.label), x + 70, y + ITEM_H / 2, Math.max(80, controlX - x - 85), highlight, 'Gray');
+            drawInputControl(key, def, layout, disabled);
         } else if (def.type === 'action') {
-            // 動作鈕置於左側欄位（與勾選箱同一起點 x=300），按鈕本身即標題
             const caption = actionDone.has(key) ? T(def.actionDoneLabel) : T(def.label);
-            centered(() => DrawButton(300, y, ACTION_W, 64, caption, disabled ? '#ebebe4' : 'White', '', '', disabled));
+            centered(() => DrawButton(x, y, Math.min(ACTION_W, width), ITEM_H, caption, disabled ? '#ebebe4' : 'White', '', '', disabled));
         }
-        y += Y_INC;
     }
 
     // 描述說明框。左緣從 300 移到 200、寬度補回 100 讓右緣仍停在 1900 ——
     // 說明文字是靠 DrawTextFit 縮字來塞進框裡的，框愈窄字就被壓得愈小愈難讀。
     if (currentSetting && DEFAULT_FEATURE_SETTINGS[currentSetting]) {
-        drawTooltip(TOOLTIP_X, 830, TOOLTIP_W, T(DEFAULT_FEATURE_SETTINGS[currentSetting].desc));
+        drawTooltip(TOOLTIP_X, TOOLTIP_Y, TOOLTIP_W, T(DEFAULT_FEATURE_SETTINGS[currentSetting].desc));
     }
 
-    if (pageCount(currentCategory) > 1) {
+    if (!PANEL_CATEGORIES.has(currentCategory) && pageCount(currentCategory) > 1) {
         DrawText(`${currentPage + 1} / ${pageCount(currentCategory)}`, 1700, 230, 'Black', 'Gray');
         DrawButton(1815, 180, 90, 90, '', 'White', 'Icons/Next.png');
     }
@@ -227,7 +329,7 @@ function run() {
 }
 
 function click() {
-    if (MouseIn(1815, 75, 90, 90)) {
+    if (MouseIn(...HEADER_RECTS.exit)) {
         if (isStorageManagerOpen()) { closeStorageManager(); }
         else if (isTrustedDomainManagerOpen()) { closeTrustedDomainManager(); }
         else if (currentCategory === null) { exit(); }
@@ -235,69 +337,103 @@ function click() {
         return;
     }
 
-    if (currentCategory === null) {
-        if (MouseIn(800, Y_START, 400, 64)) { openTrustedDomainManager(); return; }
-        let y = Y_START;
-        for (const category of CATEGORIES) {
-            if (MouseIn(300, y, 400, 64)) {
-                if (category === 'storage') openStorageManager();
-                else { currentCategory = category; currentPage = 0; currentSetting = ''; }
-                return;
+    if (MouseIn(...HEADER_RECTS.language)) {
+        const [x, y, width, height] = HEADER_RECTS.language;
+        openLanguageDropdown({ right: x + width, y: y + height, width: 320 });
+        return;
+    }
+    if (PANEL_CATEGORIES.has(currentCategory) && MouseIn(...HEADER_RECTS.reset)) {
+        if (currentCategory === 'ui') {
+            const defaults = defaultValues();
+            const patch = {};
+            for (const [key, def] of settingsInCategory('ui')) {
+                if (def.type === 'action') continue;
+                patch[key] = defaults[key];
+                if (def.withToggle) patch[`${key}Enabled`] = defaults[`${key}Enabled`];
+                if (def.withSound) patch[`${key}Sound`] = defaults[`${key}Sound`];
             }
-            y += Y_INC;
+            updateSettings(patch);
+        } else {
+            runSettingAction('resetTheme');
         }
         return;
     }
 
-    if (MouseIn(1815, 180, 90, 90) && pageCount(currentCategory) > 1) {
+    if (currentCategory === null) {
+        const items = homeItems();
+        for (let index = 0; index < items.length; index++) {
+            if (!MouseIn(...homeRect(index))) continue;
+            const item = items[index];
+            if (item.type === 'domains') openTrustedDomainManager();
+            else if (item.category === 'storage') openStorageManager();
+            else { currentCategory = item.category; currentPage = 0; currentSection = 0; currentSetting = ''; }
+            return;
+        }
+        return;
+    }
+
+    if (PANEL_CATEGORIES.has(currentCategory)) {
+        const sections = computeSections(currentCategory);
+        const tabW = PANEL_W / sections.length;
+        for (let index = 0; index < sections.length; index++) {
+            if (!MouseIn(PANEL_X + index * tabW, PANEL_Y, tabW, ITEM_H)) continue;
+            currentSection = index; currentSetting = ''; stopBarDrag(); return;
+        }
+    }
+
+    if (!PANEL_CATEGORIES.has(currentCategory) && MouseIn(1815, 180, 90, 90) && pageCount(currentCategory) > 1) {
         currentPage = (currentPage + 1) % pageCount(currentCategory);
         return;
     }
 
-    let y = Y_START;
-    for (const [key, def] of pageSlice(currentCategory)) {
+    for (const layout of settingLayouts()) {
+        const [key, def] = layout.entry;
+        const { x, y, width } = layout;
         const disabled = !!def.disabled?.(fSettings);
 
-        if (def.type === 'checkbox') {
-            if (MouseIn(300, y, 64, 64) && !disabled) { setFeature(key, !fSettings[key]); }
+        if (key === 'themeSlot') {
+            if (!disabled) for (const { value, rect } of slotOptions(layout, def.options)) {
+                if (MouseIn(...rect)) setFeature(key, value);
+            }
+        } else if (def.type === 'checkbox') {
+            if (MouseIn(x, y, ITEM_H, ITEM_H) && !disabled) { setFeature(key, !fSettings[key]); }
         } else if (def.withToggle) {
             const enabled = !!fSettings[`${key}Enabled`];
-            if (MouseIn(300, y, 64, 64) && !disabled) {
+            if (MouseIn(x, y, ITEM_H, ITEM_H) && !disabled) {
                 setFeature(`${key}Enabled`, !enabled);
             } else if (enabled && !disabled) {
-                if (def.withSound && MouseIn(...soundRect(y))) {
+                if (def.withSound && MouseIn(...soundRect(layout))) {
                     setFeature(`${key}Sound`, !fSettings[`${key}Sound`]);
                 } else {
-                    adjustControl(key, def, y);
+                    adjustControl(key, def, layout);
                 }
             }
         } else if (def.type === 'select' && !disabled) {
-            adjustControl(key, def, y);
+            adjustControl(key, def, layout);
         } else if (def.type === 'bar' && !disabled) {
-            handleBarClick(key, def, y);
+            handleBarClick(key, def, layout);
         } else if (def.type === 'input' && !disabled) {
-            handleInputClick(key, def, y);
+            handleInputClick(key, def, layout);
         } else if (def.type === 'action' && !disabled) {
-            if (MouseIn(300, y, ACTION_W, 64)) { if (runSettingAction(key)) actionDone.add(key); }
+            if (MouseIn(x, y, Math.min(ACTION_W, width), ITEM_H)) { if (runSettingAction(key)) actionDone.add(key); }
         }
 
-        if (MouseIn(300, y, 1200, 64)) currentSetting = key;
-        y += Y_INC;
+        if (MouseIn(x, y, width, ITEM_H)) currentSetting = key;
     }
 
 }
 
-function adjustControl(key, def, y) {
+function adjustControl(key, def, layout) {
     if (def.type === 'select') {
-        const seg = SEL_WIDTH / 2;
+        const seg = layout.controlW / 2;
         const idx = def.options.indexOf(fSettings[key]);
         const len = def.options.length;
-        if (MouseIn(SEL_OFFSET + seg, y, seg, 64)) { setFeature(key, def.options[(idx + 1 + len) % len]); }
-        else if (MouseIn(SEL_OFFSET, y, seg, 64)) { setFeature(key, def.options[(idx - 1 + len) % len]); }
+        if (MouseIn(layout.controlX + seg, layout.y, seg, ITEM_H)) { setFeature(key, def.options[(idx + 1 + len) % len]); }
+        else if (MouseIn(layout.controlX, layout.y, seg, ITEM_H)) { setFeature(key, def.options[(idx - 1 + len) % len]); }
     } else if (def.type === 'bar') {
-        handleBarClick(key, def, y);
+        handleBarClick(key, def, layout);
     } else if (def.type === 'input') {
-        handleInputClick(key, def, y);
+        handleInputClick(key, def, layout);
     }
 }
 
@@ -313,12 +449,12 @@ function centered(fn) {
 }
 
 /** 音效開關的座標（接在右側控制項之後）。 */
-const soundRect = (y) => [SEL_OFFSET + SEL_WIDTH + SOUND_GAP, y, SOUND_W, 64];
+const soundRect = ({ controlX, controlW, y }) => [controlX + controlW + SOUND_GAP, y, SOUND_W, ITEM_H];
 
 /** 音效開關：Icons/Audio2=有聲、Icons/Audio0=靜音。 */
-function drawSoundToggle(key, y, disabled) {
+function drawSoundToggle(key, layout, disabled) {
     const on = !!fSettings[`${key}Sound`];
-    DrawButton(...soundRect(y), '', disabled ? '#ebebe4' : 'White',
+    DrawButton(...soundRect(layout), '', disabled ? '#ebebe4' : 'White',
         on ? 'Icons/Audio2.png' : 'Icons/Audio0.png',
         T(on ? 'sound_on' : 'sound_off'), disabled);
 }
@@ -328,35 +464,36 @@ function drawSoundToggle(key, y, disabled) {
  * 顏色刻意沿用染色引擎已經涵蓋的幾種（White / Black / #3575b5 = themeEquipped），
  * 主題開啟時會跟著變，不必在這裡自己查主題色。
  */
-function drawBarControl(key, def, y, disabled) {
+function drawBarControl(key, def, layout, disabled) {
+    const { controlX, controlW, y } = layout;
     const v = clampBar(def, fSettings[key]);
     const ratio = (v - def.min) / (def.max - def.min);
     const top = y + BAR_TOP;
 
-    DrawRect(SEL_OFFSET, top, SEL_WIDTH, BAR_H, disabled ? '#ebebe4' : 'White');
-    if (ratio > 0) DrawRect(SEL_OFFSET, top, SEL_WIDTH * ratio, BAR_H, disabled ? '#c8c8c0' : '#3575b5');
-    DrawEmptyRect(SEL_OFFSET, top, SEL_WIDTH, BAR_H, 'Black', 2);
+    DrawRect(controlX, top, controlW, BAR_H, disabled ? '#ebebe4' : 'White');
+    if (ratio > 0) DrawRect(controlX, top, controlW * ratio, BAR_H, disabled ? '#c8c8c0' : '#3575b5');
+    DrawEmptyRect(controlX, top, controlW, BAR_H, 'Black', 2);
 
     // 拉桿：夾在軌道內，兩端才不會畫到軌道外面。拖曳中加寬、換色，給個明確的「抓住了」回饋。
     const dragging = !disabled && key === dragKey;
     const handleW = dragging ? 16 : 12;
-    const hx = SEL_OFFSET + Math.max(6, Math.min(SEL_WIDTH - 6, SEL_WIDTH * ratio));
+    const hx = controlX + Math.max(6, Math.min(controlW - 6, controlW * ratio));
     DrawRect(hx - handleW / 2, y + 10, handleW, 44, disabled ? '#c8c8c0' : (dragging ? '#3575b5' : 'Black'));
 
-    centered(() => DrawTextFit(String(v), SEL_OFFSET + SEL_WIDTH + SOUND_GAP + BAR_VAL_W / 2, y + 33,
+    centered(() => DrawTextFit(String(v), controlX + controlW + SOUND_GAP + BAR_VAL_W / 2, y + 33,
         BAR_VAL_W, disabled ? 'Gray' : 'Black'));
 }
 
 /** 依目前 SEL_OFFSET~SEL_OFFSET+SEL_WIDTH 內的滑鼠位置算出 bar 的值（不檢查是否在列內）。 */
-function barValueFromMouseX(def) {
-    const ratio = (MouseX - SEL_OFFSET) / SEL_WIDTH;
+function barValueFromMouseX(def, layout) {
+    const ratio = (MouseX - layout.controlX) / layout.controlW;
     return clampBar(def, def.min + ratio * (def.max - def.min));
 }
 
 /** 點擊 bar：點到哪就跳到哪一格（依 step 對齊）。整列 64 高都算，不必精準點在軌道上。 */
-function handleBarClick(key, def, y) {
-    if (!MouseIn(SEL_OFFSET, y, SEL_WIDTH, 64)) return;
-    const next = barValueFromMouseX(def);
+function handleBarClick(key, def, layout) {
+    if (!MouseIn(layout.controlX, layout.y, layout.controlW, ITEM_H)) return;
+    const next = barValueFromMouseX(def, layout);
     if (next !== fSettings[key]) { setFeature(key, next); }
 }
 
@@ -365,16 +502,17 @@ function handleBarClick(key, def, y) {
  * 立刻套用一次目前位置的值，讓「按下不放直接拖」跟「點一下」手感一致，
  * 之後每幀（見 run() 開頭）依最新滑鼠位置持續更新，直到放開滑鼠。
  */
-function startBarDrag(key, def) {
+function startBarDrag(key, def, layout) {
     dragKey = key;
     dragDef = def;
+    dragLayout = layout;
     applyDraggedBarValue();
 }
 
 /** 拖曳中依目前滑鼠位置更新值；放開滑鼠、或滑鼠已離開頁面座標系（拖到畫面外）時仍持續依最後位置夾住。 */
 function applyDraggedBarValue() {
     if (!dragKey || !dragDef || typeof MouseX !== 'number') return;
-    const next = barValueFromMouseX(dragDef);
+    const next = barValueFromMouseX(dragDef, dragLayout);
     if (next !== fSettings[dragKey]) { setFeature(dragKey, next, { persist: false }); }
 }
 
@@ -382,6 +520,7 @@ function stopBarDrag() {
     if (dragKey) saveFeatureSettings();
     dragKey = null;
     dragDef = null;
+    dragLayout = null;
 }
 
 /** 這個 bar 目前是否可操作（未停用、withToggle 時左側勾選箱已開）。 */
@@ -400,13 +539,12 @@ function isBarDraggable(key, def) {
  */
 function onGlobalMouseDown() {
     if (currentCategory === null) return;
-    let y = Y_START;
-    for (const [key, def] of pageSlice(currentCategory)) {
-        if (isBarDraggable(key, def) && MouseIn(SEL_OFFSET, y, SEL_WIDTH, 64)) {
-            startBarDrag(key, def);
+    for (const layout of settingLayouts()) {
+        const [key, def] = layout.entry;
+        if (isBarDraggable(key, def) && MouseIn(layout.controlX, layout.y, layout.controlW, ITEM_H)) {
+            startBarDrag(key, def, layout);
             return;
         }
-        y += Y_INC;
     }
 }
 
@@ -415,37 +553,35 @@ function onGlobalMouseUp() {
 }
 
 /** 繪製 input 控制項：色彩型別 → 十六進位欄位 + 齊平色塊；其餘 → 一般數值鈕。 */
-function drawInputControl(key, def, y, disabled) {
+function drawInputControl(key, def, layout, disabled) {
+    const { controlX, controlW, y } = layout;
     centered(() => {
         if (def.subtype === 'color') {
-            const hexW = SEL_WIDTH - SWATCH_W;
-            DrawButton(SEL_OFFSET, y, hexW, 64, String(fSettings[key] ?? ''), disabled ? '#ebebe4' : 'White', '', '', disabled);
+            const swatchW = Math.min(SWATCH_W, controlW * 0.25);
+            const hexW = controlW - swatchW;
+            DrawButton(controlX, y, hexW, ITEM_H, String(fSettings[key] ?? ''), disabled ? '#ebebe4' : 'White', '', '', disabled);
             const val = fSettings[key];
             const col = /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/.test(val) ? val : '#000000';
-            DrawButton(SEL_OFFSET + hexW, y, SWATCH_W, 64, '', disabled ? '#ebebe4' : col, '', '', disabled);
+            DrawButton(controlX + hexW, y, swatchW, ITEM_H, '', disabled ? '#ebebe4' : col, '', '', disabled);
         } else {
             // 字型欄位空白時顯示提示，讓使用者知道是點開下拉挑選的。
             // 語言欄位顯示的是語言碼對應的語言名（不是碼本身）。
             let shown;
-            if (def.subtype === 'language') shown = langLabel(fSettings[key]);
-            else if (def.subtype === 'font' && !fSettings[key]) shown = T('themeFont_pick');
+            if (def.subtype === 'font' && !fSettings[key]) shown = T('themeFont_pick');
             else shown = String(fSettings[key] ?? '');
-            DrawButton(SEL_OFFSET, y, SEL_WIDTH, 64, shown, disabled ? '#ebebe4' : 'White', '', '', disabled);
+            DrawButton(controlX, y, controlW, ITEM_H, shown, disabled ? '#ebebe4' : 'White', '', '', disabled);
         }
     });
 }
 
 /** 點擊 input：色彩型別左側欄位=填色碼、右側色塊=叫出調色器；其餘=直接輸入。 */
-function handleInputClick(key, def, y) {
+function handleInputClick(key, def, layout) {
+    const { controlX, controlW, y } = layout;
     if (def.subtype === 'color') {
-        const hexW = SEL_WIDTH - SWATCH_W;
-        if (MouseIn(SEL_OFFSET + hexW, y, SWATCH_W, 64)) openColorPicker(key, def);
-        else if (MouseIn(SEL_OFFSET, y, hexW, 64)) promptInput(key, def);
+        if (MouseIn(controlX, y, controlW, ITEM_H)) openColorPicker(key, def);
     } else if (def.subtype === 'font') {
-        if (MouseIn(SEL_OFFSET, y, SEL_WIDTH, 64)) openFontPicker(key, def);
-    } else if (def.subtype === 'language') {
-        if (MouseIn(SEL_OFFSET, y, SEL_WIDTH, 64)) openLanguagePicker(key, def);
-    } else if (MouseIn(SEL_OFFSET, y, SEL_WIDTH, 64)) {
+        if (MouseIn(controlX, y, controlW, ITEM_H)) openFontPicker(key, def);
+    } else if (MouseIn(controlX, y, controlW, ITEM_H)) {
         promptInput(key, def);
     }
 }
