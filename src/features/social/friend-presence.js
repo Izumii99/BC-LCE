@@ -6,13 +6,14 @@ import { createSocketBinding } from '../../core/lifecycle.js';
 // 的結果與上一次比對，差集即為剛上線 / 剛離線的好友。
 //
 // 樣式（複合列的右側選項，二選一）：
-//   bubble  = BC 內建的浮動提示（ServerShowBeep，可點開好友列表）—— WCE 的做法
+//   bubble  = BC 內建的浮動提示（ToastManager，可點開好友列表）
 //   message = 用 ChatRoomSendLocal 在聊天室輸出本地訊息 —— BCNotifyPlus 的做法
 //   不在聊天室時 message 會自動退回 bubble（否則訊息無處可顯示）
 //   兩者右側各有一顆音效開關，開啟時額外播 BC 的 beep 提示音
 // ════════════════════════════════════════════════════════════════════════════
 
 import modApi from '../../modsdk.js';
+import { createHook } from '../../core/hooks.js';
 import { getFeature } from '../../core/feature-settings.js';
 import { isWceFeatureEnabled } from '../../core/wce-compat.js';
 import { T } from '../../core/i18n.js';
@@ -28,6 +29,23 @@ const POLL_MS = 20000;
 const SKIP_SCREENS = ['FriendList', 'Relog', 'Login'];
 
 let lastFriends = [];
+let resyncFriends = false;
+const PRESENCE_CATEGORY = 'lce-friend-presence';
+const QUEUE_TTL_MS = 10000;
+
+function prunePresenceQueue(all = false) {
+    if (typeof ToastManager === 'undefined' || !Array.isArray(ToastManager.queue)) return;
+    const now = Date.now();
+    ToastManager.queue = ToastManager.queue.filter(t => t.category !== PRESENCE_CATEGORY
+        || (!all && t.lcePresenceExpiresAt > now));
+}
+
+function clearPresenceBubbles() {
+    if (typeof ToastManager === 'undefined') return;
+    // Remove waiting cards before dismissing visible cards: dismissal can drain the queue.
+    prunePresenceQueue(true);
+    ToastManager.dismissByCategory?.(PRESENCE_CATEGORY);
+}
 
 
 const onlineOn = () => !!getFeature('friendOnlineNotifyEnabled') && !isWceFeatureEnabled('friendPresenceNotifications');
@@ -49,6 +67,15 @@ const BUBBLE_MS = 5000;
 const LOCAL_MS  = 10000;   // 聊天室訊息留久一點：氣泡會自己飄走，訊息是要讓人回頭看的
 
 function showBubble(text) {
+    if (typeof ToastManager !== 'undefined' && typeof ToastManager.info === 'function') {
+        ToastManager.info(text, {
+            category: PRESENCE_CATEGORY, duration: BUBBLE_MS, icon: '',
+            lcePresenceExpiresAt: Date.now() + QUEUE_TTL_MS,
+            onClick: () => { if (typeof FriendListShow === 'function') FriendListShow(); },
+        });
+        setTimeout(prunePresenceQueue, QUEUE_TTL_MS);
+        return;
+    }
     if (typeof ServerShowBeep !== 'function') return;
     ServerShowBeep(text, BUBBLE_MS, {
         silent: true,
@@ -86,6 +113,13 @@ const fmt = (list) => list.map(({ MemberName, MemberNumber }) => `${MemberName} 
 function handleQueryResult(data) {
     if (skipScreen()) return;
     if (!data || data.Query !== 'OnlineFriends' || !Array.isArray(data.Result)) return;
+    // Background timers/socket delivery may be suspended. The first response after
+    // returning is a fresh baseline, not a list of events to replay.
+    if (document.hidden || resyncFriends) {
+        lastFriends = data.Result;
+        resyncFriends = !!document.hidden;
+        return;
+    }
     if (!onlineOn() && !offlineOn()) { lastFriends = data.Result; return; }
 
     const nowNumbers = data.Result.map(f => f.MemberNumber);
@@ -120,6 +154,19 @@ let installed = false;
 export function installFriendPresence() {
     if (installed) return;
     installed = true;
+    if (typeof ToastManager !== 'undefined' && typeof ToastManager._process === 'function') {
+        // Check before display as well: suspended timers can run after queue processing.
+        createHook('friend-presence')('ToastManager._process', 10, (args, next) => {
+            prunePresenceQueue(document.hidden);
+            return next(args);
+        });
+    }
+    resyncFriends = !!document.hidden;
+    document.addEventListener('visibilitychange', () => {
+        resyncFriends = true;
+        if (document.hidden) clearPresenceBubbles();
+        else poll();
+    });
 
     (function wait(n = 240) {
         if (typeof ServerSocket === 'undefined' || !ServerSocket || typeof ServerIsConnected === 'undefined') {
