@@ -94,6 +94,10 @@ function drawBadge([C, CharX, CharY, Zoom]) {
     // FBCNoteExists 由 features/past-profiles.js 寫入
     const note = !!C.FBCNoteExists;
     let slot = 0;
+    if (C.BCLite === true) {
+        DrawTextFit('Lite', CharX + BADGE_X * Zoom, CharY + SLOT_Y * Zoom, 60 * Zoom, note ? 'Cyan' : 'White', 'Black');
+        return;
+    }
 
     // 兩者都裝：只畫一枚 LCE，並用循環色標示（區分於「只裝 LCE」的純白徽章）。
     // WCE 那枚已在 hook 內藏起 C.FBC 讓 WCE 自己不畫，這裡也不補。

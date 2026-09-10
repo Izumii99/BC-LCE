@@ -1,4 +1,5 @@
 import { createSocketBinding } from '../../core/lifecycle.js';
+import { acceptLiteHello, refreshLiteIdentity, forgetLiteIdentity } from './lite-identity.js';
 // ════════════════════════════════════════════════════════════════════════════
 // 打招呼協定 —— 與 WCE 同一條頻道（BCEMsg），靠夾帶標記區分 LCE / WCE
 //
@@ -118,6 +119,7 @@ function processLceHello(sender, msg) {
 }
 
 function onMessage(data) {
+    if (acceptLiteHello(data, typeof ChatRoomCharacter === 'undefined' ? [] : ChatRoomCharacter)) return;
     if (data?.Type !== HIDDEN) return;
     if (data.Content !== BCE_MSG && data.Content !== LCE_MSG) return;
     try {
@@ -138,6 +140,7 @@ function onMessage(data) {
 }
 
 let installed = false;
+let liteRoom = null;
 
 export function installHello() {
     if (installed) return;
@@ -146,9 +149,16 @@ export function installHello() {
     const socketBinding = createSocketBinding({
         ChatRoomMessage: onMessage,
         ChatRoomSyncMemberJoin: data => {
+            forgetLiteIdentity(data?.SourceMemberNumber);
             if (data?.SourceMemberNumber !== Player.MemberNumber) sendLceHello(data.SourceMemberNumber, false);
         },
-        ChatRoomSync: () => sendLceHello(null, true),
+        ChatRoomSyncMemberLeave: data => forgetLiteIdentity(data?.SourceMemberNumber),
+        disconnect: () => { liteRoom = null; refreshLiteIdentity([], true); },
+        ChatRoomSync: data => {
+            if (typeof ChatRoomCharacter !== 'undefined') refreshLiteIdentity(ChatRoomCharacter, liteRoom !== data?.Name);
+            liteRoom = data?.Name;
+            sendLceHello(null, true);
+        },
     });
     const bind = () => socketBinding.bind(typeof ServerSocket === 'undefined' ? null : ServerSocket);
 
