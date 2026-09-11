@@ -73,6 +73,18 @@ async function getNote(memberNumber) {
     return isNote(note) ? note : undefined;
 }
 
+// BC MainCanvas is already the drawing context, not a canvas element.
+function drawTimestamp(text, x, y, color, background) {
+    if (typeof MainCanvas === 'undefined' || !MainCanvas) return;
+    const alignment = MainCanvas.textAlign;
+    try {
+        MainCanvas.textAlign = 'left';
+        DrawText(text, x, y, color, background);
+    } finally {
+        MainCanvas.textAlign = alignment;
+    }
+}
+
 async function setNote(memberNumber, note) {
     if (typeof memberNumber !== 'number' || !Number.isFinite(memberNumber)) {
         throw new TypeError('Liko.LCE.pastProfiles.set: memberNumber must be a finite number');
@@ -81,6 +93,16 @@ async function setNote(memberNumber, note) {
     await quotaSafetyCheck();
     const updatedAt = Date.now();
     await db.put('notes', { memberNumber, note, updatedAt });
+    // Profile selection and room characters can be different instances.
+    const characters = new Set([
+        ...(typeof Character === 'undefined' ? [] : Character),
+        ...(typeof ChatRoomCharacter === 'undefined' ? [] : ChatRoomCharacter),
+        typeof InformationSheetSelection === 'undefined' ? null : InformationSheetSelection,
+        typeof Player === 'undefined' ? null : Player,
+    ]);
+    for (const character of characters) {
+        if (character?.MemberNumber === memberNumber) character.FBCNoteExists = Boolean(note);
+    }
     if (inNotes && InformationSheetSelection?.MemberNumber === memberNumber) {
         noteInput.value = note;
         noteUpdatedAt = updatedAt;
@@ -89,6 +111,22 @@ async function setNote(memberNumber, note) {
 
 
 const hook = createHook('past-profiles', () => shouldLceHandle('pastProfiles'));
+
+function refreshNoteFlag(character) {
+    if (!character?.MemberNumber) return;
+    db.get('notes', character.MemberNumber)
+        .then(note => { character.FBCNoteExists = Boolean(isNote(note) && note.note); })
+        .catch(() => {});
+}
+
+function refreshExistingNoteFlags() {
+    if (!shouldLceHandle('pastProfiles')) return;
+    const characters = new Set([
+        ...(typeof Character === 'undefined' ? [] : Character),
+        ...(typeof ChatRoomCharacter === 'undefined' ? [] : ChatRoomCharacter),
+    ]);
+    for (const character of characters) refreshNoteFlag(character);
+}
 
 function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -365,7 +403,10 @@ export async function installPastProfiles() {
             else hideNoteInput();
         });
     }
-    if (installed) return;
+    if (installed) {
+        if (db) refreshExistingNoteFlags();
+        return;
+    }
     if (!getFeature('pastProfiles')) return;
     installed = true;
     injectStyle();
@@ -423,12 +464,7 @@ export async function installPastProfiles() {
     // 個資頁顯示「最後看到」
     hook('InformationSheetRun', 10, (args, next) => {
         if (InformationSheetSelection?.BCESeen) {
-            const ctx = window.MainCanvas?.getContext('2d');
-            if (ctx) {
-                ctx.textAlign = 'left';
-                DrawText(`${T('profiles_last_seen')} ${new Date(InformationSheetSelection.BCESeen).toLocaleString()}`, 1200, 75, 'grey', 'black');
-                ctx.textAlign = 'center';
-            }
+            drawTimestamp(`${T('profiles_last_seen')} ${new Date(InformationSheetSelection.BCESeen).toLocaleString()}`, 1200, 75, 'grey', 'black');
         }
         return next(args);
     });
@@ -436,17 +472,18 @@ export async function installPastProfiles() {
     // 角色載入時標記是否有備註
     hook('CharacterLoadOnline', 100, (args, next) => {
         const C = next(args);
-        if (C && C.MemberNumber) {
-            db.get('notes', C.MemberNumber).then(note => { C.FBCNoteExists = Boolean(isNote(note) && note.note); }).catch(() => {});
-        }
+        refreshNoteFlag(C);
         return C;
     });
+    // Login can populate the room before the asynchronous database open completes.
+    // The load hook only sees future characters, so also hydrate existing instances.
+    refreshExistingNoteFlags();
 
     // 備註介面：優先權高於 BIO 編輯鈕，開啟備註時直接接管整個畫面
     hook('OnlineProfileRun', 20, (args, next) => {
         if (inNotes) {
             DrawText(T('notes_title'), 910, 105, 'Black', 'Gray');
-            if (noteUpdatedAt) DrawText(`${T('notes_saved')} ${new Date(noteUpdatedAt).toLocaleString()}`, 60, 105, 'Black', 'Gray');
+            if (noteUpdatedAt) drawTimestamp(`${T('notes_saved')} ${new Date(noteUpdatedAt).toLocaleString()}`, 100, 105, 'Black', 'Gray');
             positionElement(NOTE_ID, 36, 100, 160, 1790, 750);
             DrawButton(...SAVE_BTN, '', 'White', 'Icons/Accept.png', TextGet('LeaveSave'));
             DrawButton(...CANCEL_BTN, '', 'White', 'Icons/Cancel.png', TextGet('LeaveNoSave'));
@@ -461,12 +498,7 @@ export async function installPastProfiles() {
     hook('OnlineProfileClick', 20, (args, next) => {
         if (inNotes) {
             if (MouseIn(...SAVE_BTN)) {
-                quotaSafetyCheck()
-                    .then(() => db.put('notes', {
-                        memberNumber: InformationSheetSelection.MemberNumber,
-                        note: noteInput.value,
-                        updatedAt: Date.now(),
-                    }))
+                setNote(InformationSheetSelection.MemberNumber, noteInput.value)
                     .catch(e => console.warn(LOG, '備註儲存失敗:', e));
                 hideNoteInput();
             } else if (MouseIn(...CANCEL_BTN)) {
