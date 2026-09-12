@@ -3,7 +3,7 @@
 // 本專案內嵌同步副本，確保沒有 PCM / CDN 時仍能獨立運作。
 import './i18n-engine.js';
 
-const API_VERSION = '2.1.0';
+const API_VERSION = '2.2.0';
 const LOG = '🐈‍⬛ [LCE]';
 
 function transposeTables(tables) {

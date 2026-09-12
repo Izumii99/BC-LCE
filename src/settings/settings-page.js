@@ -216,7 +216,11 @@ function run() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = fSettings.themeEnabled ? uiColor('themeTextColor') : 'Black';
-    ctx.fillText(langFlag(currentGameLanguage()), HEADER_RECTS.language[0] + 45, HEADER_RECTS.language[1] + 45);
+    const flags = window.Liko?.__Sys_Flags__;
+    const country = flags?.forLanguage(currentGameLanguage());
+    if (!country || !flags.draw(ctx, country, HEADER_RECTS.language[0] + 13, HEADER_RECTS.language[1] + 21, 64, 48)) {
+        ctx.fillText(langFlag(currentGameLanguage()), HEADER_RECTS.language[0] + 45, HEADER_RECTS.language[1] + 45);
+    }
     ctx.restore();
     if (isStorageManagerOpen()) positionStorageManager();
     if (isTrustedDomainManagerOpen()) positionTrustedDomainManager();

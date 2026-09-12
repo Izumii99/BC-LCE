@@ -304,6 +304,7 @@ function buildLanguageSelect() {
             opt.selected = bcOpt.value === currentLang;
             sel.appendChild(opt);
         });
+        window.Liko?.__Sys_Flags__?.bindSelect(sel);
         return;
     }
     const { codes, labels } = gameLanguages();
@@ -311,6 +312,7 @@ function buildLanguageSelect() {
         const option = mk('option', '', { value: code, textContent: labels[i], selected: code === currentLang });
         sel.appendChild(option);
     });
+    window.Liko?.__Sys_Flags__?.bindSelect(sel);
 }
 
 // ── 登入 ──────────────────────────────────────────────────────────────────

@@ -66,7 +66,8 @@ export function openLanguageDropdown(anchor = { right: 1805, y: 165, width: 320 
     const { codes, labels } = gameLanguages();
     codes.forEach((code, i) => {
         const row = document.createElement('div');
-        row.textContent = labels[i];
+        if (window.Liko?.__Sys_Flags__?.renderLabel) window.Liko.__Sys_Flags__.renderLabel(row, labels[i]);
+        else row.textContent = labels[i];
         const selected = currentGameLanguage() === code;
         Object.assign(row.style, {
             padding: '8px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '18px',
