@@ -27,6 +27,7 @@
 
 import { getFeature } from '../../core/feature-settings.js';
 import { SETTING_CHANGED_EVENT } from '../../core/constants.js';
+import { createHook } from '../../core/hooks.js';
 
 const LOG = '🐈‍⬛ [LCE]';
 const SETTING = 'chatScrollFreeze';
@@ -52,7 +53,20 @@ function enable() {
     (document.head || document.documentElement).appendChild(el);
 }
 
+let installed = false;
 export function installChatScrollFreeze() {
+    if (installed) return;
+    installed = true;
+    // CSF ensureBound closes a nonexistent search bar during initial binding,
+    // which can request sizing while BC still hides the room. Do not commit a
+    // zero measurement (or InputPrevHeight); BC's next visible resize must run.
+    createHook('chat-scroll-freeze')('ChatRoomInputResize', 100, (args, next) => {
+        if (injected || externalApi()) {
+            const parent = document.getElementById('chat-room-div');
+            if (parent && parent.getBoundingClientRect().height <= 0) return;
+        }
+        return next(args);
+    });
     if (getFeature(SETTING)) enable();
 
     // 使用者在設定頁（或透過 setFeature / 指令）開啟時即時載入。
