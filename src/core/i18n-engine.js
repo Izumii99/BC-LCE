@@ -194,10 +194,23 @@
                 const rect = select.getBoundingClientRect();
                 const menu = document.createElement('div');
                 const style = getComputedStyle(select);
+                if (select.id === 'lce-lang-select') menu.classList.add('lce-login-language-menu');
                 menu.setAttribute('role', 'listbox');
                 menu.setAttribute('aria-label', select.getAttribute('aria-label') || 'Language');
                 menu.style.cssText = `position:fixed;z-index:2147483647;box-sizing:border-box;overflow:auto;max-height:45vh;padding:4px;border:1px solid currentColor;border-radius:6px;box-shadow:0 4px 16px #0008;`;
-                Object.assign(menu.style, { left: `${Math.max(4, Math.min(rect.left, innerWidth - Math.max(rect.width, 180) - 4))}px`, top: `${Math.min(rect.bottom + 3, innerHeight * .5)}px`, minWidth: `${Math.min(Math.max(rect.width, 180), innerWidth - 8)}px`, maxWidth: 'calc(100vw - 8px)', background: style.backgroundColor === 'rgba(0, 0, 0, 0)' ? '#222' : style.backgroundColor, color: style.color, font: style.font });
+                const viewport = window.visualViewport;
+                const vx = viewport?.offsetLeft || 0, vy = viewport?.offsetTop || 0;
+                const vw = viewport?.width || innerWidth, vh = viewport?.height || innerHeight;
+                const width = Math.max(0, Math.min(Math.max(rect.width, 180), vw - 8));
+                const below = Math.max(0, vy + vh - rect.bottom - 7);
+                const above = Math.max(0, rect.top - vy - 7);
+                const upward = above > below;
+                Object.assign(menu.style, {
+                    left: `${Math.max(vx + 4, Math.min(rect.left, vx + vw - width - 4))}px`,
+                    width: `${width}px`, maxHeight: `${Math.min(vh * .6, upward ? above : below)}px`,
+                    background: style.backgroundColor === 'rgba(0, 0, 0, 0)' ? '#222' : style.backgroundColor,
+                    color: style.color, font: style.font,
+                });
                 const controller = new AbortController();
                 let removalObserver;
                 const close = () => {
@@ -229,12 +242,16 @@
                     }
                 };
                 document.body.appendChild(menu);
+                menu.style.top = `${Math.max(vy + 4, Math.min(upward ? rect.top - 3 - menu.getBoundingClientRect().height : rect.bottom + 3,
+                    vy + vh - menu.getBoundingClientRect().height - 4))}px`;
                 removalObserver = new MutationObserver(() => { if (!select.isConnected || select.style.display === 'none') close(); });
                 removalObserver.observe(document.body, { childList: true, subtree: true });
                 removalObserver.observe(select, { attributes: true, attributeFilter: ['style'] });
-                (menu.querySelector('[aria-selected="true"]:not(:disabled)') || rows[0])?.focus();
+                (menu.querySelector('[aria-selected="true"]:not(:disabled)') || rows[0])?.focus({ preventScroll: true });
                 document.addEventListener('pointerdown', e => { if (!menu.contains(e.target)) close(); }, { capture: true, signal: controller.signal });
                 window.addEventListener('resize', close, { signal: controller.signal });
+                window.visualViewport?.addEventListener('resize', close, { signal: controller.signal });
+                window.visualViewport?.addEventListener('scroll', close, { signal: controller.signal });
                 window.addEventListener('scroll', e => { if (!menu.contains(e.target)) close(); }, { capture: true, signal: controller.signal });
             };
             select.addEventListener('pointerdown', open);

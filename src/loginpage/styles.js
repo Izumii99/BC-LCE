@@ -182,6 +182,26 @@ export function injectLoginStyles() {
     padding:0 12px; outline:none; appearance:auto; -webkit-appearance:auto;
 }
 .lce-select option { color:#12121e; }
+.lce-login-language-menu {
+    background:#12101c !important; color:#fff !important;
+    border:1px solid var(--lce-login-accent,#7214ff) !important;
+    border-radius:12px !important; padding:4px !important;
+    scrollbar-width:thin;
+    scrollbar-color:var(--lce-login-accent,#7214ff) #12101c;
+    overscroll-behavior:contain;
+}
+.lce-login-language-menu > button { border-radius:8px; }
+.lce-login-language-menu > button:hover,
+.lce-login-language-menu > button:focus-visible,
+.lce-login-language-menu > button[aria-selected="true"] {
+    background:#352050 !important;
+    outline:1px solid var(--lce-login-accent,#7214ff); outline-offset:-1px;
+}
+.lce-login-language-menu::-webkit-scrollbar { width:10px; }
+.lce-login-language-menu::-webkit-scrollbar-track { background:#12101c; }
+.lce-login-language-menu::-webkit-scrollbar-thumb {
+    background:var(--lce-login-accent,#7214ff); border:2px solid #12101c; border-radius:5px;
+}
 
 /* ── 帳號區：垂直摩天輪（無外框、無卷軸，按壓拖曳 / 滾輪轉動） ── */
 #lce-acct-area {
