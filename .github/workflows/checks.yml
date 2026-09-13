@@ -20,10 +20,19 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - name: Report bundle size
-        shell: bash
-        run: |
-          echo '### JavaScript bundle size (bytes)' >> "$GITHUB_STEP_SUMMARY"
-          wc -c dist/assets/*.js >> "$GITHUB_STEP_SUMMARY"
-          echo '### Compressed app size (bytes)' >> "$GITHUB_STEP_SUMMARY"
-          gzip -c dist/assets/app.js | wc -c >> "$GITHUB_STEP_SUMMARY"
+      - name: Checkout PR base
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .ci-base
+      - name: Build PR base
+        if: github.event_name == 'pull_request'
+        working-directory: .ci-base
+        run: npm ci && npm run build
+      - name: Compare PR bundle size
+        if: github.event_name == 'pull_request'
+        run: node scripts/bundle-size.mjs dist/assets .ci-base/dist/assets
+      - name: Report manual build size
+        if: github.event_name != 'pull_request'
+        run: node scripts/bundle-size.mjs
