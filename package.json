@@ -6,9 +6,9 @@
   "description": "Liko Club Extensions - horizontal login UI and club extensions for Bondage Club",
   "scripts": {
     "test": "node --experimental-vm-modules --test tests/*.test.mjs",
-    "predev": "node scripts/fetch-assets.mjs",
+    "predev": "node scripts/verify-assets.mjs",
     "dev": "vite build && concurrently -k -n build,serve \"vite build --watch\" \"vite preview --port 5174\"",
-    "prebuild": "node scripts/fetch-assets.mjs",
+    "prebuild": "node scripts/verify-assets.mjs",
     "build": "vite build",
     "preview": "vite preview --port 5174"
   },

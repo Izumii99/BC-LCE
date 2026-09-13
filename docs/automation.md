@@ -11,7 +11,13 @@
 3. 執行一次檢查後，將 `Test and build` 加入 main 的 required status checks，要求 PR 合併前通過。
 4. 保留現有 Pages 的 GitHub Actions 部署來源與 environment 權限。
 
-目前大小報告為本次絕對值，不是與基準分支比較。尚未加入瀏覽器截圖回歸；模擬測試不能代替 iPhone 實測。
+PR 會另行建置 base SHA，比較全部 JS 的原始與 gzip 大小，顯示增減 bytes 與百分比；手動執行只有絕對值。大小變化僅報告，不阻擋合併。base 建置失敗仍會讓檢查失敗，避免顯示不完整比較。
+
+素材由 `assets.lock.json` 固定 commit。`predev`／`prebuild` 逐檔驗證 Git blob hash；缺少的素材自動補齊，內容不符會停止，不會覆蓋本地素材，也不修改 Git index。初始 commit 取自本地 origin/assets，40 個檔案已驗證相符。更新素材時需明確更新 lock commit，先備份／移走不符的檔案再建置。
+
+原素材抓取腳本已替換為 `scripts/verify-assets.mjs`。新的 CI 不需新增 secrets，必要檢查名稱不變。
+
+尚未加入瀏覽器截圖回歸；目前直式版面已有座標／尺寸的模擬回歸測試，但模擬測試不能代替 iPhone 或實際遊戲截圖。真實 PR 觸發仍需推送後驗證。
 
 ## 共存界線
 
