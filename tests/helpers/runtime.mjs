@@ -93,8 +93,20 @@ export function runtime({ globals = {}, mocks = {}, append = {} } = {}) {
         localStorage: { getItem: k => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: k => storage.delete(k) },
         ...globals,
     });
+    const chains = new Map();
     const modApi = {
-        hookFunction(name, priority, fn) { hooks.set(name, fn); return () => hooks.delete(name); },
+        hookFunction(name, priority, fn) {
+            const chain = chains.get(name) || [];
+            const entry = {priority, fn};
+            chain.push(entry); chain.sort((a, b) => b.priority - a.priority); chains.set(name, chain);
+            hooks.set(name, (args, original) => {
+                const snapshot = [...chain];
+                const invoke = (i, values) => i < snapshot.length
+                    ? snapshot[i].fn(values, next => invoke(i + 1, next)) : original(values);
+                return invoke(0, args);
+            });
+            return () => { const index = chain.indexOf(entry); if (index >= 0) chain.splice(index, 1); if (!chain.length) hooks.delete(name); };
+        },
         patchFunction() {}, removePatches() {}, callOriginal() {},
     };
     const replacements = { 'src/modsdk.js': { default: modApi }, 'src/core/i18n.js': { T: k => k }, ...mocks };

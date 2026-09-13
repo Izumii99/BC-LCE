@@ -15,6 +15,7 @@ import { parseJSON } from '../../core/serialization.js';
 // ════════════════════════════════════════════════════════════════════════════
 
 import { openDB } from 'idb';
+import { createNoteState } from './note-state.js';
 import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
 import { shouldLceHandle } from '../../core/wce-compat.js';
@@ -93,16 +94,7 @@ async function setNote(memberNumber, note) {
     await quotaSafetyCheck();
     const updatedAt = Date.now();
     await db.put('notes', { memberNumber, note, updatedAt });
-    // Profile selection and room characters can be different instances.
-    const characters = new Set([
-        ...(typeof Character === 'undefined' ? [] : Character),
-        ...(typeof ChatRoomCharacter === 'undefined' ? [] : ChatRoomCharacter),
-        typeof InformationSheetSelection === 'undefined' ? null : InformationSheetSelection,
-        typeof Player === 'undefined' ? null : Player,
-    ]);
-    for (const character of characters) {
-        if (character?.MemberNumber === memberNumber) character.FBCNoteExists = Boolean(note);
-    }
+    noteState.publish(memberNumber, Boolean(note));
     if (inNotes && InformationSheetSelection?.MemberNumber === memberNumber) {
         noteInput.value = note;
         noteUpdatedAt = updatedAt;
@@ -112,21 +104,18 @@ async function setNote(memberNumber, note) {
 
 const hook = createHook('past-profiles', () => shouldLceHandle('pastProfiles'));
 
-function refreshNoteFlag(character) {
-    if (!character?.MemberNumber) return;
-    db.get('notes', character.MemberNumber)
-        .then(note => { character.FBCNoteExists = Boolean(isNote(note) && note.note); })
-        .catch(() => {});
-}
-
-function refreshExistingNoteFlags() {
-    if (!shouldLceHandle('pastProfiles')) return;
-    const characters = new Set([
+const noteState = createNoteState({
+    read: id => db.get('notes', id),
+    ownsState: () => shouldLceHandle('pastProfiles'),
+    characters: () => new Set([
         ...(typeof Character === 'undefined' ? [] : Character),
         ...(typeof ChatRoomCharacter === 'undefined' ? [] : ChatRoomCharacter),
-    ]);
-    for (const character of characters) refreshNoteFlag(character);
-}
+        typeof InformationSheetSelection === 'undefined' ? null : InformationSheetSelection,
+        typeof Player === 'undefined' ? null : Player,
+    ]),
+});
+const refreshNoteFlag = c => noteState.refresh(c);
+const refreshExistingNoteFlags = () => noteState.refreshAll();
 
 function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
