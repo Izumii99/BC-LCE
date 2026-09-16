@@ -130,6 +130,8 @@ LCE.ProfileShare.handlesReceive()           // LCE 是否為目前的 PROFILESHA
 
 ## 正式建置
 
+[R132Beta3 分支修補與驗收](docs/r132-compatibility.md)
+
 ```
 npm run build
 ```

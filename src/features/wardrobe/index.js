@@ -29,6 +29,11 @@ let inCustomWardrobe = false;
 let targetCharacter = null;
 let appearanceBackup = null;
 let excludeBodyparts = false;
+let nativeSaveConfirmationDepth = 0;
+
+// R132 owns the target character, return screen, previews and body checkbox.
+const hasNativeWardrobe = () => typeof WardrobeOpenCharacter === 'function'
+    && typeof Wardrobe === 'object' && Wardrobe !== null;
 
 const hook = createHook('wardrobe');
 
@@ -115,6 +120,7 @@ export function installWardrobe() {
 
     // ── 角色預覽衣櫃：把 Appearance 的衣櫃導向 Wardrobe 畫面 ──
     hook('CharacterAppearanceWardrobeLoad', 20, (args, next) => {
+        if (hasNativeWardrobe()) return next(args);
         const [C] = args;
         if (shouldLceHandle('privateWardrobe') && CurrentScreen === 'Appearance') {
             inCustomWardrobe = true;
@@ -125,15 +131,19 @@ export function installWardrobe() {
         return next(args);
     });
 
-    hook('WardrobeLoad', 10, (args, next) => { appearanceBackup = CharacterAppearanceBackup; return next(args); });
+    hook('WardrobeLoad', 10, (args, next) => {
+        if (!hasNativeWardrobe()) appearanceBackup = CharacterAppearanceBackup;
+        return next(args);
+    });
     hook('AppearanceLoad', 10, (args, next) => {
         const ret = next(args);
-        if (inCustomWardrobe) CharacterAppearanceBackup = appearanceBackup;
+        if (!hasNativeWardrobe() && inCustomWardrobe) CharacterAppearanceBackup = appearanceBackup;
         return ret;
     });
 
     // 「載入時不含身體部位」的勾選框
     hook('AppearanceRun', 10, (args, next) => {
+        if (hasNativeWardrobe()) return next(args);
         if (CharacterAppearanceMode === 'Wardrobe' && targetIsPlayer()) {
             DrawCheckbox(1300, 350, 64, 64, '', excludeBodyparts, false, 'white');
             DrawTextFit(T('wardrobe_no_body'), 1374, 380, 630, 'white');
@@ -141,6 +151,7 @@ export function installWardrobe() {
         return next(args);
     });
     hook('AppearanceClick', 5, (args, next) => {
+        if (hasNativeWardrobe()) return next(args);
         if (CharacterAppearanceMode === 'Wardrobe' && MouseIn(1300, 350, 64, 64) && targetIsPlayer()) {
             excludeBodyparts = !excludeBodyparts;
             return null;
@@ -150,6 +161,7 @@ export function installWardrobe() {
 
     // 繪製衣櫃時暫時把 Player 換成目標角色，讓預覽畫的是對方
     hook('WardrobeRun', 10, (args, next) => {
+        if (hasNativeWardrobe()) return next(args);
         const playerBackup = Player;
         const target = inCustomWardrobe ? targetCharacter : null;
         const keys = ['VisualSettings', 'Canvas', 'CanvasBlink'];
@@ -176,6 +188,7 @@ export function installWardrobe() {
     });
 
     hook('WardrobeClick', 5, (args, next) => {
+        if (hasNativeWardrobe()) return next(args);
         if (MouseIn(10, 74, 64, 64)) { excludeBodyparts = !excludeBodyparts; return null; }
         const ret = next(args);
         // 翻到還沒載入的頁時補載入角色預覽
@@ -187,6 +200,7 @@ export function installWardrobe() {
     });
 
     hook('WardrobeExit', 20, (args, next) => {
+        if (hasNativeWardrobe()) return next(args);
         if (!inCustomWardrobe) return next(args);
         CommonSetScreen('Character', 'Appearance');
         inCustomWardrobe = false;
@@ -194,6 +208,7 @@ export function installWardrobe() {
     });
 
     hook('WardrobeFastLoad', 20, (args, next) => {
+        if (hasNativeWardrobe()) return next(args);
         let [C] = args;
         const base = C?.Appearance?.filter(a => a.Asset.Group.IsDefault && !a.Asset.Group.Clothing) ?? [];
         if (inCustomWardrobe && isCharacter(C) && C.IsPlayer() && targetCharacter) {
@@ -207,12 +222,22 @@ export function installWardrobe() {
         return ret;
     });
 
+    // The DOM save action already confirms. Keep protection for direct callers
+    // without asking twice or letting our cancellation fall through to rename.
+    if (typeof WardrobeSaveSelectedOutfit === 'function') {
+        hook('WardrobeSaveSelectedOutfit', 20, (args, next) => {
+            nativeSaveConfirmationDepth++;
+            try { return next(args); }
+            finally { nativeSaveConfirmationDepth--; }
+        });
+    }
+
     // ── 覆蓋確認 ──
     hook('WardrobeFastSave', 20, (args, next) => {
         const [C] = args;
-        if (inCustomWardrobe && isCharacter(C) && C.IsPlayer() && targetCharacter) args[0] = targetCharacter;
+        if (!hasNativeWardrobe() && inCustomWardrobe && isCharacter(C) && C.IsPlayer() && targetCharacter) args[0] = targetCharacter;
         // 該格已有內容（以 Pronouns 判斷存過檔）才問，空格不會被打擾
-        if (shouldLceHandle('confirmWardrobeSave') && Player.Wardrobe?.length > args[1]
+        if (!nativeSaveConfirmationDepth && shouldLceHandle('confirmWardrobeSave') && Player.Wardrobe?.length > args[1]
             && Player.Wardrobe[args[1]]?.some(a => a.Group === 'Pronouns')) {
             if (!window.confirm(T('wardrobe_override_confirm'))) return null;
         }
@@ -224,6 +249,7 @@ export function installWardrobe() {
         (inCustomWardrobe && CharacterAppearanceReturnScreen?.[1] === 'ChatRoom') || next(args));
 
     document.addEventListener('keydown', (e) => {
+        if (hasNativeWardrobe()) return;
         if (!shouldLceHandle('privateWardrobe')) return;
         if (e.key === 'Escape' && inCustomWardrobe) { WardrobeExit(); e.stopPropagation(); e.preventDefault(); }
     }, true);
