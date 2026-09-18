@@ -1,0 +1,198 @@
+// Native BC R132Beta3 excerpts for compatibility tests. Do not edit function bodies.
+// Source: https://gitgud.io/BondageProjects/Bondage-College (local R132Beta3 snapshot)
+// Test runtime dependencies are supplied by the harness.
+// Scripts/Struggle.js :: StruggleMinigameHandleExpression SHA256 dd9ee3626c140e9b3f72ef5f0ea128c8edbc9216c4e6d9ceaa5175c387b13fbe
+function StruggleMinigameHandleExpression(Decrease) {
+
+	const Count = StruggleProgressStruggleCount;
+	if (!Decrease && Player.OnlineSharedSettings.ItemsAffectExpressions) {
+		// At 15 hit: Eyes angry
+		if (StruggleProgressCurrentMinigame === "Strength") {
+			if (Count >= 15) CharacterSetFacialExpression(Player, "Eyes", "Angry", 3);
+		}
+		// At 25 hit: Eyes Lewd
+		if (StruggleProgressCurrentMinigame === "Flexibility") {
+			if (Count >= 25) CharacterSetFacialExpression(Player, "Eyes", "Lewd", 3);
+		}
+		// At 25 hit: Eyes dazed
+		if (StruggleProgressCurrentMinigame === "Dexterity") {
+			if (Count >= 25) CharacterSetFacialExpression(Player, "Eyes", "Dazed", 3);
+		}
+
+		// Each click accelerates ExpressionQueue timers 1 second.
+		for (const item of Player.ExpressionQueue) {
+			item.Time += -1000;
+		}
+	}
+}
+// Screens/Character/Appearance/Appearance.js :: AppearanceRun SHA256 e517a58baebbce2a6ef514885b4a6d1f63d2ad372577e363cb1d9cd505fe064f
+function AppearanceRun() {
+
+	// Draw the background and the character twice
+	const C = CharacterAppearanceSelection;
+	if (!C) return;
+	if (CharacterAppearanceHeaderTextTime < CommonTime() && CharacterAppearanceMode == "Cloth")
+		CharacterAppearanceHeaderText = "";
+	if (CharacterAppearanceHeaderText == "") {
+		if (C.IsPlayer()) CharacterAppearanceHeaderText = TextGet("SelectYourAppearance");
+		else CharacterAppearanceHeaderText = TextGet("SelectSomeoneAppearance").replace("TargetCharacterName", CharacterNickname(C));
+	}
+	DrawCharacter(C, -600, -100 + 4 * C.HeightModifier, 4, false);
+	if (C.IsPlayer()) DrawCharacter(C, 660, 90, 0.95);
+	else DrawCharacter(C, 660, 0, 1);
+	DrawText(CharacterAppearanceHeaderText, 400, 40, "White", "Black");
+
+	// When there is an extended item
+	if (DialogFocusItem != null) {
+		CommonDynamicFunction("Inventory" + DialogFocusItem.Asset.Group.Name + DialogFocusItem.Asset.Name + "Draw()");
+		DrawButton(1885, 25, 90, 90, "", "White", "Icons/Exit.png");
+		return;
+	} else if (Layering.IsActive()) {
+		return;
+	}
+
+	// As soon as the appearance mode changes, rebuild the menu button list
+	if (CharacterAppearanceMenuMode !== CharacterAppearanceMode) {
+		CharacterAppearanceMenuMode = CharacterAppearanceMode;
+		AppearanceMenuBuild(C, CharacterAppearanceSelectedGroup);
+	}
+
+	// Draw the menu buttons at the top
+	AppearanceMenuDraw();
+
+	// In regular dress-up mode
+	if (CharacterAppearanceMode == "") {
+
+		// Creates buttons for all groups
+		for (let A = CharacterAppearanceOffset; A < CharacterAppearanceGroups.length && A < CharacterAppearanceOffset + CharacterAppearanceNumGroupPerPage; A++) {
+			const Group = CharacterAppearanceGroups[A];
+			if (!Group.IsAppearance()) continue;
+
+			// If it's a locked group, just draw a label and continue
+			if (!AppearanceGroupAllowed(C, Group.Name)) {
+				DrawText(Group.Description + " " + TextGet("OwnerBlock"), 1600, 177 + (A - CharacterAppearanceOffset) * 95, "White", "Silver");
+				continue;
+			}
+
+			const Item = InventoryGet(C, Group.Name);
+			const canAccess = WardrobeGroupAccessible(C, Group);
+			const ButtonColor = canAccess ? "White" : "#888";
+
+			// Draw Strip & Use button
+			if (Item) {
+				let leftPos = 1120;
+				if (Item.Asset.Extended) {
+					const canUse = !InventoryBlockedOrLimited(C, Item);
+					DrawButton(leftPos, 145 + (A - CharacterAppearanceOffset) * 95, 65, 65, "", (canUse ? "White" : "#888"), "Icons/Use.png", TextGet("Use"));
+					leftPos -= (65 + 25);
+				}
+
+				if (Group.AllowNone)
+					DrawButton(leftPos, 145 + (A - CharacterAppearanceOffset) * 95, 65, 65, "", ButtonColor, "Icons/Naked.png", TextGet("StripItem"));
+			}
+
+			// Draw Next/Previous widget
+			/** @type {(prev: boolean) => string} */
+			const prevNextButtonHandler = (prev) => {
+				if (canAccess) {
+					const asset = CharacterAppearanceNextItem(C, Group.Name, prev);
+					return asset ? asset.Description : TextGet("None");
+				}
+				return "";
+			};
+			const buttonLabel = Group.Description + ": " + (InventoryGet(C, Group.Name)?.Asset.Description ?? TextGet("None"));
+			DrawBackNextButton(1210, 145 + (A - CharacterAppearanceOffset) * 95, 400, 65, buttonLabel, ButtonColor, "",
+				() => prevNextButtonHandler(false),
+				() => prevNextButtonHandler(true),
+				!canAccess,
+				Group.AllowNone || AppearancePreviewUseCharacter(Group) ? 65 : undefined);
+
+			const Color = ItemGetColor(C, Group.Name) ?? "Default";
+			const ColorButtonText = ItemColorGetColorButtonText(Color);
+			const ColorButtonColor = ColorButtonText.startsWith("#") ? ColorButtonText : "#fff";
+			const CanCycleColors = !!Item && canAccess && (Item.Asset.ColorableLayerCount > 0 || Item.Asset.Group.ColorSchema.length > 1) && !InventoryBlockedOrLimited(C, Item);
+			const CanPickColor = CanCycleColors && Group.AllowColorize;
+			const ColorIsSimple = !Item || ItemColorIsSimple(Item);
+
+			// Draw color swatch and picker widgets
+			const layeringEnabled = Item && !C.IsNpc();
+			DrawButton(1635, 145 + (A - CharacterAppearanceOffset) * 95, 65, 65, "", layeringEnabled ? "#fff" : "#aaa", "Icons/Layering.png", TextGet("Layering"), !layeringEnabled);
+			DrawButton(1725, 145 + (A - CharacterAppearanceOffset) * 95, 160, 65, ColorButtonText, CanCycleColors ? ColorButtonColor : "#aaa", undefined, undefined, !CanCycleColors);
+			DrawButton(1910, 145 + (A - CharacterAppearanceOffset) * 95, 65, 65, "", CanPickColor ? "#fff" : "#aaa", CanPickColor ? ColorIsSimple ? "Icons/ColorChange.png" : "Icons/ColorChangeMulti.png" : "Icons/ColorBlocked.png", undefined, !CanPickColor);
+		}
+	}
+
+
+	// In item coloring mode
+	if (CharacterAppearanceMode == "Color") {
+		// Leave the color picker if the item is gone.
+		if (!InventoryGet(C, CharacterAppearanceColorPickerGroupName)) ItemColorCancelAndExit();
+		// Draw the color picker
+		ItemColorDraw(CharacterAppearanceSelection, CharacterAppearanceColorPickerGroupName, 1095, 25, 880, 950);
+	}
+
+	// In cloth selection mode
+	if (CharacterAppearanceMode == "Cloth" || CharacterAppearanceMode === "Permissions") {
+		// Prepares a 3x3 square of clothes to present all the possible options
+		let X = 1250;
+		let Y = 125;
+		for (let I = DialogInventoryOffset; (I < DialogInventory.length) && (I < DialogInventoryOffset + CharacterAppearanceNumClothPerPage); I++) {
+			const Item = DialogInventory[I];
+			const Hover = MouseIn(X, Y, 225, 275) && !CommonIsMobile;
+			const Background = AppearanceGetPreviewImageColor(C, Item, Hover);
+
+			if (CharacterAppearanceItemIsHidden(Item.Asset.Name, Item.Asset.Group.Name)) {
+				DrawPreviewBox(X, Y, "Icons/HiddenItem.png", Item.Asset.Description, { Background });
+			} else if (CharacterAppearanceSelectedGroup && AppearancePreviewUseCharacter(CharacterAppearanceSelectedGroup) && CharacterAppearanceSelectedGroup.PreviewZone) {
+				const Z = CharacterAppearanceSelectedGroup.PreviewZone;
+				const PreviewCanvas = DrawCharacterSegment(AppearancePreviews[I % CharacterAppearanceNumClothPerPage], Z[0], Z[1], Z[2], Z[3]);
+				DrawCanvasPreview(X, Y, PreviewCanvas, Item.Asset.Description, { Background, Vibrating: Item.Vibrating, Icons: Item.Icons });
+			} else {
+				DrawItemPreview(Item, Player, X, Y, { Hover: true, Background });
+			}
+
+			ControllerAddActiveArea(X, Y);
+			X = X + 250;
+			if (X > 1800) {
+				X = 1250;
+				Y = Y + 300;
+			}
+		}
+	}
+}
+// Screens/Character/Appearance/Appearance.js :: CharacterAppearanceWardrobeLoad SHA256 6d0acf68473c80ede6e36af50c62aeb14cb763d062ae41900b083f4f006c9e93
+function CharacterAppearanceWardrobeLoad(C) {
+	CommonPromiseCatch(WardrobeOpenCharacter(C));
+}
+// Screens/Character/Wardrobe/Wardrobe.js :: WardrobeOpenCharacter SHA256 a7579ce4a7eaca63e82d9c8243adc620f1af7c59c0465ff5bdbe145bcf84e1e8
+function WardrobeOpenCharacter(C) {
+	Wardrobe.returnScreen = CommonGetScreen();
+	Wardrobe.selectedCharacter = C;
+	return CommonSetScreen("Character", "Wardrobe");
+}
+
+// Screens/Character/Wardrobe/Wardrobe.js :: WardrobeSaveSelectedOutfit SHA256 29086b6078548fb623cc799f908b718ef69dd77c53bc89f79c01bc8ef05b792a
+function WardrobeSaveSelectedOutfit() {
+	if (!Wardrobe.selectedCharacter || WardrobeSelection < 0) return;
+
+	WardrobeSetActionPreview("Save", true);
+	Wardrobe.previewLocked = true;
+	let confirmed = false;
+	try {
+		const sideCharacter = WardrobeGetSidePreviewCharacter();
+		if (sideCharacter) WardrobeDrawToCanvas(WardrobeID.sideCanvas, sideCharacter, 1);
+		confirmed = confirm(TextGet("SaveOutfitConfirm"));
+	} finally {
+		Wardrobe.previewLocked = false;
+		WardrobeSetActionPreview(null, true);
+	}
+	if (!confirmed) return;
+
+	WardrobeFastSave(Wardrobe.selectedCharacter, WardrobeSelection);
+	if (WardrobeRenameSelectedOutfit()) {
+		WardrobePushAll();
+	} else {
+		ServerAccountUpdate.QueueData({ Wardrobe: CharacterCompressWardrobe(Player.Wardrobe) });
+	}
+	WardrobeUpdateElements();
+}

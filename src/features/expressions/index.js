@@ -221,7 +221,7 @@ export function pushEvent(evt) {
 }
 
 function resetExpressionQueue(types, skippedTypes = []) {
-    delete Player.ExpressionQueue;
+    Player.ExpressionQueue = [];
     queue.push(...queue.splice(0).map(e => {
         if (types.includes(e.Type) || (e.Duration <= 0 && e.Type !== AROUSAL_EVT && !skippedTypes.includes(e.Type))) {
             delete e.Expression;
@@ -595,6 +595,14 @@ function customArousalExpression() {
  *     下一幀又寫回去，兩邊無限互踢。這裡通知引擎「這個部位已被清掉」。
  */
 function installExpressionIntegration() {
+    // WCE e276826: older clients/plugins can leave this absent. Beta3 still
+    // iterates it without a guard; preserve existing timed events when present.
+    hook('StruggleMinigameHandleExpression', 10, (args, next) => {
+        if (typeof Player !== 'undefined' && Player && !Array.isArray(Player.ExpressionQueue)) {
+            Player.ExpressionQueue = [];
+        }
+        return next(args);
+    });
     // 保留已公開的 LCE 入口供外部整合使用；內部 hook 直接呼叫模組函式。
     window.lceAnimationEngineEnabled = engineOn;
     window.lcePushEvent = pushEvent;
