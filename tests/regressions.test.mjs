@@ -69,6 +69,16 @@ test('cache controls yield dynamically to WCE and cancel a waiting automatic cle
     wce.automateCacheClear = true; rt.context.CurrentScreen = 'ChatRoom'; retry(); assert.equal(refreshes, 1);
 });
 
+test('lceClearCache menu button uses the R132 Icons/Reset.png path', async () => {
+    const rt = runtime({ globals: { Player: { FBC: '6.3.19' }, setInterval: () => 1 } });
+    const textures = await rt.load('src/features/performance/textures.js'); textures.installTexturePerformance();
+    const state = rt.hooks.get('ChatRoomMenuButtonVisualState')(['lceClearCache'], () => assert.fail('should not fall through'));
+    assert.equal(state.image, 'Icons/Reset.png');
+    let passed = false;
+    rt.hooks.get('ChatRoomMenuButtonVisualState')(['Cut'], () => { passed = true; });
+    assert.ok(passed);
+});
+
 test('whisper reset yields to WCE even if WCE takes ownership after the timer starts', async () => {
     let wceEnabled = false, callback, resets = 0;
     const rt = runtime({ globals: { Player: { FBC: '6.3.19' }, FBC_VERSION: '6.3.19',

@@ -401,7 +401,7 @@ export async function installInstantMessenger() {
     hook('DrawProcess', 10, (args, next) => {
         const ret = next(args);
         if (imOn() && !isButtonHidden() && !isButtonVisualHidden()) {
-            DrawButton(...getButtonPosition(), '', unreadSinceOpened ? 'Red' : 'White', 'Icons/Small/Chat.png', T('im_title'), false);
+            DrawButton(...getButtonPosition(), '', unreadSinceOpened ? 'Red' : 'White', 'Icons/Chat.png', T('im_title'), false);
         }
         return ret;
     });
