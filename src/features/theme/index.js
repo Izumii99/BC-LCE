@@ -44,6 +44,28 @@ let patched = false;
 const C = { Base: '~', Hover: '-', Disabled: '=', Active: '+', NoDraw: '!', Custom: '%', FromButton: '@' };
 const BUTTON_STATES = [C.Hover, C.Disabled, C.Base];
 
+// R132 起官方拿掉了預先裁切好的 Icons/Small/*.png，一律改用原尺寸圖示，
+// 交給 DrawButton 內建的 RectFitIntoRect 依比例縮放進按鈕框（見官方 Drawing.js DrawButton）。
+// 這裡的按鈕/上下頁鈕是自己重畫的，圖示同樣要比照官方做等比縮放，
+// 否則 R132 之後圖示會用「原始像素尺寸」直接貼上去，造成尺寸異常（過大/變形）。
+function drawButtonImageFit(image, x, y, w, h) {
+    if (image == null || image === '') return;
+    const pad = 2;
+    const boxX = x + pad, boxY = y + pad, boxW = w - 2 * pad, boxH = h - 2 * pad;
+    if (typeof DrawGetImage !== 'function' || typeof RectMakeRect !== 'function' ||
+        typeof RectFitIntoRect !== 'function' || typeof DrawingResizeMode === 'undefined') {
+        // 保底：找不到官方縮放 API（例如舊版遊戲）時，至少強制縮放進按鈕框，避免尺寸異常
+        DrawImageResize(image, boxX, boxY, boxW, boxH);
+        return;
+    }
+    const img = DrawGetImage(image);
+    if (!img.complete) return;
+    const buttonRect = RectMakeRect(boxX, boxY, boxW, boxH);
+    const baseImageRect = RectMakeRect(boxX, boxY, img.width, img.height);
+    const [, imageRect] = RectFitIntoRect(baseImageRect, buttonRect, DrawingResizeMode.ShowFullOriginalRatio);
+    DrawImageResize(image, imageRect[0], imageRect[1], imageRect[2], imageRect[3]);
+}
+
 // 除錯用臨時覆蓋（/lceThemetest 浮球）：null = 依實際設定；true/false = 強制開/關。
 // 只影響當下這次執行，不會寫進存檔 —— 收起浮球就還原成使用者真正的設定。
 let themeDebugOverride = null;
@@ -178,7 +200,7 @@ function installHooks() {
         else                                 { DrawRect(x, y, w, h, color); DrawEmptyRect(x, y, w, h, `${C.Custom}disabled`, 2); }
 
         DrawTextFit(label, x + w / 2, y + h / 2 + 1, w - 4, plainColors.text);
-        if (image != null && image !== '') DrawImage(image, x + 2, y + 2);
+        drawButtonImageFit(image, x, y, w, h);
         if (hoveringText != null && isHovering && typeof DrawHoverElements !== 'undefined') {
             DrawHoverElements.push(() => DrawButtonHover(x, y, w, h, hoveringText));
         }
@@ -310,7 +332,7 @@ function installHooks() {
 
         // 用 'Black' 交給 DrawTextFit hook 換成主題文字色（與 Themed 最終呈現一致）
         DrawTextFit(label, left + width / 2, top + height / 2 + 1, CommonIsMobile ? width - 6 : width - 36, 'Black');
-        if (image != null && image !== '') DrawImage(image, left + 2, top + 2);
+        drawButtonImageFit(image, left, top, width, height);
 
         // 左右箭頭
         MainCanvas.strokeStyle = plainColors.accent;
