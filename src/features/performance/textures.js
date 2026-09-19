@@ -107,7 +107,7 @@ export function installTexturePerformance() {
 
     hook('ChatRoomMenuButtonVisualState', 10, (args, next) => {
         if (args[0] !== 'lceClearCache') return next(args);
-        return { image: 'Icons/Small/Reset.png', state: 'Default', hoverText: T('perf_clear_cache') };
+        return { image: 'Icons/Reset.png', state: 'Default', hoverText: T('perf_clear_cache') };
     });
 
     hook('ChatRoomMenuPerformAction', 10, (args, next) => {
