@@ -75,5 +75,11 @@ export function installEchoBridge() {
             Type: "Activity",
             Matchers: matchers,
         });
+        
+        ActivityTriggers.push({
+            Event: m.Event,
+            Type: "Action",
+            Matchers: matchers,
+        });
     }
 }

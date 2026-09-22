@@ -24,7 +24,7 @@ export function installPullToSide() {
         const activity = args[0];
         const acting = args[1];
         
-        if (activity.Name === TARGET || activity.Name.includes("PullToSide")) {
+        if (activity.Name === TARGET || activity.Name === "拉到身边" || activity.Name.includes("PullToSide") || activity.Name.includes("拉到")) {
             if (acting && acting.IsPlayer() && acting.CanInteract() && !acting.Effect.includes("MergedFingers")) {
                 window._pullToSideActive = true;
                 setTimeout(() => { window._pullToSideActive = false; }, 0);
