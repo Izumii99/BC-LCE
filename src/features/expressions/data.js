@@ -276,6 +276,7 @@ export const EventExpressions = {
       Eyes: [{ Expression: "Lewd", Duration: 3000 }],
       Eyes2: [{ Expression: "Lewd", Duration: 3000 }],
       Eyebrows: [{ Expression: "Soft", Duration: 3000 }],
+      Mouth: [{ Expression: "HalfOpen", Duration: 3000 }],
     },
   },
   Kiss: { Type: "Kiss", Duration: 2000, Priority: 200, Expression: { Mouth: [{ Expression: "HalfOpen", Duration: 2000 }] } },

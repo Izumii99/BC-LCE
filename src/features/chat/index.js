@@ -1,4 +1,6 @@
 import { registerChatProcessor } from '../../ui/chat/pipeline.js';
+import { installEmoticons } from './emoticons.js';
+import { installPullToSide } from './pull-to-side.js';
 import { shouldLceHandle } from '../../core/wce-compat.js';
 import { joinRoom } from '../../game/room-navigation.js';
 import { decorateChatText } from '../../ui/chat/markup.js';
@@ -309,6 +311,8 @@ export function installChat() {
     injectStyle();
     createDescElement();
     installMarkupEvents();
+    installEmoticons();
+    installPullToSide();
 
     // 姿勢選單：畫在點選角色的對話框
     hook('DialogDraw', 4, (args, next) => {

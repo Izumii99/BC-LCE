@@ -38,6 +38,8 @@ import { observeResponsive, responsiveOwns } from '../../core/responsive-compat.
 import { getFeature } from '../../core/feature-settings.js';
 import { deepCopy } from '../../core/util.js';
 import { ArousalExpressionStages, EventExpressions, ActivityTriggers } from './data.js';
+import { installSmartEyes } from './smart-eyes.js';
+import { installEchoBridge } from './echo-bridge.js';
 
 const LOG = '🐈‍⬛ [LCE]';
 
@@ -703,6 +705,8 @@ export function installExpressions() {
     })();
 
     installExpressionIntegration();
+    installSmartEyes();
+    installEchoBridge();
 
     // 玩家手動改姿勢 → 記成手動覆寫。
     // 少了這段，引擎每 250ms 會把 ActivePose 打回預設的 BaseUpper/BaseLower，姿勢根本改不動。

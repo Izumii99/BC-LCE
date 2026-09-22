@@ -196,6 +196,28 @@ export const DEFAULT_FEATURE_SETTINGS = {
         type: 'checkbox', value: false, category: 'chat', disabled: () => false, sideEffects: logChange('chatScrollFreeze'),
     },
 
+    // ───────────────────────── chat-qol 整合 ─────────────────────────
+    textEmoticons: {
+        label: 's_textEmoticons', desc: 'sd_textEmoticons',
+        type: 'checkbox', value: true, category: 'chat', disabled: () => false, sideEffects: logChange('textEmoticons'),
+    },
+    pullToSide: {
+        label: 's_pullToSide', desc: 'sd_pullToSide',
+        type: 'checkbox', value: true, category: 'chat', disabled: () => false, sideEffects: logChange('pullToSide'),
+    },
+    smartClosedEyes: {
+        label: 's_smartClosedEyes', desc: 'sd_smartClosedEyes',
+        type: 'checkbox', value: true, category: 'immersion', disabled: () => false, sideEffects: logChange('smartClosedEyes'),
+    },
+    echoBridge: {
+        label: 's_echoBridge', desc: 'sd_echoBridge',
+        type: 'checkbox', value: true, category: 'immersion', disabled: () => false, sideEffects: logChange('echoBridge'),
+    },
+    petsuitAnimation: {
+        label: 's_petsuitAnimation', desc: 'sd_petsuitAnimation',
+        type: 'checkbox', value: true, category: 'misc', disabled: () => false, sideEffects: logChange('petsuitAnimation'),
+    },
+
     // ───────────────────────── theme 主題 ─────────────────────────
     themeEnabled: {
         label: 's_themeEnabled', desc: 'sd_themeEnabled',

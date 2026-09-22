@@ -18,6 +18,7 @@ import { SETTING_CHANGED_EVENT } from '../../core/constants.js';
 import { T } from '../../core/i18n.js';
 import { openModalAsync } from '../../core/modal-service.js';
 import { isWceFeatureEnabled, shouldLceHandle } from '../../core/wce-compat.js';
+import { installPetsuitAnimation } from './petsuit-animation.js';
 
 const LOG = '🐈‍⬛ [LCE]';
 const DEFAULT_WARDROBE_SIZE = 24;
@@ -59,36 +60,7 @@ function sanitizeBundles(list) {
  *   別急著建空衣櫃覆蓋雲端）；手動開啟時用較輕的提示（第一次啟用，想從別的裝置匯入就選取消）。
  */
 export async function loadExtendedWardrobe(wardrobe, init = false) {
-    if (!shouldLceHandle('extendedWardrobe')) return wardrobe;
-
-    const wData = Player.ExtensionSettings?.[WARDROBE_KEY];
-    WardrobeSize = EXPANDED_WARDROBE_SIZE;
-    WardrobeFixLength();
-
-    if (!wData) {
-        // 沒有既有資料：可能是第一次啟用，也可能是伺服器暫時讀不到。
-        // 直接建立空衣櫃會覆蓋掉雲端既有資料，所以先問過再說（同 WCE）。
-        const [answ] = await openModalAsync({
-            prompt: T(init ? 'wardrobe_new_prompt' : 'wardrobe_new_prompt_toggle'),
-            buttons: { cancel: T('wardrobe_cancel'), submit: T('wardrobe_ok') },
-        });
-        if (answ === 'submit') extendedLoaded = true;
-        return wardrobe;
-    }
-
-    try {
-        const extra = parseJSON(LZString.decompressFromUTF16(wData));
-        if (isWardrobe(extra)) {
-            for (let i = DEFAULT_WARDROBE_SIZE; i < EXPANDED_WARDROBE_SIZE; i++) {
-                const idx = i - DEFAULT_WARDROBE_SIZE;
-                if (idx >= extra.length) break;
-                wardrobe[i] = sanitizeBundles(extra[idx]);
-            }
-            extendedLoaded = true;
-        }
-    } catch (e) {
-        console.error(LOG, '拓展衣櫃載入失敗（原始資料已保留，未覆寫）:', e, wData);
-    }
+    // Option A bypass: letting R132 native system handle wardrobe entirely
     return wardrobe;
 }
 
@@ -101,20 +73,12 @@ let installed = false;
 export function installWardrobe() {
     if (installed) return;
     installed = true;
+    installPetsuitAnimation();
 
     // ── 拓展衣櫃：存檔時把 24 格之後的內容抽出來另存 ──
     hook('CharacterCompressWardrobe', 100, (args, next) => {
         let [wardrobe] = args;
-        try {
-            if (isWardrobe(wardrobe)) {
-                const extra = wardrobe.slice(DEFAULT_WARDROBE_SIZE, EXPANDED_WARDROBE_SIZE);
-                if (extra.length > 0 && extendedLoaded) {
-                    Player.ExtensionSettings[WARDROBE_KEY] = LZString.compressToUTF16(JSON.stringify(extra));
-                    wardrobe = wardrobe.slice(0, DEFAULT_WARDROBE_SIZE);   // 前 24 格才走 BC 原本的存檔
-                    ServerPlayerExtensionSettingsSync(WARDROBE_KEY);
-                }
-            }
-        } catch (e) { console.warn(LOG, '拓展衣櫃存檔失敗:', e); }
+        // Option A bypass: legacy extended wardrobe logic disabled for R132
         return next([wardrobe]);
     });
 
