@@ -9,6 +9,8 @@ const TARGET = "PullToSide";
 window._pullToSideActive = false;
 
 export function installPullToSide() {
+    const allowedNames = [TARGET, "拉到身边", "PullToSide", "Grab", "Pull", "Leash"];
+
     hook('ActivityCheckPrerequisite', 0, (args, next) => {
         const prereq = args[0];
         const acting = args[1];
@@ -24,7 +26,7 @@ export function installPullToSide() {
         const activity = args[0];
         const acting = args[1];
         
-        if (activity.Name === TARGET || activity.Name === "拉到身边" || activity.Name.includes("PullToSide") || activity.Name.includes("拉到")) {
+        if (allowedNames.includes(activity.Name) || activity.Name.includes("PullToSide") || activity.Name.includes("拉到")) {
             if (acting && acting.IsPlayer() && acting.CanInteract() && !acting.Effect.includes("MergedFingers")) {
                 window._pullToSideActive = true;
                 setTimeout(() => { window._pullToSideActive = false; }, 0);
@@ -53,8 +55,10 @@ export function installPullToSide() {
         
         if (Message === "ChatRoomChat" && Data && Data.Type === "Activity" && Data.Dictionary) {
             const isPullToSide = Data.Dictionary.some(d => 
-                d.ActivityName === TARGET || 
-                (d.Tag === "ActivityName" && typeof d.Text === "string" && (d.Text === "Activity" + TARGET || d.Text === TARGET || d.Text.includes(TARGET)))
+                allowedNames.includes(d.ActivityName) || 
+                (d.Tag === "ActivityName" && typeof d.Text === "string" && 
+                    (allowedNames.some(name => d.Text === "Activity" + name || d.Text === name || d.Text.includes(name)))
+                )
             );
 
             if (isPullToSide && typeof Player !== "undefined" && !Player.CanInteract() && !Player.IsMouthBlocked()) {
