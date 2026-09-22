@@ -3,7 +3,7 @@ import { getFeature } from '../../core/feature-settings.js';
 
 const hook = createHook('Emoticons', () => getFeature('textEmoticons'));
 
-function SetSafeExpression(group, expression, timer = 3500) {
+function SetSafeExpression(group, expression, timer = 4) {
     if (typeof CharacterSetFacialExpression === 'function') {
         CharacterSetFacialExpression(Player, group, expression, timer);
     }
