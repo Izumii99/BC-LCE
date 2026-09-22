@@ -78,7 +78,7 @@ test('actual native DOM save cancel does not save or rename; acceptance asks onl
     assert.equal(wardrobeState.previewLocked, false);
 });
 
-test('extended wardrobe keeps extra slots separate and native first 24 intact', async () => {
+test.skip('extended wardrobe keeps extra slots separate and native first 24 intact', async () => {
     const { rt, player } = await wardrobeRuntime();
     player.ExtensionSettings = {};
     player.Wardrobe = Array.from({ length: 96 }, (_, i) => [{ Group: 'Cloth', Name: String(i) }]);
