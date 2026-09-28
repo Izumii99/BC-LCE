@@ -24,44 +24,59 @@ export function installEmoticons() {
                 hasEmoticon = true;
                 blushType = "High";
                 SetSafeExpression("Mouth", "Pout");
+                SetSafeExpression("Eyes", "Closed");
             } else if (msg.match(/(^|[\s*~([])(qwq)(?=$|[\s.,?!~*)\]])/i)) {
                 hasEmoticon = true;
                 SetSafeExpression("Mouth", "Happy");
+                SetSafeExpression("Eyes", "Sad");
             } else if (msg.match(/(^|[\s*~([])([xX:;][pP])(?=$|[\s.,?!~*)\]])/i)) {
                 hasEmoticon = true;
                 SetSafeExpression("Mouth", "Ahegao");
+                SetSafeExpression("Eyes", "Closed");
             } else if (msg.match(/\^~?\^|TwT/i) || msg.match(/(^|[\s*~([])([xX:;=]\))(?=$|[\s.,?!~*)\]])/i)) {
                 hasEmoticon = true;
                 SetSafeExpression("Mouth", "Smile");
-            } else if (msg.match(/(^|[\s*~([])(=v=|>v>|<v<)(?=$|[\s.,?!~*)\]])/i)) {
+                if (msg.match(/TwT/i)) SetSafeExpression("Eyes", "Closed");
+            } else if (msg.match(/(^|[\s*~([])(=v=|>v>|<v<|>w<)(?=$|[\s.,?!~*)\]])/i)) {
                 hasEmoticon = true;
                 SetSafeExpression("Mouth", "Smirk");
+                if (msg.match(/>w</i)) SetSafeExpression("Eyes", "Closed");
             } else if (msg.match(/@~?@|TxT/i) || msg.match(/>[.,~_3]>|<[.,~_3]</)) {
                 hasEmoticon = true;
                 SetSafeExpression("Mouth", "Sad");
+                if (msg.match(/@~?@/i)) SetSafeExpression("Eyes", "Dizzy");
+                else if (msg.match(/TxT/i)) SetSafeExpression("Eyes", "Closed");
             } else if (msg.match(/=\/{2,5}=|>\/{2,5}</) || msg.match(/=3=|>3<|>3>|<3</)) {
                 hasEmoticon = true;
                 SetSafeExpression("Mouth", "Pout");
+                SetSafeExpression("Eyes", "Closed");
             } else if (msg.match(/(^|[\s*~([])(o\.o|o_o|oxo)(?=$|[\s.,?!~*)\]])/i)) {
                 hasEmoticon = true;
                 SetSafeExpression("Mouth", "HalfOpen");
+                SetSafeExpression("Eyes", "None");
             } else if (msg.match(/(^|[\s*~([])(:3|;3|:>)(?=$|[\s.,?!~*)\]])/i)) {
                 hasEmoticon = true;
                 SetSafeExpression("Mouth", "Smile");
             } else if (msg.match(/(^|[\s*~([])(xD|XD)(?=$|[\s.,?!~*)\]])/i)) {
                 hasEmoticon = true;
                 SetSafeExpression("Mouth", "Happy");
+                SetSafeExpression("Eyes", "Closed");
             } else if (msg.match(/(^|[\s*~([])(:\(|=~=)(?=$|[\s.,?!~*)\]])/i)) {
                 hasEmoticon = true;
                 SetSafeExpression("Mouth", "Sad");
+            } else if (msg.match(/(^|[\s*~([])(TT|T_T|T-T)(?=$|[\s.,?!~*)\]])/i)) {
+                hasEmoticon = true;
+                SetSafeExpression("Mouth", "Sad");
+                SetSafeExpression("Eyes", "Closed");
             }
 
             if (msg.match(/(>|<)\/{2,5}(>|<)/)) {
                 SetSafeExpression("Eyebrows", "Lowered");
             } else if (msg.match(/(^|[\s*~([])(>[:;xX=]|[:;xX=]<|>:<|>;<|>x<)(?=$|[\s.,?!~*)\]])/i)) {
                 SetSafeExpression("Eyebrows", "Angry");
-            } else if (msg.match(/(^|[\s*~([])(><|>.<|>_<|T_T)(?=$|[\s.,?!~*)\]])/)) {
+            } else if (msg.match(/(^|[\s*~([])(><|>.<|>_<|T_T|TT|T-T|>w<)(?=$|[\s.,?!~*)\]])/i)) {
                 SetSafeExpression("Eyebrows", "Sad");
+                if (msg.match(/(><|>.<|>_<|>w<)/i)) SetSafeExpression("Eyes", "Closed");
             } else if (msg.match(/>[.,~_3]>|<[.,~_3]</)) {
                 SetSafeExpression("Eyebrows", "Harsh");
             } else if (msg.match(/(^|[\s*~([])(o\.o|o_o|oxo)(?=$|[\s.,?!~*)\]])/i)) {
@@ -72,7 +87,7 @@ export function installEmoticons() {
                 SetSafeExpression("Fluids", "TearsMedium");
             }
 
-            if (msg.match(/(TwT|T_T|T-T|TvT|x_x|x-x);/i)) {
+            if (msg.match(/(TwT|T_T|T-T|TvT|x_x|x-x|TT);/i)) {
                 SetSafeExpression("Emoticon", "Tear");
             }
 
