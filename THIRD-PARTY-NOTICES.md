@@ -6,6 +6,11 @@ LCE 本體以 **AGPL-3.0** 授權（見 [LICENSE](./LICENSE)）。
 
 ---
 
+## Chat QoL 功能參考
+- **來源**：[Izumii99/BC-Desktop — Scripts/chat-qol.js](https://github.com/Izumii99/BC-Desktop/blob/main/Scripts/chat-qol.js)
+- 顏文字表情、寵物服動作、嘴部牽引及活動／音效相容的功能構想參考此腳本；LCE 的執行流程依自身表情引擎、設定與 hook 架構另行實作。
+- Echo 活動識別與 MISC 配對行為對照 [SugarChain-Studio/echo-activity-ext](https://github.com/SugarChain-Studio/echo-activity-ext)；LCE 不內嵌或取代 Echo 的牽引執行器。
+
 ## WCE — Wholesome Club Extensions
 - **授權**：GPL-3.0-or-later — 全文見 [`licenses/WCE-GPL-3.0.txt`](./licenses/WCE-GPL-3.0.txt)
 - **與 AGPL 的相容性**：GPLv3 第 13 條明文允許把 GPLv3 作品與 AGPLv3 作品結合成單一作品；

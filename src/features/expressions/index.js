@@ -38,6 +38,7 @@ import { observeResponsive, responsiveOwns } from '../../core/responsive-compat.
 import { getFeature } from '../../core/feature-settings.js';
 import { deepCopy } from '../../core/util.js';
 import { ArousalExpressionStages, EventExpressions, ActivityTriggers } from './data.js';
+import { echoExpressionEvent } from './qol-rules.js';
 
 const LOG = '🐈‍⬛ [LCE]';
 
@@ -101,6 +102,31 @@ const broadcast = {};
 // 訊息把 Eyes 複製到自家群組，全停會讓鏡射的臉凍在預設）。
 const lastSentAt = {};
 const EXPR_KEEPALIVE_MS = 1000;   // 同值最短補送間隔；echo 鏡射在兩次補送間會自行持住
+// 伺服器端被別人改掉的群組（見 sendOwn / installExpressionIntegration 的 ServerSend 鉤子）。
+// 引擎只在「本機值有變」時才送封包；若別的模組直接對伺服器送了一發舊值（不經過 CharacterSetFacialExpression），
+// 本機會被引擎改回正確、伺服器卻停在舊值 —— 自己看正常、別人看到一瞬間就復原。這裡記下被弄髒的群組，
+// 引擎每一輪把「目前本機值」補送一次，讓伺服器收斂回本機。
+const staleOnServer = new Set();
+const lastResyncAt = {};
+// lastAppliedId[t] = 引擎最後一次寫進模組群組（非內建部位）的事件 Id，見 customArousalExpression。
+const lastAppliedId = {};
+const RESYNC_MIN_MS = 400;   // 同一群組最短重送間隔：兩個模組互相覆寫時不致灌爆 socket
+let sendingOwn = false;      // 引擎自己的封包不可被當成「別人送的」
+
+/** 引擎送表情封包的唯一出口：標記為自家封包，並登記「伺服器現在是這個值」。 */
+function sendExpression(group, value) {
+    sendingOwn = true;
+    try {
+        ServerSend('ChatRoomCharacterExpressionUpdate', {
+            Name: value ?? null, Group: group,
+            Appearance: ServerAppearanceBundle(Player.Appearance),
+        });
+    } finally { sendingOwn = false; }
+    broadcast[group] = value ?? null;
+    lastSentAt[group] = Date.now();
+    staleOnServer.delete(group);
+}
+
 let lastUniqueId = 0;
 let lastOrgasm = 0, orgasmCount = 0;
 let PreviousArousal = null;
@@ -199,8 +225,17 @@ function bcxRule(name) {
 export function pushEvent(evt) {
     if (anotherEngineOwnsExpressions()) { queue.length = 0; return; }
     if (!evt) return;
-    // 依事件類型分別由兩個設定控制（取代 WCE 的總開關）
+    // 依事件來源套用各自的功能開關。
     switch (evt.Type) {
+        case 'LceEmoticon':
+            if (!getFeature('chatEmoticons')) return;
+            break;
+        case 'LcePetsuit':
+            if (!getFeature('petsuitAnimation')) return;
+            break;
+        case 'LceEchoActivity':
+            if (!getFeature('activityExpressions')) return;
+            break;
         case AROUSAL_EVT:
         case POST_ORGASM_EVT:
             if (!getFeature('autoArousalExpression')) return;
@@ -218,6 +253,34 @@ export function pushEvent(evt) {
     for (const group of hscExpressionGroups()) delete event.Expression?.[group];
     if (!Object.keys(event.Expression || {}).length && !event.Poses?.length) return;
     queue.push(event);
+}
+
+export function cancelExpressionEvent(type) {
+    for (let i = queue.length - 1; i >= 0; i--) if (queue[i].Type === type) queue.splice(i, 1);
+}
+
+export const canUseExpressionEngine = () => engineOn();
+
+/** 目前玩家某個臉部群組的表情（沒有則 null）。 */
+export const readFace = (group) => (globalThis.Player ? expression(group)[0] : null);
+
+/**
+ * 臨時表情結束、引擎收回後，把這些群組的「最終值」補送給伺服器一次，並記成已同步。
+ * 引擎只在本地值改變時才送；那一發若被伺服器丟掉，別人（以及重新整理後的自己）
+ * 會一直停在臨時表情。這裡不改本地的臉，只負責讓伺服器收斂到本地。
+ */
+export function settleFace(groups) {
+    if (anotherEngineOwnsExpressions() || !globalThis.Player) return;
+    const now = Date.now();
+    for (const group of groups) {
+        if (hscExpressionGroups().has(group)) continue;
+        sendExpression(group, expression(group)[0]);
+    }
+}
+
+export function restoreQolPose(pose) {
+    if (anotherEngineOwnsExpressions() || !globalThis.Player) return;
+    pushEvent({ Type: MANUAL_EVT, Duration: -1, Poses: [{ Pose: pose, Duration: -1 }] });
 }
 
 function resetExpressionQueue(types, skippedTypes = []) {
@@ -280,6 +343,7 @@ function handleChatMessage(data) {
         dbg('收到', data.Type, data.Content, 'Dictionary=', data.Dictionary);
     }
     if (!getFeature('activityExpressions')) { dbg('activityExpressions 關閉，略過'); return; }
+    let matched = false;
     activityTriggers:
     for (const trigger of ActivityTriggers.filter(t => t.Type === data.Type)) {
         for (const matcher of trigger.Matchers) {
@@ -292,19 +356,36 @@ function handleChatMessage(data) {
                     && !matcher.Criteria.DictionaryMatchers.some(m => data.Dictionary?.find(t => Object.keys(m).every(k => m[k] === t[k])))) { dbg('  ✗ DictionaryMatchers 不符'); continue; }
                 dbg(`  ✓ 推送事件 ${trigger.Event}`, EventExpressions[trigger.Event]);
                 pushEvent(EventExpressions[trigger.Event]);
+                matched = true;
             } else if (data.Sender === Player.MemberNumber || dictHasPlayerTarget(data.Dictionary)) {
                 dbg(`  ✓ 推送事件 ${trigger.Event}`, EventExpressions[trigger.Event]);
                 pushEvent(EventExpressions[trigger.Event]);
+                matched = true;
                 break activityTriggers;
             } else {
                 dbg('  ✗ 玩家既不是發送者也不是目標');
             }
         }
     }
+    if (!matched) {
+        const event = echoExpressionEvent(data, Player.MemberNumber);
+        if (event && EventExpressions[event]) {
+            const reaction = deepCopy(EventExpressions[event]);
+            reaction.Type = 'LceEchoActivity';
+            if (reaction.Duration < 0) reaction.Duration = 4000;
+            for (const steps of Object.values(reaction.Expression || {})) {
+                for (const step of steps) if (step.Duration < 0) step.Duration = reaction.Duration;
+            }
+            pushEvent(reaction);
+        }
+    }
 }
 
 // ───────────────────────── 主引擎 ─────────────────────────
 function customArousalExpression() {
+    if (!getFeature('chatEmoticons')) cancelExpressionEvent('LceEmoticon');
+    if (!getFeature('petsuitAnimation')) cancelExpressionEvent('LcePetsuit');
+    if (!getFeature('activityExpressions')) cancelExpressionEvent('LceEchoActivity');
     if (!engineOn() || !Player?.AppearanceLayers || !Player.ArousalSettings) return;
     if (!PreviousArousal) PreviousArousal = { ...Player.ArousalSettings };
 
@@ -458,7 +539,7 @@ function customArousalExpression() {
                 if (pose.Duration < 0 && newerInfinite) { qPoses.splice(k, 1); k--; }
             }
         }
-        if (Object.keys(queue[j].Expression || {}).length === 0 && queue[j].Poses?.length === 0) { queue.splice(j, 1); j--; }
+        if (Object.keys(queue[j].Expression || {}).length === 0 && !queue[j].Poses?.length) { queue.splice(j, 1); j--; }
     }
 
     // 清掉不再需要的姿勢
@@ -502,6 +583,10 @@ function customArousalExpression() {
         if (!nextExpression[t] && !BASE_FACE_COMPONENTS.includes(t)) continue;
         const [exp] = expression(t);
         const nextExp = nextExpression[t] || { Duration: -1, Expression: null };
+        // 模組新增的群組（左眼_Luzi 等）：同一筆事件只套用一次。之後值被模組改掉（例如它把 Eyes 鏡射過去），
+        // 那是模組的意圖，不是「漂移」；若每 250ms 都把它改回舊事件的值，就會與鏡射互相覆寫，
+        // 別人看到的眼睛在鏡射後 0.1 秒又被打回去。
+        if (!BASE_FACE_COMPONENTS.includes(t) && nextExp.Id !== undefined && lastAppliedId[t] === nextExp.Id) continue;
         if (nextExp.Expression !== exp && typeof nextExp.Expression !== 'undefined') desiredExpression[t] = { ...nextExp };
     }
 
@@ -514,15 +599,14 @@ function customArousalExpression() {
             if (bcxRule('block_changing_emoticon')?.isEnforced && t === 'Emoticon') continue;
             const newVal = desiredExpression[t].Expression ?? null;
             setExpression(t, newVal, desiredExpression[t].Color);   // 本地一律套用（不受節流影響）
+            if (desiredExpression[t].Id !== undefined) lastAppliedId[t] = desiredExpression[t].Id;
             notifyMods(t, newVal, desiredExpression[t].Color);
+            // 模組新增的群組由該模組自行同步（見下方校正段的說明）；引擎代送會把過期值寫到伺服器，
+            // 別人看到的鏡射眼睛就會閃一下又復原。
             // 值變了立刻送；沒變則最多每 EXPR_KEEPALIVE_MS 補送一次（餵 echo 鏡射，避免每秒 4 發）。
-            if (broadcast[t] !== newVal || now - (lastSentAt[t] || 0) >= EXPR_KEEPALIVE_MS) {
-                ServerSend('ChatRoomCharacterExpressionUpdate', {
-                    Name: newVal, Group: t,
-                    Appearance: ServerAppearanceBundle(Player.Appearance),
-                });
-                broadcast[t] = newVal;   // 記下已同步值，供末尾校正比對（避免重送）
-                lastSentAt[t] = now;
+            if (BASE_FACE_COMPONENTS.includes(t)
+                && (broadcast[t] !== newVal || now - (lastSentAt[t] || 0) >= EXPR_KEEPALIVE_MS)) {
+                sendExpression(t, newVal);   // 同時記下已同步值，供末尾校正比對（避免重送）
             }
             if (desiredExpression[t].Duration < 0 && newVal !== 'Closed') {
                 refreshScreen = true;
@@ -553,11 +637,19 @@ function customArousalExpression() {
         const cur = expression(t)[0];
         if (!(t in broadcast)) { broadcast[t] = cur; continue; }   // 首見僅記錄，不送（避免開場亂送）
         if (broadcast[t] === cur) continue;
-        broadcast[t] = cur;
-        ServerSend('ChatRoomCharacterExpressionUpdate', {
-            Name: cur ?? null, Group: t,
-            Appearance: ServerAppearanceBundle(Player.Appearance),
-        });
+        sendExpression(t, cur);
+    }
+    // 伺服器被別的模組改髒的群組：以本機目前值補送（有最短間隔，見 RESYNC_MIN_MS）。
+    // 模組自行新增的群組（Luzi 等）由該模組同步，不在此越界代送，與上方一致。
+    if (staleOnServer.size) {
+        const at = Date.now();
+        for (const t of [...staleOnServer]) {
+            if (protectedGroups.has(t) || !BASE_FACE_COMPONENTS.includes(t)) { staleOnServer.delete(t); continue; }
+            if (at - (lastResyncAt[t] || 0) < RESYNC_MIN_MS) continue;
+            lastResyncAt[t] = at;
+            dbg('伺服器端與本機不一致，補送', t, expression(t)[0]);
+            sendExpression(t, expression(t)[0]);
+        }
     }
 
     desiredPose = resolvePoseConflicts(desiredPose, POSE_CATEGORIES);
@@ -577,7 +669,13 @@ function customArousalExpression() {
         if (DialogSelfMenuSelected === 'Pose' && DialogSelfMenuMapping.Pose.C.IsPlayer()) DialogSelfMenuMapping.Pose.Reload();
     }
 
-    if (needsRefresh) CharacterRefresh(Player, false, false);
+    if (needsRefresh) {
+        // 引擎自己觸發的刷新：模組常在刷新時重新同步自家群組（呼叫 CharacterSetFacialExpression），
+        // 那不是玩家手動操作，不可入佇列（否則每輪多出兩筆 Luzi 手動事件，互相觸發而失控）。
+        const wasNotifying = notifying;
+        notifying = true;
+        try { CharacterRefresh(Player, false, false); } finally { notifying = wasNotifying; }
+    }
     PreviousArousal = { ...Player.ArousalSettings };
 }
 
@@ -603,6 +701,29 @@ function installExpressionIntegration() {
         }
         return next(args);
     });
+    // 偵測「不是引擎送的」表情／外觀封包。與本機不一致就記為伺服器端已過期，引擎下一輪補送。
+    //   • ChatRoomCharacterExpressionUpdate：單一群組的值
+    //   • ChatRoomCharacterUpdate：整份外觀快照（帶 Property.Expression），快照過期時同樣會蓋掉別人看到的臉
+    // 先放行（next）再比對；本鉤子只記帳，不攔截、不改封包。
+    hook('ServerSend', 100, (args, next) => {
+        const result = next(args);
+        try {
+            if (sendingOwn || !engineOn()) return result;
+            const [kind, data] = args;
+            if (kind === 'ChatRoomCharacterExpressionUpdate' && data && typeof data.Group === 'string') {
+                // 只比對封包指名的群組（伺服器也只改那一個；Eyes2 另有自己的封包）。
+                const g = data.Group;
+                if (BASE_FACE_COMPONENTS.includes(g) && (data.Name ?? null) !== expression(g)[0]) staleOnServer.add(g);
+            } else if (kind === 'ChatRoomCharacterUpdate' && Array.isArray(data?.Appearance)) {
+                for (const item of data.Appearance) {
+                    const g = item?.Group;
+                    if (BASE_FACE_COMPONENTS.includes(g) && (item?.Property?.Expression ?? null) !== expression(g)[0]) staleOnServer.add(g);
+                }
+            }
+        } catch (e) { console.warn(LOG, '外送封包比對失敗:', e); }
+        return result;
+    });
+
     // 保留已公開的 LCE 入口供外部整合使用；內部 hook 直接呼叫模組函式。
     window.lceAnimationEngineEnabled = engineOn;
     window.lcePushEvent = pushEvent;
@@ -650,9 +771,10 @@ export function installExpressions() {
     observeResponsive((next, previous) => {
         if (next.expressions === previous.expressions) return;
         queue.length = 0;
-        for (const map of [manualComponents, broadcast, lastSentAt]) {
+        for (const map of [manualComponents, broadcast, lastSentAt, lastResyncAt, lastAppliedId]) {
             for (const key of Object.keys(map)) delete map[key];
         }
+        staleOnServer.clear();
         if (!next.expressions && engineStarted && globalThis.Player?.ArousalSettings) {
             PreviousArousal = { ...Player.ArousalSettings };
             // Adopt the present face/pose after handoff rather than replaying stale events.
@@ -732,6 +854,17 @@ export function installExpressions() {
     // 優先權見 ENGINE_HOOK_PRIORITY 的說明，勿調高。
     hook('CharacterSetFacialExpression', ENGINE_HOOK_PRIORITY, (args, next) => {
         let [C, AssetGroup, Expression, Timer, Color] = args;
+        // 診斷：`Liko.LCE.debugExpressions(true)` 後，每通「非引擎自己發的」玩家表情呼叫都會連同呼叫端一起印出。
+        // 眼睛莫名被蓋回去時，從這裡直接看出是誰在寫（見 getExpressionQueue 的優先權欄位對照）。
+        if (debugOn && !notifying && isCharacter(C) && C.IsPlayer()) {
+            dbg('CharacterSetFacialExpression', AssetGroup, Expression, Timer,
+                String(new Error().stack).split('\n').slice(2, 7).map(l => l.trim()).join(' ← '));
+        }
+        // BC 的簽名明列 Expression 可為 undefined（＝清除，等同 null）。內建的 blink（閉眼/睜眼）按鈕
+        // 睜眼時就是把「已記住的手動表情」傳回來，沒記住時是 undefined。若在此被當成「非法參數」放行，
+        // BC 本體會直接把眼睛寫回預設、完全繞過佇列，而佇列裡那筆「閉眼」手動事件仍在 ——
+        // 引擎下一輪（250ms）就把眼睛重新閉上：表現為「閉得了、睜不開」。引擎停用時走 BC 原生，所以正常。
+        if (Expression === undefined) Expression = null;
         // notifying：這通是引擎自己發的通知（見 notifyMods），一律放行，不可再入佇列
         if (!isCharacter(C) || !isString(AssetGroup) || (!isString(Expression) && Expression !== null)
             || !C.IsPlayer() || !engineOn() || notifying) {
