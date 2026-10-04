@@ -33,6 +33,16 @@ export const CATEGORIES = [
     'chat', 'theme', 'ui', 'immersion', 'wardrobe', 'performance', 'cheats', 'misc', 'storage',
 ];
 
+// Explicit panel groups keep display order independent of stored setting keys.
+export const IMMERSION_SECTIONS = [
+    ['animationEngine', 'autoArousalExpression', 'activityExpressions', 'chatEmoticons',
+        'autoMouthOnTalk', 'arousalGrowthAmount'],
+    ['stutters', 'antiDeaf', 'antiGarble', 'antiGarbleChatLevel', 'antiGarbleChatStutter',
+        'antiGarbleChatBabyTalk', 'antiGarbleWhisperLevel', 'antiGarbleWhisperStutter', 'antiGarbleWhisperBabyTalk'],
+    ['urlAsOoc', 'echoMouthPull', 'richerActivitySounds', 'petsuitAnimation', 'petsuitAnimationCycles',
+        'petsuitAnimationDelay', 'petsuitAnimationPosition'],
+];
+
 // 主題所有顏色鍵（供紀錄快照 / 恢復預設 / 染色引擎使用）
 export const THEME_COLOR_KEYS = [
     'themeMainColor', 'themeAccentColor', 'themeTextColor',
@@ -390,8 +400,37 @@ export const DEFAULT_FEATURE_SETTINGS = {
     antiDeaf: {
         label: 's_antiDeaf', desc: 'sd_antiDeaf',
         type: 'checkbox', value: false, category: 'immersion',
-        pageBreakBefore: true,   // 防聾/防混淆與 6 項混淆細節同頁，概念相近較直觀
         disabled: () => false, sideEffects: logChange('antiDeaf'),
+    },
+    echoMouthPull: {
+        label: 's_echoMouthPull', desc: 'sd_echoMouthPull',
+        type: 'checkbox', value: true, category: 'immersion',
+        disabled: () => false, sideEffects: logChange('echoMouthPull'),
+    },
+    chatEmoticons: {
+        label: 's_chatEmoticons', desc: 'sd_chatEmoticons', type: 'checkbox', value: false,
+        category: 'immersion', disabled: s => !s.animationEngine,
+    },
+    richerActivitySounds: {
+        label: 's_richerActivitySounds', desc: 'sd_richerActivitySounds', type: 'checkbox', value: false,
+        category: 'immersion', disabled: () => false,
+    },
+    petsuitAnimation: {
+        label: 's_petsuitAnimation', desc: 'sd_petsuitAnimation', type: 'checkbox', value: false,
+        category: 'immersion', disabled: s => !s.animationEngine,
+    },
+    petsuitAnimationCycles: {
+        label: 's_petsuitAnimationCycles', desc: 'sd_petsuitAnimationCycles', type: 'bar', value: 4,
+        min: 1, max: 20, step: 1, category: 'immersion', disabled: s => !s.animationEngine || !s.petsuitAnimation,
+    },
+    petsuitAnimationDelay: {
+        label: 's_petsuitAnimationDelay', desc: 'sd_petsuitAnimationDelay', type: 'bar', value: 350,
+        min: 250, max: 1000, step: 50, category: 'immersion', disabled: s => !s.animationEngine || !s.petsuitAnimation,
+    },
+    petsuitAnimationPosition: {
+        label: 's_petsuitAnimationPosition', desc: 'sd_petsuitAnimationPosition', type: 'select', value: 'bl',
+        options: ['tl', 'bl', 'tr', 'br'], optionLabels: ['so_fp_tl', 'so_fp_bl', 'so_fp_tr', 'so_fp_br'],
+        dropdown: true, category: 'immersion', disabled: s => !s.animationEngine || !s.petsuitAnimation,
     },
     antiGarble: {
         label: 's_antiGarble', desc: 'sd_antiGarble',
@@ -513,7 +552,7 @@ export const DEFAULT_FEATURE_SETTINGS = {
     antiCheatLevel: {
         // 左側開關（antiCheatLevelEnabled），關閉 = 不啟用；已移除「停用」選項。
         label: 's_antiCheatLevel', desc: 'sd_antiCheatLevel',
-        type: 'select', value: 'whitelist',
+        type: 'select', value: 'whitelist', dropdown: true,
         options:      ['blacklist', 'friend', 'whitelist', 'lover', 'owner', 'self'],
         optionLabels: ['so_ac_blacklist', 'so_ac_friend', 'so_ac_whitelist', 'so_ac_lover', 'so_ac_owner', 'so_ac_self'],
         category: 'cheats', withToggle: true, toggleDefault: false, disabled: () => false, sideEffects: logChange('antiCheatLevel'),

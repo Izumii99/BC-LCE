@@ -40,6 +40,8 @@ import { installArousal } from './features/expressions/arousal.js';
 import { installPerformance } from './features/performance/index.js';
 import { installCheats } from './features/safety/cheats.js';
 import { installMisc } from './features/misc.js';
+import { installEchoMouthPull } from './features/echo-mouth-pull.js';
+import { installChatQol } from './features/chat-qol.js';
 import { installRegionSwitch } from './features/region-switch.js';
 import { installHiddenArousal } from './features/expressions/hidden-arousal.js';
 import { installWardrobe } from './features/wardrobe/index.js';
@@ -133,6 +135,8 @@ if (LCE_ALREADY_LOADED) {
                     ['慾望', installArousal],
                     ['效能', installPerformance],
                     ['雜項', installMisc],
+                    ['Echo 嘴部牽引', installEchoMouthPull],
+                    ['聊天互動', installChatQol],
                     ['區域切換', installRegionSwitch],
                     ['隱藏興奮條', installHiddenArousal],
                     ['直式版面', installVertical],

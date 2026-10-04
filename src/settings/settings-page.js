@@ -4,7 +4,7 @@
 // 透過 PreferenceRegisterExtensionSetting 註冊，繪製走 BC 全域 DrawText/DrawButton/…。
 // ════════════════════════════════════════════════════════════════════════════
 
-import { CATEGORIES, DEFAULT_FEATURE_SETTINGS, clampBar, defaultValues } from '../core/settings-schema.js';
+import { CATEGORIES, DEFAULT_FEATURE_SETTINGS, IMMERSION_SECTIONS, clampBar, defaultValues } from '../core/settings-schema.js';
 import { fSettings, saveFeatureSettings, setFeature, runSettingAction, updateSettings } from '../core/feature-settings.js';
 import { T } from '../core/i18n.js';
 import { langFlag, openLanguageDropdown, openFontPicker, promptInput, openColorPicker } from './pickers.js';
@@ -12,6 +12,7 @@ import { currentGameLanguage } from '../game/language.js';
 import { openStorageManager, closeStorageManager, isStorageManagerOpen, positionStorageManager } from './storage-manager.js';
 import { closeTrustedDomainManager, isTrustedDomainManagerOpen, openTrustedDomainManager, positionTrustedDomainManager } from './trusted-domain-manager.js';
 import iconUrl from '../assets/lce-icon.svg';
+import { openSettingDropdown, closeSettingDropdown, isSettingDropdownOpen } from './setting-dropdown.js';
 
 const SWATCH_W = 64;   // 色塊寬度（與十六進位欄位齊平）
 const ACTION_W = 500;  // 動作鈕寬度（自 x=300 起）
@@ -26,7 +27,7 @@ const SEL_OFFSET = 900;   // select / input / bar / action 控制項起始 X
 const SEL_WIDTH = 340;
 const HOME_COLUMNS = [300, 800, 1300];
 const HOME_ITEMS_PER_COLUMN = 8;
-const PANEL_CATEGORIES = new Set(['ui', 'theme']);
+const PANEL_CATEGORIES = new Set(['ui', 'theme', 'immersion']);
 const PANEL_X = 300;
 const PANEL_Y = 180;
 const PANEL_W = 1400;
@@ -70,6 +71,7 @@ function settingsInCategory(category) {
 }
 
 function computeSections(category) {
+    if (category === 'immersion') return IMMERSION_SECTIONS.map(keys => keys.map(key => [key, DEFAULT_FEATURE_SETTINGS[key]]));
     const sections = [];
     let current = [];
     for (const entry of settingsInCategory(category)) {
@@ -83,6 +85,7 @@ function computeSections(category) {
 const SECTION_LABELS = {
     ui: ['settings_tab_ui', 'settings_tab_ui_colors'],
     theme: ['settings_tab_theme_basic', 'settings_tab_theme_advanced', 'settings_tab_theme_saved'],
+    immersion: ['settings_tab_immersion_expressions', 'settings_tab_immersion_chat', 'settings_tab_immersion_other'],
 };
 
 function visibleSettings() {
@@ -98,15 +101,22 @@ function settingLayouts() {
     if (!PANEL_CATEGORIES.has(currentCategory)) {
         return entries.map((entry, index) => ({ entry, x: 300, y: Y_START + index * Y_INC, width: 1200, controlX: SEL_OFFSET, controlW: SEL_WIDTH }));
     }
+    const splitKey = currentCategory === 'immersion'
+        ? (currentSection === 1 ? 'antiGarble' : currentSection === 2 ? 'petsuitAnimation' : null) : null;
+    const splitIndex = splitKey ? entries.findIndex(([key]) => key === splitKey) : -1;
+    const splitColumns = splitIndex >= 0;
     const rows = currentCategory === 'theme' && currentSection === 0 ? 5 : PANEL_ROWS;
-    const columns = Math.max(1, Math.ceil(entries.length / rows));
+    const columns = splitColumns ? 2 : Math.max(1, Math.ceil(entries.length / rows));
     const columnW = PANEL_W / columns;
     return entries.map((entry, index) => {
-        const column = Math.floor(index / rows);
+        const column = splitColumns ? (index >= splitIndex ? 1 : 0) : Math.floor(index / rows);
+        const row = splitColumns ? (column ? index - splitIndex : index) : index % rows;
         const x = PANEL_X + 15 + column * columnW;
         const width = columnW - 30;
-        const controlW = columns === 1 ? SEL_WIDTH : Math.max(190, Math.min(320, width * 0.48));
-        return { entry, x, y: 270 + (index % rows) * Y_INC, width, controlX: x + width - controlW, controlW };
+        const totalControlW = columns === 1 ? SEL_WIDTH : Math.max(190, Math.min(320, width * 0.48));
+        const trailing = entry[1].type === 'bar' ? BAR_VAL_W + SOUND_GAP : 0;
+        const controlW = totalControlW - trailing;
+        return { entry, x, y: 270 + row * Y_INC, width, controlX: x + width - totalControlW, controlW };
     });
 }
 
@@ -180,6 +190,7 @@ function drawTooltip(x, y, width, text) {
 // ───────────────────────────── BC 偏好子畫面回呼 ─────────────────────────────
 
 function load() {
+    closeSettingDropdown();
     currentCategory = null;
     currentPage = 0;
     currentSection = 0;
@@ -189,6 +200,7 @@ function load() {
 }
 
 function exit() {
+    closeSettingDropdown();
     closeStorageManager();
     closeTrustedDomainManager();
     saveFeatureSettings();
@@ -208,7 +220,7 @@ function run() {
     DrawText(title, 300, 125, 'Black', 'Gray');
     DrawButton(...HEADER_RECTS.exit, '', 'White', 'Icons/Exit.png');
     if (PANEL_CATEGORIES.has(currentCategory)) {
-        DrawButton(...HEADER_RECTS.reset, '', 'White', 'Icons/Reset.png', T(currentCategory === 'ui' ? 'settings_reset_ui' : 's_resetTheme'));
+        DrawButton(...HEADER_RECTS.reset, '', 'White', 'Icons/Reset.png', T(currentCategory === 'theme' ? 's_resetTheme' : `settings_reset_${currentCategory}`));
     }
     DrawButton(...HEADER_RECTS.language, '', 'White');
     ctx.save();
@@ -281,15 +293,7 @@ function run() {
             DrawTextFit(T(def.label), x + ITEM_H + 10, y + ITEM_H / 2, Math.max(80, controlX - x - ITEM_H - 25), highlight, 'Gray');
             const ctrlDisabled = disabled || !enabled;
             if (def.type === 'select') {
-                const idx = def.options.indexOf(fSettings[key]);
-                const len = def.options.length;
-                DrawBackNextButton(
-                    controlX, y, controlW, ITEM_H, selDisplay(def, fSettings[key]),
-                    ctrlDisabled ? '#ebebe4' : 'White', '',
-                    () => selDisplay(def, def.options[(idx - 1 + len) % len]),
-                    () => selDisplay(def, def.options[(idx + 1 + len) % len]),
-                    ctrlDisabled,
-                );
+                drawSelectControl(key, def, layout, ctrlDisabled);
             } else if (def.type === 'bar') {
                 drawBarControl(key, def, layout, ctrlDisabled);
             } else { // input
@@ -298,15 +302,7 @@ function run() {
             if (def.withSound) drawSoundToggle(key, layout, ctrlDisabled);
         } else if (def.type === 'select') {
             DrawTextFit(T(def.label), x + 70, y + ITEM_H / 2, Math.max(80, controlX - x - 85), highlight, 'Gray');
-            const idx = def.options.indexOf(fSettings[key]);
-            const len = def.options.length;
-            DrawBackNextButton(
-                controlX, y, controlW, ITEM_H, selDisplay(def, fSettings[key]),
-                disabled ? '#ebebe4' : 'White', '',
-                () => selDisplay(def, def.options[(idx - 1 + len) % len]),
-                () => selDisplay(def, def.options[(idx + 1 + len) % len]),
-                disabled,
-            );
+            drawSelectControl(key, def, layout, disabled);
         } else if (def.type === 'bar') {
             DrawTextFit(T(def.label), x + 70, y + ITEM_H / 2, Math.max(80, controlX - x - 85), highlight, 'Gray');
             drawBarControl(key, def, layout, disabled);
@@ -333,6 +329,7 @@ function run() {
 }
 
 function click() {
+    closeSettingDropdown();
     if (MouseIn(...HEADER_RECTS.exit)) {
         if (isStorageManagerOpen()) { closeStorageManager(); }
         else if (isTrustedDomainManagerOpen()) { closeTrustedDomainManager(); }
@@ -347,10 +344,10 @@ function click() {
         return;
     }
     if (PANEL_CATEGORIES.has(currentCategory) && MouseIn(...HEADER_RECTS.reset)) {
-        if (currentCategory === 'ui') {
+        if (currentCategory !== 'theme') {
             const defaults = defaultValues();
             const patch = {};
-            for (const [key, def] of settingsInCategory('ui')) {
+            for (const [key, def] of settingsInCategory(currentCategory)) {
                 if (def.type === 'action') continue;
                 patch[key] = defaults[key];
                 if (def.withToggle) patch[`${key}Enabled`] = defaults[`${key}Enabled`];
@@ -429,6 +426,10 @@ function click() {
 
 function adjustControl(key, def, layout) {
     if (def.type === 'select') {
+        if (def.dropdown) {
+            if (MouseIn(layout.controlX, layout.y, layout.controlW, ITEM_H)) openSettingDropdown(key, def, layout);
+            return;
+        }
         const seg = layout.controlW / 2;
         const idx = def.options.indexOf(fSettings[key]);
         const len = def.options.length;
@@ -439,6 +440,19 @@ function adjustControl(key, def, layout) {
     } else if (def.type === 'input') {
         handleInputClick(key, def, layout);
     }
+}
+
+function drawSelectControl(key, def, { controlX, controlW, y }, disabled) {
+    centered(() => {
+        if (def.dropdown) {
+            DrawButton(controlX, y, controlW, ITEM_H, `${selDisplay(def, fSettings[key])} ▾`, disabled ? '#ebebe4' : 'White', '', '', disabled);
+            return;
+        }
+        const idx = def.options.indexOf(fSettings[key]), len = def.options.length;
+        DrawBackNextButton(controlX, y, controlW, ITEM_H, selDisplay(def, fSettings[key]), disabled ? '#ebebe4' : 'White', '',
+            () => selDisplay(def, def.options[(idx - 1 + len) % len]),
+            () => selDisplay(def, def.options[(idx + 1 + len) % len]), disabled);
+    });
 }
 
 /**
@@ -593,6 +607,9 @@ function handleInputClick(key, def, layout) {
 // ───────────────────────────── 註冊 ─────────────────────────────
 
 function keyHandler(e) {
+    if (e.key === 'Escape' && isSettingDropdownOpen()) {
+        closeSettingDropdown(); e.stopPropagation(); e.preventDefault(); return;
+    }
     if (e.key === 'Escape' && currentCategory !== null) {
         currentCategory = null;
         currentSetting = '';

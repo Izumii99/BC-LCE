@@ -38,6 +38,7 @@ import { observeResponsive, responsiveOwns } from '../../core/responsive-compat.
 import { getFeature } from '../../core/feature-settings.js';
 import { deepCopy } from '../../core/util.js';
 import { ArousalExpressionStages, EventExpressions, ActivityTriggers } from './data.js';
+import { echoExpressionEvent } from './qol-rules.js';
 
 const LOG = '🐈‍⬛ [LCE]';
 
@@ -199,8 +200,17 @@ function bcxRule(name) {
 export function pushEvent(evt) {
     if (anotherEngineOwnsExpressions()) { queue.length = 0; return; }
     if (!evt) return;
-    // 依事件類型分別由兩個設定控制（取代 WCE 的總開關）
+    // 依事件來源套用各自的功能開關。
     switch (evt.Type) {
+        case 'LceEmoticon':
+            if (!getFeature('chatEmoticons')) return;
+            break;
+        case 'LcePetsuit':
+            if (!getFeature('petsuitAnimation')) return;
+            break;
+        case 'LceEchoActivity':
+            if (!getFeature('activityExpressions')) return;
+            break;
         case AROUSAL_EVT:
         case POST_ORGASM_EVT:
             if (!getFeature('autoArousalExpression')) return;
@@ -218,6 +228,32 @@ export function pushEvent(evt) {
     for (const group of hscExpressionGroups()) delete event.Expression?.[group];
     if (!Object.keys(event.Expression || {}).length && !event.Poses?.length) return;
     queue.push(event);
+}
+
+export function cancelExpressionEvent(type) {
+    for (let i = queue.length - 1; i >= 0; i--) if (queue[i].Type === type) queue.splice(i, 1);
+}
+
+export const canUseExpressionEngine = () => engineOn();
+
+export function restoreQolFace(original, expected) {
+    if (engineOn() || anotherEngineOwnsExpressions() || !globalThis.Player) return;
+    for (const [group, value] of Object.entries(original)) {
+        if (!hscExpressionGroups().has(group) && expression(group)[0] === expected[group]) {
+            CharacterSetFacialExpression(Player, group, value);
+        }
+    }
+}
+
+export function restoreQolPose(pose, eyes = {}) {
+    if (anotherEngineOwnsExpressions() || !globalThis.Player) return;
+    pushEvent({ Type: MANUAL_EVT, Duration: -1, Poses: [{ Pose: pose, Duration: -1 }] });
+    if (!engineOn()) {
+        Player.ActivePose = [...pose];
+        CharacterRefresh(Player);
+        ServerSend('ChatRoomCharacterPoseUpdate', { Pose: [...pose] });
+        restoreQolFace(eyes, { Eyes: 'Daydream', Eyes2: 'Daydream' });
+    }
 }
 
 function resetExpressionQueue(types, skippedTypes = []) {
@@ -280,6 +316,7 @@ function handleChatMessage(data) {
         dbg('收到', data.Type, data.Content, 'Dictionary=', data.Dictionary);
     }
     if (!getFeature('activityExpressions')) { dbg('activityExpressions 關閉，略過'); return; }
+    let matched = false;
     activityTriggers:
     for (const trigger of ActivityTriggers.filter(t => t.Type === data.Type)) {
         for (const matcher of trigger.Matchers) {
@@ -292,19 +329,36 @@ function handleChatMessage(data) {
                     && !matcher.Criteria.DictionaryMatchers.some(m => data.Dictionary?.find(t => Object.keys(m).every(k => m[k] === t[k])))) { dbg('  ✗ DictionaryMatchers 不符'); continue; }
                 dbg(`  ✓ 推送事件 ${trigger.Event}`, EventExpressions[trigger.Event]);
                 pushEvent(EventExpressions[trigger.Event]);
+                matched = true;
             } else if (data.Sender === Player.MemberNumber || dictHasPlayerTarget(data.Dictionary)) {
                 dbg(`  ✓ 推送事件 ${trigger.Event}`, EventExpressions[trigger.Event]);
                 pushEvent(EventExpressions[trigger.Event]);
+                matched = true;
                 break activityTriggers;
             } else {
                 dbg('  ✗ 玩家既不是發送者也不是目標');
             }
         }
     }
+    if (!matched) {
+        const event = echoExpressionEvent(data, Player.MemberNumber);
+        if (event && EventExpressions[event]) {
+            const reaction = deepCopy(EventExpressions[event]);
+            reaction.Type = 'LceEchoActivity';
+            if (reaction.Duration < 0) reaction.Duration = 4000;
+            for (const steps of Object.values(reaction.Expression || {})) {
+                for (const step of steps) if (step.Duration < 0) step.Duration = reaction.Duration;
+            }
+            pushEvent(reaction);
+        }
+    }
 }
 
 // ───────────────────────── 主引擎 ─────────────────────────
 function customArousalExpression() {
+    if (!getFeature('chatEmoticons')) cancelExpressionEvent('LceEmoticon');
+    if (!getFeature('petsuitAnimation')) cancelExpressionEvent('LcePetsuit');
+    if (!getFeature('activityExpressions')) cancelExpressionEvent('LceEchoActivity');
     if (!engineOn() || !Player?.AppearanceLayers || !Player.ArousalSettings) return;
     if (!PreviousArousal) PreviousArousal = { ...Player.ArousalSettings };
 
