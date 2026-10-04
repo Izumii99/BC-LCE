@@ -40,7 +40,7 @@ export const IMMERSION_SECTIONS = [
     ['stutters', 'antiDeaf', 'antiGarble', 'antiGarbleChatLevel', 'antiGarbleChatStutter',
         'antiGarbleChatBabyTalk', 'antiGarbleWhisperLevel', 'antiGarbleWhisperStutter', 'antiGarbleWhisperBabyTalk'],
     ['urlAsOoc', 'echoMouthPull', 'richerActivitySounds', 'petsuitAnimation', 'petsuitAnimationCycles',
-        'petsuitAnimationDelay', 'petsuitAnimationPosition'],
+        'petsuitAnimationDelay', 'petsuitAnimationPosition', 'petsuitAlternate'],
 ];
 
 // 主題所有顏色鍵（供紀錄快照 / 恢復預設 / 染色引擎使用）
@@ -425,12 +425,17 @@ export const DEFAULT_FEATURE_SETTINGS = {
     },
     petsuitAnimationDelay: {
         label: 's_petsuitAnimationDelay', desc: 'sd_petsuitAnimationDelay', type: 'bar', value: 350,
-        min: 250, max: 1000, step: 50, category: 'immersion', disabled: s => !s.animationEngine || !s.petsuitAnimation,
+        min: 100, max: 1000, step: 50, category: 'immersion', disabled: s => !s.animationEngine || !s.petsuitAnimation,
     },
     petsuitAnimationPosition: {
         label: 's_petsuitAnimationPosition', desc: 'sd_petsuitAnimationPosition', type: 'select', value: 'bl',
         options: ['tl', 'bl', 'tr', 'br'], optionLabels: ['so_fp_tl', 'so_fp_bl', 'so_fp_tr', 'so_fp_br'],
         dropdown: true, category: 'immersion', disabled: s => !s.animationEngine || !s.petsuitAnimation,
+    },
+    // 獨立於「寵物服動作」：即使沒開動作按鈕，也能接收並顯示他人的左右交替。
+    petsuitAlternate: {
+        label: 's_petsuitAlternate', desc: 'sd_petsuitAlternate', type: 'checkbox', value: true,
+        category: 'immersion', disabled: () => false,
     },
     antiGarble: {
         label: 's_antiGarble', desc: 'sd_antiGarble',

@@ -6,9 +6,9 @@
   "s_richerActivitySounds": "Vielfältigere Soundeffekte",
   "sd_richerActivitySounds": "Ergänzt Sounds für unterstützte ECHO-Aktivitäten. Lautstärke und Stummschaltung des Spiels werden beachtet; vorhandene Sounds haben Vorrang.",
   "s_petsuitAnimation": "Haustieranzug-Aktionen",
-  "sd_petsuitAnimation": "Zeigt im Chatraum eine Start/Stopp-Schaltfläche, wenn du einen Haustieranzug trägst und die Armhaltung wechseln kannst. Wechselt zwischen zwei Armhaltungen mit vorübergehendem >.<-Gesichtsausdruck und stellt danach die ursprüngliche Pose wieder her. Benötigt die Animations-Engine.",
+  "sd_petsuitAnimation": "Zeigt eine Start/Stopp-Schaltfläche, wenn du einen Haustieranzug trägst und die Armhaltung wechseln kannst. Hebt die Arme abwechselnd mit vorübergehendem >.<-Gesichtsausdruck und stellt danach die ursprüngliche Pose wieder her. Benötigt die Animations-Engine. Es wird nur eine versteckte Nachricht (Intervall und Anzahl) gesendet; Spieler mit LCE sehen die Arme getrennt schwingen, alle anderen einen gewöhnlichen Posenwechsel.",
   "s_petsuitAnimationCycles": "Wiederholungen",
-  "sd_petsuitAnimationCycles": "Anzahl der Wiederholungen. Jede Wiederholung umfasst beide Armhaltungen.",
+  "sd_petsuitAnimationCycles": "Anzahl der Wiederholungen. Pro Wiederholung wird jeder Arm einmal angehoben.",
   "s_petsuitAnimationDelay": "Aktionsintervall",
   "sd_petsuitAnimationDelay": "Dauer jeder Armhaltung in Millisekunden.",
   "qol_startAnimation": "Haustieranzug-Aktionen starten",
@@ -454,5 +454,7 @@
   "settings_tab_immersion_other": "Sonstiges",
   "settings_reset_immersion": "Immersion zurücksetzen",
   "s_petsuitAnimationPosition": "Position der Aktionstaste",
-  "sd_petsuitAnimationPosition": "Platziert die Schaltfläche im Chatraum oben links, unten links, oben rechts oder unten rechts."
+  "sd_petsuitAnimationPosition": "Platziert die Schaltfläche im Chatraum oben links, unten links, oben rechts oder unten rechts.",
+  "s_petsuitAlternate": "Abwechselndes Armschwingen",
+  "sd_petsuitAlternate": "Legt fest, ob deine Haustieranzug-Aktion die Arme abwechselnd schwingt. Die Einstellung wird mitgesendet: deaktiviert sehen andere ein gewöhnliches Schwingen, aktiviert sehen Spieler mit LCE deine Arme abwechselnd schwingen."
 }

@@ -41,7 +41,8 @@ import { installPerformance } from './features/performance/index.js';
 import { installCheats } from './features/safety/cheats.js';
 import { installMisc } from './features/misc.js';
 import { installEchoMouthPull } from './features/echo-mouth-pull.js';
-import { installChatQol } from './features/chat-qol.js';
+import { installChatQol, installPetsuitSync } from './features/chat-qol.js';
+import { FaceCache } from './features/expressions/face-cache.js';
 import { installRegionSwitch } from './features/region-switch.js';
 import { installHiddenArousal } from './features/expressions/hidden-arousal.js';
 import { installWardrobe } from './features/wardrobe/index.js';
@@ -137,6 +138,7 @@ if (LCE_ALREADY_LOADED) {
                     ['雜項', installMisc],
                     ['Echo 嘴部牽引', installEchoMouthPull],
                     ['聊天互動', installChatQol],
+                    ['寵物服同步', installPetsuitSync],
                     ['區域切換', installRegionSwitch],
                     ['隱藏興奮條', installHiddenArousal],
                     ['直式版面', installVertical],
@@ -187,6 +189,9 @@ if (LCE_ALREADY_LOADED) {
             getExpressionQueue,
             getExpressionHookOrder,
             getFaceComponents: faceComponents,
+            // 表情緩存（唯讀）：寵物服／顏文字等臨時表情期間，FaceCache.get() 回傳 { original, applied }，
+            // 空時 isEmpty() 為 true。其他插件可據此判斷目前的臉是不是臨時的、原本是什麼。
+            FaceCache,
             // 表情資料表（唯讀參考：什麼活動觸發什麼表情、各慾望階段對應的表情）
             expressionData: Object.freeze({ ArousalExpressionStages, EventExpressions, ActivityTriggers }),
             teardownLoginUI: teardownLoginPage,

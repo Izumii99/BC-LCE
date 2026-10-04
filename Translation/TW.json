@@ -4,9 +4,9 @@
   "s_richerActivitySounds": "更豐富的音效",
   "sd_richerActivitySounds": "為支援的 ECHO 活動補上音效，沿用遊戲音量與靜音設定，優先保留既有音效。",
   "s_petsuitAnimation": "寵物服動作",
-  "sd_petsuitAnimation": "穿著寵物服且能切換手臂姿勢時，在聊天室顯示開始／停止按鈕。交替兩個手臂姿勢並暫時套用 >.< 表情，結束後恢復原姿勢。需要表情引擎。",
+  "sd_petsuitAnimation": "穿著寵物服且能切換手臂姿勢時，顯示開始／停止按鈕。左右手交替擺動並暫時套用 >.< 表情，結束後恢復原姿勢。需要表情引擎；動作只會發送一次隱藏訊息（含間隔與組數），由同樣安裝 LCE 的玩家在本地渲染左右手分開擺動；未安裝 LCE 的玩家只會看到一般的姿勢切換。",
   "s_petsuitAnimationCycles": "動畫次數",
-  "sd_petsuitAnimationCycles": "動作重複的次數，每次包含兩個手臂姿勢。",
+  "sd_petsuitAnimationCycles": "動作重複的次數，每次包含左右手各舉起一次。",
   "s_petsuitAnimationDelay": "動作間隔",
   "sd_petsuitAnimationDelay": "每個手臂姿勢的持續時間，單位為毫秒。",
   "qol_startAnimation": "開始寵物服動作",
@@ -454,5 +454,7 @@
   "settings_tab_immersion_other": "其他",
   "settings_reset_immersion": "重設沉浸體驗",
   "s_petsuitAnimationPosition": "動作按鈕位置",
-  "sd_petsuitAnimationPosition": "選擇按鈕在聊天室左上、左下、右上或右下的位置。"
+  "sd_petsuitAnimationPosition": "選擇按鈕在聊天室左上、左下、右上或右下的位置。",
+  "s_petsuitAlternate": "雙手交互晃動",
+  "sd_petsuitAlternate": "設定自己的寵物服動作是否為左右手交互晃動。此設定會隨動作一併通知其他玩家：停用時，別人看你也是普通擺動；啟用時，有裝 LCE 的玩家會看到你左右交互晃動。"
 }

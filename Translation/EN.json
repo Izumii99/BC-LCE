@@ -4,9 +4,9 @@
   "s_richerActivitySounds": "Richer sound effects",
   "sd_richerActivitySounds": "Add sounds for supported ECHO activities, respecting game volume and mute settings and giving existing sounds priority.",
   "s_petsuitAnimation": "Pet suit actions",
-  "sd_petsuitAnimation": "Show a start/stop button in the chat room when wearing a pet suit and able to change arm poses. Alternates two arm poses with a temporary >.< expression, then restores the original pose. Requires the animation engine.",
+  "sd_petsuitAnimation": "Show a start/stop button when wearing a pet suit and able to change arm poses. Alternates the arms with a temporary >.< expression, then restores the original pose. Requires the animation engine. Only one hidden message (interval and count) is sent; players who also have LCE render the arms swinging separately, while others see an ordinary pose swap.",
   "s_petsuitAnimationCycles": "Animation count",
-  "sd_petsuitAnimationCycles": "Number of repetitions. Each repetition includes both arm poses.",
+  "sd_petsuitAnimationCycles": "Number of repetitions. Each repetition raises each arm once.",
   "s_petsuitAnimationDelay": "Action interval",
   "sd_petsuitAnimationDelay": "How long each arm pose lasts, in milliseconds.",
   "qol_startAnimation": "Start pet suit actions",
@@ -454,5 +454,7 @@
   "settings_tab_immersion_other": "Other",
   "settings_reset_immersion": "Reset immersion settings",
   "s_petsuitAnimationPosition": "Action button position",
-  "sd_petsuitAnimationPosition": "Place the button at the top left, bottom left, top right or bottom right of the chat room."
+  "sd_petsuitAnimationPosition": "Place the button at the top left, bottom left, top right or bottom right of the chat room.",
+  "s_petsuitAlternate": "Alternating arm swing",
+  "sd_petsuitAlternate": "Whether your own pet suit action swings the arms alternately. This is sent with the action: if disabled, others see an ordinary swing; if enabled, players with LCE see your arms alternate."
 }

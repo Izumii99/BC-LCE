@@ -25,7 +25,7 @@ test('immersion tabs include every setting once and keep all anti-garble control
     assert.ok(right.every(row => row.entry[0].startsWith('antiGarble')));
     assert.ok(chat.filter(row => !row.entry[0].startsWith('antiGarble')).every(row => row.x < 1000));
     const other = view.testLayouts(2);
-    assert.equal(other.filter(row => row.x > 1000).length, 4);
+    assert.equal(other.filter(row => row.x > 1000).length, 5);
     assert.ok(other.filter(row => row.entry[0].startsWith('petsuit')).every(row => row.x > 1000));
     assert.ok(other.filter(row => !row.entry[0].startsWith('petsuit')).every(row => row.x < 1000));
     for (let section = 0; section < 3; section++) for (const row of view.testLayouts(section)) {

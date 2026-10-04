@@ -1,20 +1,153 @@
 import { createHook } from '../core/hooks.js';
 import { getFeature } from '../core/feature-settings.js';
 import { T } from '../core/i18n.js';
-import { canUseExpressionEngine, cancelExpressionEvent, pushEvent, restoreQolPose, restoreQolFace } from './expressions/index.js';
+import { canUseExpressionEngine, cancelExpressionEvent, pushEvent, restoreQolPose, readFace, settleFace } from './expressions/index.js';
+import { captureFace, releaseCachedFace } from './expressions/face-cache.js';
 import { emoticonExpression, echoSound } from './expressions/qol-rules.js';
+import { drawAlternatingPetsuit } from './petsuit-render.js';
+import { createSocketBinding } from '../core/lifecycle.js';
+import modApi from '../modsdk.js';
 
 const hook = createHook('chat-qol');
 let installed = false;
 let animation = null;
-let emoticonState;
 const poses = ['OverTheHead', 'BackElbowTouch'];
 const outgoingFaces = new WeakMap();
+
+const later = (fn, ms) => (typeof globalThis.setTimeout === 'function' ? globalThis.setTimeout(fn, ms) : null);
+const cancelLater = timer => { if (timer != null) globalThis.clearTimeout?.(timer); };
+
+// ── 臨時表情 ──
+// 寵物服與顏文字都是「暫時改臉」：改之前先寫進表情緩存（已有就不覆蓋），
+// 依事件時長排程釋放；最後一個臨時表情釋放時清空緩存，並在引擎收回表情後
+// （ENGINE_TICK_MS，引擎每 250ms 一輪）把最終值補送給伺服器。
+const ENGINE_TICK_MS = 300;
+const faceHolds = new Map();   // 事件類型 -> { player, timer }
+const touchedGroups = new Set();   // 這一輪臨時表情碰過的群組，最後一個釋放時一起補送
+
+// 臨時表情的步驟優先權。引擎仲裁只看「步驟」的 Priority：prepareExpressionEvent 會把沒寫的步驟補成 1，
+// 所以只在事件層寫 Priority 是無效的 —— 臨時表情會和手動表情平手，平手時後進佇列的贏，
+// 任何第三方在臨時表情之後呼叫 CharacterSetFacialExpression（例如鏡射眼睛的模組回寫舊值）
+// 都會把眼睛蓋回去，而嘴巴沒人動所以維持得住。必須明確寫在每個步驟上。
+const HOLD_PRIORITY = 100;
+
+function holdFace(type, face, duration, event) {
+    for (const steps of Object.values(event?.Expression ?? {})) {
+        for (const step of steps) step.Priority ??= HOLD_PRIORITY;
+    }
+    captureFace(readFace, face);
+    for (const group of Object.keys(face)) touchedGroups.add(group);
+    cancelExpressionEvent(type);
+    pushEvent({ Type: type, Duration: duration, Priority: 100, ...event });
+    cancelLater(faceHolds.get(type)?.timer);
+    faceHolds.set(type, { player: globalThis.Player, timer: later(() => releaseFaceHold(type), duration) });
+}
+
+function releaseFaceHold(type) {
+    const hold = faceHolds.get(type);
+    if (!hold) return;
+    cancelLater(hold.timer);
+    faceHolds.delete(type);
+    cancelExpressionEvent(type);
+    if (faceHolds.size) return;   // 還有別的臨時表情撐著，等最後一個
+    releaseCachedFace();
+    const groups = [...touchedGroups];
+    touchedGroups.clear();
+    later(() => {
+        if (!faceHolds.size && globalThis.Player === hold.player && globalThis.CurrentScreen === 'ChatRoom') settleFace(groups);
+    }, ENGINE_TICK_MS);
+}
+
+// ── 寵物服同步 ──
+// 左右手交替只在「本地」渲染：發動者送一則 Hidden 訊息（間隔 + 組數），每個有裝 LCE 的
+// 客戶端各自依時間畫出交替；不必逐步送封包。沒裝 LCE 的人看到的是一般姿勢切換，
+// 為避免封包連丟，網路姿勢的步進不低於 NET_MIN_STEP，與本地渲染的間隔脫鉤。
+const PETSUIT_MSG = 'LCEPetsuit';
+export const PETSUIT_MIN_DELAY = 100;
+const PETSUIT_MAX_DELAY = 1000;
+const PETSUIT_MAX_CYCLES = 20;
+const NET_MIN_STEP = 350;
+const renderers = new Map();   // MemberNumber -> { char, start, delay, until, timer }
+
+const clampDelay = v => Math.max(PETSUIT_MIN_DELAY, Math.min(PETSUIT_MAX_DELAY, Math.round(Number(v)) || 350));
+const clampCycles = v => Math.max(1, Math.min(PETSUIT_MAX_CYCLES, Math.round(Number(v)) || 4));
+const wearsPetsuit = c => !!c?.Appearance?.some(i => /petsuit|pet suit|宠物服上/i.test(i.Asset?.Name ?? ''));
+
+function sendPetsuitMessage(payload) {
+    try {
+        if (typeof ServerSend !== 'function' || !globalThis.Player) return;
+        ServerSend('ChatRoomChat', { Type: 'Hidden', Content: PETSUIT_MSG, Dictionary: [{ message: payload }] });
+    } catch (e) { console.warn('🐈‍⬛ [LCE]', '寵物服同步訊息送出失敗:', e); }
+}
+
+function refreshCharacter(char) {
+    if (typeof CharacterRefresh === 'function') CharacterRefresh(char, false, false);   // 純本地重繪，不上傳
+}
+
+function startRender(char, delay, cycles, now = Date.now()) {
+    const id = char?.MemberNumber;
+    if (id == null) return;
+    cancelLater(renderers.get(id)?.timer);
+    const entry = { char, start: now, delay, until: now + delay * cycles * 2, timer: null };
+    renderers.set(id, entry);
+    refreshCharacter(char);
+    stepRender(id, entry);
+}
+
+// 每個相位交替處重繪一次，到期收尾；沒有輪詢。
+function stepRender(id, entry) {
+    const now = Date.now();
+    if (renderers.get(id) !== entry) return;
+    if (now >= entry.until || !wearsPetsuit(entry.char)) { stopRender(id); return; }
+    entry.timer = later(() => {
+        if (renderers.get(id) !== entry) return;
+        if (Date.now() < entry.until) refreshCharacter(entry.char);
+        stepRender(id, entry);
+    }, entry.start + (Math.floor((now - entry.start) / entry.delay) + 1) * entry.delay - now);
+}
+
+function stopRender(id) {
+    const entry = renderers.get(id);
+    if (!entry) return;
+    cancelLater(entry.timer);
+    renderers.delete(id);
+    refreshCharacter(entry.char);
+}
+
+/** 其他玩家送來的 Hidden 訊息。對方沒裝或我們沒開此功能時一律忽略。 */
+export function onPetsuitMessage(data) {
+    if (data?.Type !== 'Hidden' || data.Content !== PETSUIT_MSG) return;
+    const id = data.Sender;
+    if (!Number.isSafeInteger(id) || id === globalThis.Player?.MemberNumber) return;
+    const msg = Array.isArray(data.Dictionary) ? data.Dictionary.find(t => t?.message)?.message : data.Dictionary?.message;
+    if (!msg || typeof msg !== 'object') return;
+    if (msg.type === 'Stop') { stopRender(id); return; }
+    if (msg.type !== 'Start') return;
+    // 是否交互晃動由發送者的設定決定；對方停用就維持普通擺動，不做本地渲染。
+    if (msg.alternate !== true) { stopRender(id); return; }
+    const char = (globalThis.ChatRoomCharacter ?? []).find(c => c.MemberNumber === id);
+    if (!char || !wearsPetsuit(char)) return;
+    startRender(char, clampDelay(msg.delay), clampCycles(msg.cycles));
+}
+
+export function installPetsuitSync() {
+    const binding = createSocketBinding({ ChatRoomMessage: onPetsuitMessage });
+    const bind = () => binding.bind(typeof ServerSocket === 'undefined' ? null : ServerSocket);
+    (function wait(n = 240) {
+        if (typeof ServerSocket === 'undefined' || !ServerSocket) {
+            if (n > 0) setTimeout(() => wait(n - 1), 500);
+            return;
+        }
+        bind();
+        try { modApi.hookFunction('ServerInit', 10, (args, next) => { const r = next(args); bind(); return r; }); }
+        catch { /* ignore */ }
+    })();
+}
 
 function canAnimate() {
     const player = globalThis.Player;
     return getFeature('petsuitAnimation') && canUseExpressionEngine() && globalThis.CurrentScreen === 'ChatRoom'
-        && player?.Appearance?.some(i => /petsuit|pet suit/i.test(i.Asset.Name))
+        && player?.Appearance?.some(i => /petsuit|pet suit|宠物服上/i.test(i.Asset.Name))
         && typeof PoseCanChangeUnaided === 'function' && poses.every(p => PoseCanChangeUnaided(player, p));
 }
 
@@ -22,34 +155,39 @@ export function stopPetsuitAnimation(restore = true) {
     if (!animation) return;
     const previous = animation;
     animation = null;
-    cancelExpressionEvent('LcePetsuit');
-    if (restore && globalThis.Player === previous.player) restoreQolPose(previous.pose, previous.eyes);
+    cancelLater(previous.timer);
+    releaseFaceHold('LcePetsuit');
+    if (previous.player?.MemberNumber != null) stopRender(previous.player.MemberNumber);
+    if (Date.now() < previous.until) sendPetsuitMessage({ type: 'Stop' });
+    if (restore && globalThis.Player === previous.player) restoreQolPose(previous.pose);
+    refreshCharacter(previous.player);   // 拿掉合成的畫布；不上傳外觀（避免把還掛著 >.< 的快照送出去）
 }
 
 export function togglePetsuitAnimation() {
     if (animation) { stopPetsuitAnimation(); return; }
     if (!canAnimate()) return;
-    const delay = Math.max(250, Math.min(1000, Number(getFeature('petsuitAnimationDelay')) || 350));
-    const cycles = Math.max(1, Math.min(20, Number(getFeature('petsuitAnimationCycles')) || 4));
+    const delay = clampDelay(getFeature('petsuitAnimationDelay'));
+    const cycles = clampCycles(getFeature('petsuitAnimationCycles'));
     const duration = delay * cycles * 2;
+    // 網路姿勢（沒裝 LCE 的人看到的）降速；總時長與本地渲染一致。
+    const netStep = Math.max(delay, NET_MIN_STEP);
+    const netSteps = Math.max(2, Math.ceil(duration / netStep / 2) * 2);
     animation = { player: Player, pose: [...(Player.ActivePose || [])], until: Date.now() + duration,
-        eyes: Object.fromEntries(['Eyes', 'Eyes2'].map(group => [group,
-            Player.Appearance.find(i => i.Asset.Group?.Name === group)?.Property?.Expression ?? null])),
-    };
+        timer: later(() => stopPetsuitAnimation(), duration) };
     const lower = animation.pose.filter(name => globalThis.PoseFemale3DCG?.find(p => p.Name === name)?.Category === 'BodyLower');
-    pushEvent({ Type: 'LcePetsuit', Duration: duration, Priority: 100,
+    holdFace('LcePetsuit', { Eyes: 'Daydream', Eyes2: 'Daydream' }, duration, {
         Expression: { Eyes: [{ Expression: 'Daydream', Duration: duration }] },
-        Poses: Array.from({ length: cycles * 2 }, (_, i) => ({ Pose: [poses[i % 2], ...lower], Duration: delay })),
+        Poses: Array.from({ length: netSteps }, (_, i) => ({ Pose: [poses[i % 2], ...lower], Duration: netStep })),
     });
+    const alternate = !!getFeature('petsuitAlternate');
+    if (alternate) startRender(Player, delay, cycles);
+    sendPetsuitMessage({ type: 'Start', delay, cycles, alternate });
 }
 
+// 只檢查「條件失效」（功能被關、引擎停了、寵物服脫掉…）；正常結束由各自的計時器負責。
 function updateAnimationState() {
-    if (emoticonState && (!getFeature('chatEmoticons') || !canUseExpressionEngine() || Date.now() >= emoticonState.until)) {
-        cancelExpressionEvent('LceEmoticon');
-        if (emoticonState.player === globalThis.Player) restoreQolFace(emoticonState.original, emoticonState.expected);
-        emoticonState = null;
-    }
-    if (animation && (Date.now() >= animation.until || !canAnimate())) stopPetsuitAnimation();
+    if (faceHolds.has('LceEmoticon') && (!getFeature('chatEmoticons') || !canUseExpressionEngine())) releaseFaceHold('LceEmoticon');
+    if (animation && !canAnimate()) stopPetsuitAnimation();
 }
 
 export function petsuitButtonRect(position = getFeature('petsuitAnimationPosition')) {
@@ -102,17 +240,7 @@ export function installChatQol() {
             outgoingFaces.delete(data);
             if (Object.keys(face).length) {
                 if ('Eyes' in face && !('Eyes2' in face)) face.Eyes2 = face.Eyes;
-                if (!emoticonState || emoticonState.player !== Player || Date.now() >= emoticonState.until) {
-                    emoticonState = { player: Player, original: {}, expected: {} };
-                }
-                for (const [group, value] of Object.entries(face)) {
-                    if (!(group in emoticonState.original)) emoticonState.original[group] =
-                        Player.Appearance.find(i => i.Asset.Group?.Name === group)?.Property?.Expression ?? null;
-                    emoticonState.expected[group] = value;
-                }
-                emoticonState.until = Date.now() + 5000;
-                cancelExpressionEvent('LceEmoticon');
-                pushEvent({ Type: 'LceEmoticon', Duration: 5000, Priority: 100, SingleEye: 'Eyes2' in face,
+                holdFace('LceEmoticon', face, 5000, { SingleEye: 'Eyes2' in face,
                     Expression: Object.fromEntries(Object.entries(face).map(([group, expression]) =>
                         [group, [{ Expression: expression, Duration: 5000 }]])),
                 });
@@ -138,7 +266,22 @@ export function installChatQol() {
         if (args[0] === globalThis.Player) stopPetsuitAnimation(false);
         return next(args);
     });
-    hook('ChatRoomLeave', 50, (args, next) => { stopPetsuitAnimation(); return next(args); });
+    hook('ChatRoomLeave', 50, (args, next) => { stopPetsuitAnimation(); renderers.clear(); return next(args); });
+    hook('CharacterAppearanceBuildCanvas', 10, (args, next) => {
+        const character = args[0];
+        const entry = renderers.get(character?.MemberNumber);
+        if (!entry || entry.char !== character || Date.now() >= entry.until || !wearsPetsuit(character)) return next(args);
+        if (character === globalThis.Player && (!animation || !canAnimate())) return next(args);
+        try {
+            const raisedLeft = Math.floor((Date.now() - entry.start) / entry.delay) % 2 === 0;
+            return drawAlternatingPetsuit(character, raisedLeft, () => next(args));
+        } catch (error) {
+            // A changed drawing API must not leave the character half-rendered.
+            renderers.delete(character.MemberNumber);
+            if (character === globalThis.Player) stopPetsuitAnimation(false);
+            return next(args);
+        }
+    });
     hook('DrawProcess', 10, (args, next) => { const result = next(args); drawPetsuitButton(); return result; });
     hook('ChatRoomClick', 20, (args, next) => {
         if (showPetsuitButton() && MouseIn(...petsuitButtonRect())) { togglePetsuitAnimation(); return; }

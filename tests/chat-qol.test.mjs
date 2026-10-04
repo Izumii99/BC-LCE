@@ -28,7 +28,7 @@ test('Echo bridge recognizes canonical names, filters uninvolved players and non
 });
 
 async function fixture() {
-    const events = [], restored = [], cancelled = [], buttons = [];
+    const events = [], restored = [], cancelled = [], buttons = [], settled = [];
     let tick, ready = true;
     const player = { Appearance: [{ Asset: { Name: 'Petsuit' } }], ActivePose: ['Kneel', 'BaseUpper'], _BlindLevel: 3 };
     const actions = [];
@@ -46,13 +46,14 @@ async function fixture() {
             pushEvent: event => events.push(event),
             cancelExpressionEvent: type => cancelled.push(type),
             restoreQolPose: pose => restored.push([...pose]),
-            restoreQolFace() {},
+            readFace: group => player.Appearance.find(i => i.Asset.Group?.Name === group)?.Property?.Expression ?? null,
+            settleFace: groups => settled.push([...groups]),
         },
     } });
     const settings = await rt.load('src/core/feature-settings.js');
     const module = await rt.load('src/features/chat-qol.js');
     module.installChatQol();
-    return { rt, settings, module, player, actions, events, restored, cancelled, buttons,
+    return { rt, settings, module, player, actions, events, restored, cancelled, buttons, settled,
         tick: () => tick(), setReady: value => { ready = value; } };
 }
 
@@ -144,9 +145,25 @@ test('pet suit button uses FCM coordinates in all four corners and matching clic
     assert.equal(passed, true, 'no button over a character dialog');
 });
 
+test('all three pet suits require both native arm poses before animating', async () => {
+    const { rt, settings, module, player, events } = await fixture();
+    settings.setFeature('petsuitAnimation', true);
+    for (const name of ['StrappedPetsuitArms', 'PawPaddedPetsuitArms', '宠物服上']) {
+        player.Appearance[0].Asset.Name = name;
+        const before = events.length;
+        module.togglePetsuitAnimation();
+        assert.equal(events.length, before + 1, name);
+        module.stopPetsuitAnimation();
+        rt.context.PoseCanChangeUnaided = (_, pose) => pose !== 'OverTheHead';
+        module.togglePetsuitAnimation();
+        assert.equal(events.length, before + 1, 'blocked arms must stay blocked');
+        rt.context.PoseCanChangeUnaided = () => true;
+    }
+});
+
 test('all new settings and buttons have all seven LCE translations', () => {
     const keys = ['echoMouthPull', 'chatEmoticons', 'richerActivitySounds',
-        'petsuitAnimation', 'petsuitAnimationCycles', 'petsuitAnimationDelay', 'petsuitAnimationPosition'];
+        'petsuitAnimation', 'petsuitAnimationCycles', 'petsuitAnimationDelay', 'petsuitAnimationPosition', 'petsuitAlternate'];
     for (const lang of ['TW', 'CN', 'EN', 'DE', 'FR', 'RU', 'UA']) {
         const table = JSON.parse(fs.readFileSync(`Translation/${lang}.json`, 'utf8'));
         for (const key of keys) for (const prefix of ['s_', 'sd_']) assert.ok(table[prefix + key], `${lang}: ${prefix}${key}`);
@@ -204,4 +221,74 @@ test('real expression engine expires textmoji and restores temporary pose withou
     tick();
     assert.ok(!ex.getExpressionQueue().some(event => event.Type === 'LceEchoActivity'));
     assert.equal(rt.warnings.length, 0);
+});
+
+test('Petsuit sends one Hidden message, throttles network poses, and remote clients render locally', async () => {
+    const sent = [], refreshed = [];
+    const { rt, settings, module, player, events } = await fixture();
+    Object.assign(rt.context, { ServerSend: (...a) => sent.push(a), CharacterRefresh: (...a) => refreshed.push(a), ChatRoomCharacter: [] });
+    player.MemberNumber = 1;
+    settings.setFeature('petsuitAnimation', true);
+    settings.setFeature('petsuitAnimationDelay', 100);
+    settings.setFeature('petsuitAnimationCycles', 4);
+    module.togglePetsuitAnimation();
+    const hidden = sent.filter(([k, d]) => k === 'ChatRoomChat' && d.Type === 'Hidden');
+    assert.equal(hidden.length, 1);
+    assert.equal(JSON.stringify(hidden[0][1].Dictionary[0].message), JSON.stringify({ type: 'Start', delay: 100, cycles: 4, alternate: true }));
+    assert.equal(events[0].Duration, 800);
+    assert.ok(events[0].Poses.every(p => p.Duration >= 350), 'network pose steps are throttled');
+
+    const other = { MemberNumber: 2, Appearance: [{ Asset: { Name: 'Petsuit' } }] };
+    rt.context.ChatRoomCharacter.push(other);
+    const msg = (message, Sender = 2) => ({ Type: 'Hidden', Content: 'LCEPetsuit', Sender, Dictionary: [{ message }] });
+    module.onPetsuitMessage(msg({ type: 'Start', delay: 5, cycles: 999, alternate: true }));
+    assert.ok(refreshed.some(([c]) => c === other), 'receiver redraws locally');
+    module.onPetsuitMessage(msg({ type: 'Start', delay: 100, cycles: 2, alternate: true }, 3));
+    module.onPetsuitMessage(msg({ type: 'Stop' }));
+    assert.equal(refreshed.filter(([c]) => c === other).length, 2);
+});
+
+test('receiver follows the sender alternate flag, regardless of its own settings', async () => {
+    const refreshed = [];
+    const { rt, settings, module } = await fixture();
+    Object.assign(rt.context, { CharacterRefresh: (...a) => refreshed.push(a), ChatRoomCharacter: [] });
+    rt.context.ChatRoomCharacter.push({ MemberNumber: 2, Appearance: [{ Asset: { Name: 'Petsuit' } }] });
+    const msg = alternate => ({ Type: 'Hidden', Content: 'LCEPetsuit', Sender: 2,
+        Dictionary: [{ message: { type: 'Start', delay: 100, cycles: 2, alternate } }] });
+    settings.setFeature('petsuitAnimation', false);
+    settings.setFeature('petsuitAlternate', false);
+    module.onPetsuitMessage(msg(true));
+    assert.equal(refreshed.length, 1, 'sender enabled -> alternating even if receiver has everything off');
+    settings.setFeature('petsuitAlternate', true);
+    module.onPetsuitMessage(msg(false));
+    assert.equal(refreshed.length, 2, 'sender disabled -> render cleared, ordinary swing');
+});
+
+test('temporary faces share one expression cache: first original wins, cleared at the last release, final values synced once', async () => {
+    const timers = [];
+    const { rt, settings, module, player, settled } = await fixture();
+    const cache = await rt.load('src/features/expressions/face-cache.js');
+    player.Appearance.push(...['Eyes', 'Eyes2'].map(Name => ({ Asset: { Name, Group: { Name } }, Property: { Expression: 'Closed' } })));
+    Object.assign(rt.context, { setTimeout: (fn, ms) => timers.push({ fn, ms }) && timers.length, clearTimeout: () => {} });
+    settings.setFeature('petsuitAnimation', true);
+    settings.setFeature('chatEmoticons', true);
+    assert.equal(cache.FaceCache.isEmpty(), true);
+    module.togglePetsuitAnimation();
+    assert.equal(cache.FaceCache.get().original.Eyes, 'Closed');
+    player.Appearance.forEach(i => { if (i.Property) i.Property.Expression = 'Daydream'; });   // engine applied the temporary face
+    const message = { Type: 'Chat', Content: 'x', Dictionary: [] };
+    rt.hooks.get('ChatRoomGenerateChatRoomChatMessage')(['Chat', '>.<'], () => message);
+    rt.hooks.get('ServerSend')(['ChatRoomChat', message], () => {});
+    assert.equal(cache.FaceCache.get().original.Eyes, 'Closed', 'already cached: not overwritten by the temporary face');
+    module.togglePetsuitAnimation();   // stop: the emoticon still holds the face
+    assert.equal(cache.FaceCache.isEmpty(), false);
+    assert.equal(settled.length, 0);
+    timers.filter(t => t.ms === 5000).at(-1).fn();   // emoticon ends = last release
+    assert.equal(cache.FaceCache.isEmpty(), true);
+    const settle = timers.at(-1);
+    assert.equal(settle.ms, 300, 'final sync waits one engine tick');
+    rt.context.CurrentScreen = 'ChatRoom';
+    settle.fn();
+    assert.equal(settled.length, 1);
+    assert.ok(['Eyes', 'Eyes2'].every(g => settled[0].includes(g)));
 });
