@@ -1,4 +1,9 @@
 export const faces = [
+    // Explicit slash faces (must be at top to prevent bare match override)
+    [/^>\/{2,5}<$/, { Eyes: 'Daydream', Mouth: 'Pout', Eyebrows: 'Lowered' }],
+    [/^(?:>\/{2,5}>|<\/{2,5}<)$/, { Eyes: 'Shy', Eyebrows: 'Lowered' }],
+    [/^=\/{2,5}=$/, { Eyes: 'Horny', Mouth: 'Pout' }],
+
     // Classic cat/cute faces
     [/^>[._~,]?<$/, { Eyes: 'Daydream', Mouth: 'Smirk' }],
     
@@ -16,6 +21,7 @@ export const faces = [
     // Happy / Smile
     [/^(?:\^_\^|\^\^|\^~\^)$/, { Eyes: 'ShylyHappy', Mouth: 'Smile' }],
     [/^xd$/i, { Eyes: 'Daydream', Mouth: 'Laughing' }],
+    [/^[:;]d$/i, { Mouth: 'Laughing' }],
     [/^(?::\)|:\])$/, { Mouth: 'Smile' }],
     
     // Surprised
@@ -26,7 +32,6 @@ export const faces = [
     [/^(?:>[.,~_]>|<[.,~_]<)$/, { Eyes: 'Dazed', Eyebrows: 'Harsh' }],
     
     // Horny / Closed
-    [/^=\/{2,5}=$/, { Eyes: 'Horny', Mouth: 'Pout', Blush: 'Medium' }],
     [/^(?:==|=\[_\]=)$/, { Eyes: 'Horny' }],
     [/^=~=$/, { Eyes: 'Horny', Mouth: 'Frown' }],
     [/^(?:=[_^.-]=)$/, { Eyes: 'Closed', Mouth: 'Frown' }],
@@ -47,9 +52,6 @@ export const faces = [
     
     // Angry
     [/^(?:>:<|>;<|>x<|>[:;xX=]|[:;xX=]<)$/i, { Eyes: 'Angry', Mouth: 'Angry', Eyebrows: 'Angry' }],
-    
-    // Blush marks
-    [/^[<>]\/{2,5}[<>]$/, { Eyes: 'Daydream', Blush: 'Medium', Eyebrows: 'Lowered' }],
     
     // Floating Marks
     [/^\?$/, { Emoticon: 'Confusion' }],
