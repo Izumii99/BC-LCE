@@ -279,29 +279,7 @@ export function installChatQol() {
         finally { const index = actions.indexOf(fallback); if (index >= 0) actions.splice(index, 1); }
     });
 
-    // Smart Closed Eyes (bypasses expression blindness if no blind items)
-    hook('ChatRoomUpdateDisplay', 0, (args, next) => {
-        let shouldBypass = false;
-        if (typeof Player !== "undefined" && typeof Player.GetBlindLevel === "function") {
-            const hasBlindItem = Player.Effect && (Player.Effect.includes("BlindHeavy") || Player.Effect.includes("BlindNormal") || Player.Effect.includes("BlindLight"));
-            if (!hasBlindItem && Player.GetBlindLevel() > 0) {
-                shouldBypass = true;
-            }
-        }
-        
-        let origGetBlindLevel = null;
-        if (shouldBypass) {
-            origGetBlindLevel = Player.GetBlindLevel;
-            Player.GetBlindLevel = () => 0;
-        }
-        
-        try { return next(args); }
-        finally {
-            if (shouldBypass && origGetBlindLevel) {
-                Player.GetBlindLevel = origGetBlindLevel;
-            }
-        }
-    });
+
 
     // Manual pose changes cancel our sequence before the engine records them.
     for (const fn of ['CharacterSetActivePose', 'PoseSetActive']) hook(fn, 50, (args, next) => {
