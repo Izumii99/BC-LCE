@@ -299,7 +299,7 @@ test('temporary faces share one expression cache: first original wins, cleared a
     module.togglePetsuitAnimation();   // stop: the emoticon still holds the face
     assert.equal(cache.FaceCache.isEmpty(), false);
     assert.equal(settled.length, 0);
-    timers.filter(t => t.ms === 5000).at(-1).fn();   // emoticon ends = last release
+    timers.filter(t => t.ms > 4000).at(-1).fn();   // emoticon ends = last release
     assert.equal(cache.FaceCache.isEmpty(), true);
     const settle = timers.at(-1);
     assert.equal(settle.ms, 300, 'final sync waits one engine tick');
