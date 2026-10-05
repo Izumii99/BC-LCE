@@ -34,17 +34,17 @@ export function emoticonExpression(text) {
 }
 
 export function echoActivity(data) {
-    if (data?.Type !== 'Activity') return null;
+    if (data?.Type !== 'Activity' && data?.Type !== 'Emote' && data?.Type !== 'Action') return null;
     const dict = Array.isArray(data.Dictionary) ? data.Dictionary : [];
     const content = typeof data.Content === 'string' ? data.Content : '';
     const nameEntry = dict.find(d => typeof d.ActivityName === 'string');
     const labelEntry = dict.find(d => d.Tag === 'ActivityName' && typeof d.Text === 'string');
     const name = nameEntry?.ActivityName || labelEntry?.Text?.replace(/^Activity/, '')
         || content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
-    const custom = knownEchoNames.has(name) || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
+    const isActivity = data?.Type === 'Activity';
+    const custom = !isActivity || knownEchoNames.has(name) || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
         || /Luzi_/i.test(nameEntry?.ActivityName || labelEntry?.Text || '');
-    if (!custom) return null;
-    return { name, group: /^Chat(?:Other|Self)-([^-]+)-/.exec(content)?.[1] };
+    return { name, group: /^Chat(?:Other|Self)-([^-]+)-/.exec(content)?.[1], custom };
 }
 
 export function echoExpressionEvent(data, memberNumber) {
@@ -61,7 +61,7 @@ export function echoExpressionEvent(data, memberNumber) {
 
 export function echoSound(data) {
     const activity = echoActivity(data);
-    if (!activity) return null;
+    if (!activity || !activity.custom) return null;
     if (/Whip|鞭打/i.test(activity.name)) return 'WhipCrack';
     if (/拍打|打屁股|轻拍|轻弹|扇耳光|Spank|Slap|Flick|Bap/i.test(activity.name)) return 'SpankSkin';
     if (/Pinch|掐|拧/i.test(activity.name)) return 'LeatherStretchingShort';
