@@ -48,7 +48,7 @@ export const faces = [
     [/^(?:>:<|>;<|>x<|>[:;xX=]|[:;xX=]<)$/i, { Eyes: 'Angry', Mouth: 'Angry', Eyebrows: 'Angry' }],
     
     // Blush marks
-    [/^[<>]\/{2,5}[<>]$/, { Eyes: 'Shy', Blush: 'Medium', Eyebrows: 'Lowered' }],
+    [/^[<>]\/{2,5}[<>]$/, { Eyes: 'Daydream', Blush: 'Medium', Eyebrows: 'Lowered' }],
     
     // Floating Marks
     [/^\?$/, { Emoticon: 'Confusion' }],

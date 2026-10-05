@@ -39,8 +39,12 @@ export function echoActivity(data) {
     const content = typeof data.Content === 'string' ? data.Content : '';
     const nameEntry = dict.find(d => typeof d.ActivityName === 'string');
     const labelEntry = dict.find(d => d.Tag === 'ActivityName' && typeof d.Text === 'string');
-    const name = nameEntry?.ActivityName || labelEntry?.Text?.replace(/^Activity/, '')
+    let name = nameEntry?.ActivityName || labelEntry?.Text?.replace(/^Activity/, '')
         || content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
+    if (typeof ActivityDictionaryText === 'function') {
+        const translated = ActivityDictionaryText(content);
+        if (translated) name += " " + translated;
+    }
     const isActivity = data?.Type === 'Activity';
     const custom = !isActivity || knownEchoNames.has(name) || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
         || /Luzi_/i.test(nameEntry?.ActivityName || labelEntry?.Text || '');
