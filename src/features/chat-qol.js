@@ -239,6 +239,7 @@ export function installChatQol() {
             
             cancelLater(mouthDelayTimer);
             mouthDelayTimer = null;
+            cancelExpressionEvent('LceEmoticonMouth');
 
             const original = data.Dictionary?.find(d => typeof d.Original === 'string')?.Original;
             const face = outgoingFaces.get(data) ?? emoticonExpression(original ?? data.Content);
