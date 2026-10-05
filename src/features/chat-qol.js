@@ -248,7 +248,7 @@ export function installChatQol() {
 
                 // Game talking animation takes roughly 65-150ms per character depending on engine
                 const delay = Math.min(String(original ?? data.Content).length * 150, 30000);
-                const totalDuration = 10000 + delay;
+                const totalDuration = 5000 + delay;
 
                 if (Object.keys(otherFace).length) {
                     holdFace('LceEmoticon', otherFace, totalDuration, { SingleEye: 'Eyes2' in otherFace,
@@ -259,9 +259,9 @@ export function installChatQol() {
                 
                 if (mouthFace) {
                     later(() => {
-                        holdFace('LceEmoticonMouth', mouthFace, 10000, { SingleEye: false,
+                        holdFace('LceEmoticonMouth', mouthFace, 5000, { SingleEye: false,
                             Expression: Object.fromEntries(Object.entries(mouthFace).map(([group, expression]) =>
-                                [group, [{ Expression: expression, Duration: 10000 }]])),
+                                [group, [{ Expression: expression, Duration: 5000 }]])),
                         });
                     }, delay);
                 }
