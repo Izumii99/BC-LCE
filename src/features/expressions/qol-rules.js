@@ -10,6 +10,25 @@ export function emoticonExpression(text) {
         if (/https?:\/\//i.test(token)) continue;
         const match = faces.find(([pattern]) => pattern.test(token));
         if (match) Object.assign(result, match[1]);
+        
+        const slashMatch = token.match(/(\/{2,5})/);
+        if (slashMatch) {
+            const count = slashMatch[1].length;
+            const levels = { 2: 'Low', 3: 'Medium', 4: 'High', 5: 'VeryHigh' };
+            result.Blush = levels[count] || 'VeryHigh';
+        }
+
+        // Floating Marks from chat-qol
+        if (/[?!#]$/.test(token)) {
+            if (token.endsWith('?')) result.Emoticon = 'Confusion';
+            else if (token.endsWith('!')) result.Emoticon = 'Exclamation';
+            else if (token.endsWith('#')) result.Emoticon = 'Annoyed';
+        }
+
+        // Sweatdrop
+        if (/;\s*$/.test(token) || /[=><\^~-];/.test(token) || /(TwT|T_T|T-T|TvT|x_x|x-x);/i.test(token)) {
+            result.Emoticon = 'Tear';
+        }
     }
     return result;
 }

@@ -240,10 +240,28 @@ export function installChatQol() {
             outgoingFaces.delete(data);
             if (Object.keys(face).length) {
                 if ('Eyes' in face && !('Eyes2' in face)) face.Eyes2 = face.Eyes;
-                holdFace('LceEmoticon', face, 5000, { SingleEye: 'Eyes2' in face,
-                    Expression: Object.fromEntries(Object.entries(face).map(([group, expression]) =>
-                        [group, [{ Expression: expression, Duration: 5000 }]])),
-                });
+                
+                const hasMouth = 'Mouth' in face;
+                const mouthFace = hasMouth ? { Mouth: face.Mouth } : null;
+                const otherFace = { ...face };
+                delete otherFace.Mouth;
+
+                if (Object.keys(otherFace).length) {
+                    holdFace('LceEmoticon', otherFace, 5000, { SingleEye: 'Eyes2' in otherFace,
+                        Expression: Object.fromEntries(Object.entries(otherFace).map(([group, expression]) =>
+                            [group, [{ Expression: expression, Duration: 5000 }]])),
+                    });
+                }
+                
+                if (mouthFace) {
+                    const delay = Math.min(String(original ?? data.Content).length * 65, 5000);
+                    later(() => {
+                        holdFace('LceEmoticonMouth', mouthFace, 5000, { SingleEye: false,
+                            Expression: Object.fromEntries(Object.entries(mouthFace).map(([group, expression]) =>
+                                [group, [{ Expression: expression, Duration: 5000 }]])),
+                        });
+                    }, delay);
+                }
             }
         }
         return next(args);
@@ -259,6 +277,30 @@ export function installChatQol() {
         actions.push(fallback);
         try { return next(args); }
         finally { const index = actions.indexOf(fallback); if (index >= 0) actions.splice(index, 1); }
+    });
+
+    // Smart Closed Eyes (bypasses expression blindness if no blind items)
+    hook('ChatRoomUpdateDisplay', 0, (args, next) => {
+        let shouldBypass = false;
+        if (typeof Player !== "undefined" && typeof Player.GetBlindLevel === "function") {
+            const hasBlindItem = Player.Effect && (Player.Effect.includes("BlindHeavy") || Player.Effect.includes("BlindNormal") || Player.Effect.includes("BlindLight"));
+            if (!hasBlindItem && Player.GetBlindLevel() > 0) {
+                shouldBypass = true;
+            }
+        }
+        
+        let origGetBlindLevel = null;
+        if (shouldBypass) {
+            origGetBlindLevel = Player.GetBlindLevel;
+            Player.GetBlindLevel = () => 0;
+        }
+        
+        try { return next(args); }
+        finally {
+            if (shouldBypass && origGetBlindLevel) {
+                Player.GetBlindLevel = origGetBlindLevel;
+            }
+        }
     });
 
     // Manual pose changes cancel our sequence before the engine records them.
