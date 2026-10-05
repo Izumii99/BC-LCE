@@ -53,7 +53,9 @@ export default defineConfig({
       input: 'src/main.js',
       output: {
         entryFileNames: 'assets/[name].js',
-        chunkFileNames: 'assets/[name].js',
+        // main.js is cache-busted by the loader's ?v=, but its ./app.js import is not;
+        // hashing chunks gives every build a fresh URL so browsers never reuse a stale app.js.
+        chunkFileNames: 'assets/[name]-[hash].js',
         // 圖片等 asset 加 content hash：內容變更時檔名跟著變，避免瀏覽器讀到舊快取。
         // main.js 不加 hash（loader 用固定 URL + ?v= 破快取），會自動引用到最新的 hash 檔名。
         assetFileNames: 'assets/[name]-[hash].[ext]',

@@ -14,6 +14,11 @@ test('textmoji handle mixed faces without matching URLs or ordinary words', () =
     assert.deepEqual(emoticonExpression('https://example.com/#hello?x=0.0 ordinaryxD'), {});
     assert.equal(emoticonExpression(':3 >.<').Eyes, 'Daydream');
     assert.equal(emoticonExpression(';p').Eyes2, null);
+    assert.equal(emoticonExpression('>~<').Eyes, 'Daydream');
+    assert.equal(emoticonExpression('>///<').Eyes, 'Daydream');
+    assert.deepEqual(emoticonExpression('=~='), { Eyes: 'Horny', Mouth: 'Frown' });
+    assert.equal(emoticonExpression('<~<').Eyes, 'Dazed');
+    assert.equal(emoticonExpression('^^~').Eyes, 'ShylyHappy');
 });
 
 test('Echo bridge recognizes canonical names, filters uninvolved players and non-mouth kisses', () => {
@@ -25,6 +30,11 @@ test('Echo bridge recognizes canonical names, filters uninvolved players and non
     assert.equal(echoExpressionEvent(packet('舔手', 'ItemHands', 2, 3), 1), null);
     assert.equal(echoSound(packet('轻弹额头', 'ItemHead')), 'SpankSkin');
     assert.equal(echoSound(packet('Spank', 'ItemButt')), null, 'native activity stays native');
+    const custom = { ...packet('Luzi_Custom1', 'ItemButt'), Dictionary: [{ TargetCharacter: 1 }, { Tag: 'Luzi_Custom1', Text: 'SourceCharacter slaps TargetCharacter' }] };
+    assert.equal(echoSound(custom), 'SpankSkin', 'custom Echo wording is read from Dictionary text');
+    assert.equal(echoExpressionEvent(custom, 1), 'Spank');
+    assert.equal(echoSound({ Type: 'Emote', Content: 'hits the wall', Dictionary: [] }), 'SmackCrop');
+    assert.equal(echoSound({ Type: 'Action', Content: 'ActionUse', Dictionary: [{ Tag: 'X', Text: 'Whiplash' }] }), null);
 });
 
 async function fixture() {
@@ -76,16 +86,22 @@ test('sound fallback preserves native priority and cleans up on disable and exce
     settings.setFeature('richerActivitySounds', true);
     const data = packet('轻弹额头');
     const audio = rt.hooks.get('AudioPlaySoundForChatMessage');
+    const meta = { TargetCharacter: {} };
     const native = { IsAction: () => true, GetSoundEffect: () => 'native' };
     actions.push(native);
-    audio([data], () => assert.equal(actions.find(a => a.IsAction(data)).GetSoundEffect(), 'native'));
+    audio([data, {}, '', meta], () => assert.equal(actions.find(a => a.IsAction(data)).GetSoundEffect(), 'native'));
+    native.GetSoundEffect = () => null;   // BC's catch-all for every Activity
+    audio([data, {}, '', meta], () => assert.equal(actions.find(a => a.IsAction(data)).GetSoundEffect(), 'SpankSkin'));
+    assert.equal(actions.length, 1);
     actions.length = 0;
-    audio([data], () => assert.equal(actions.find(a => a.IsAction(data)).GetSoundEffect(), 'SpankSkin'));
+    assert.throws(() => audio([data, {}, '', meta], () => { throw Error('sound'); }));
     assert.equal(actions.length, 0);
-    assert.throws(() => audio([data], () => { throw Error('sound'); }));
-    assert.equal(actions.length, 0);
+    const played = [];
+    Object.assign(rt.context, { AudioPlaySoundEffect: s => played.push(s), AudioShouldSilenceSound: () => false });
+    audio([{ Type: 'Emote', Content: 'slaps you', Dictionary: [] }, {}, '', {}], () => {});
+    assert.deepEqual(played, ['SpankSkin'], 'emotes play directly');
     settings.setFeature('richerActivitySounds', false);
-    audio([data], () => assert.equal(actions.length, 0));
+    audio([data, {}, '', meta], () => assert.equal(actions.length, 0));
 });
 
 test('outgoing emoticons use pre-garble text without adding original to network payload', async () => {
@@ -283,7 +299,7 @@ test('temporary faces share one expression cache: first original wins, cleared a
     module.togglePetsuitAnimation();   // stop: the emoticon still holds the face
     assert.equal(cache.FaceCache.isEmpty(), false);
     assert.equal(settled.length, 0);
-    timers.filter(t => t.ms === 5000).at(-1).fn();   // emoticon ends = last release
+    timers.filter(t => t.ms > 4000).at(-1).fn();   // emoticon ends = last release
     assert.equal(cache.FaceCache.isEmpty(), true);
     const settle = timers.at(-1);
     assert.equal(settle.ms, 300, 'final sync waits one engine tick');
@@ -291,4 +307,36 @@ test('temporary faces share one expression cache: first original wins, cleared a
     settle.fn();
     assert.equal(settled.length, 1);
     assert.ok(['Eyes', 'Eyes2'].every(g => settled[0].includes(g)));
+});
+
+test('consecutive chat messages cancel pending mouth expressions', async () => {
+    const timers = [];
+    const cleared = new Set();
+    const { rt, settings, module } = await fixture();
+    Object.assign(rt.context, { 
+        setTimeout: (fn, ms) => {
+            const id = timers.length + 1;
+            timers.push({ id, fn, ms });
+            return id;
+        }, 
+        clearTimeout: (id) => {
+            if (id) cleared.add(id);
+        } 
+    });
+    settings.setFeature('chatEmoticons', true);
+    settings.setFeature('animationEngine', true);
+    
+    // First message triggers a mouth delay
+    const msg1 = { Type: 'Chat', Content: 'a'.repeat(50), Dictionary: [] };
+    rt.hooks.get('ChatRoomGenerateChatRoomChatMessage')(['Chat', '>.< ' + 'a'.repeat(50)], () => msg1);
+    rt.hooks.get('ServerSend')(['ChatRoomChat', msg1], () => {});
+    
+    const firstMouthTimerId = timers.at(-1).id; // The delayed mouth is the last scheduled timer
+    
+    // Second message arrives immediately
+    const msg2 = { Type: 'Chat', Content: 'b', Dictionary: [] };
+    rt.hooks.get('ChatRoomGenerateChatRoomChatMessage')(['Chat', '>.< b'], () => msg2);
+    rt.hooks.get('ServerSend')(['ChatRoomChat', msg2], () => {});
+    
+    assert.ok(cleared.has(firstMouthTimerId), 'previous mouth timer is cancelled');
 });
