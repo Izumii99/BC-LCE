@@ -1,24 +1,56 @@
-// Declarative textmoji and Echo mappings. No hooks, settings or timers here.
 export const faces = [
-    [/^(?:>\.<|><|>_<|>w<|>v<)$/i, { Eyes: 'Daydream', Mouth: 'Smirk' }],
-    [/^(?::3|;3|:>)$/, { Mouth: 'Smirk' }],
-    [/^(?:=w=|>w>|<w<|=v=|>v>|<v<)$/i, { Eyes: 'Horny', Mouth: 'Smirk' }],
-    [/^=\/{2,5}=$/, { Eyes: 'Horny', Mouth: 'Smirk', Blush: 'Medium' }],
+    // Classic cat/cute faces
+    [/^(?:>\.<|><|>_<)$/i, { Eyes: 'Daydream', Mouth: 'Smirk' }],
+    
+    // Cat faces with W
+    [/^(?:>w<)$/i, { Eyes: 'Daydream', Mouth: 'Happy' }],
+    [/^(?:=w=|>w>|<w<)$/i, { Eyes: 'Horny', Mouth: 'Happy' }],
+    
+    // Cat faces with V
+    [/^(?:>v<)$/i, { Eyes: 'Daydream', Mouth: 'Smile' }],
+    [/^(?:=v=|>v>|<v<)$/i, { Eyes: 'Horny', Mouth: 'Smirk' }],
+    
+    // Normal cat face
+    [/^(?::3|;3|:>)$/, { Mouth: 'Happy' }],
+    
+    // Happy / Smile
     [/^(?:\^_\^|\^\^|\^~\^)$/, { Eyes: 'ShylyHappy', Mouth: 'Smile' }],
     [/^xd$/i, { Eyes: 'Daydream', Mouth: 'Laughing' }],
     [/^(?::\)|:\])$/, { Mouth: 'Smile' }],
-    [/^(?:0[._x]0|o[._x]o)$/i, { Eyes: 'Surprised' }],
-    [/^@[_.,~-]*@$/, { Eyes: 'Crazy' }],
+    
+    // Surprised
+    [/^(?:0[._x]0|o[._x]o)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised' }],
+    
+    // Crazy / Dazed
+    [/^@[_.,~-]*@$/, { Eyes: 'Crazy', Mouth: 'Sad' }],
+    [/^(?:>\.>|<\.<|>~>)$/, { Eyes: 'Dazed', Eyebrows: 'Harsh' }],
+    
+    // Horny / Closed
+    [/^=\/{2,5}=$/, { Eyes: 'Horny', Mouth: 'Pout', Blush: 'Medium' }],
     [/^(?:==|=\[_\]=)$/, { Eyes: 'Horny' }],
+    [/^(?:=[_^.-]=)$/, { Eyes: 'Closed', Mouth: 'Frown' }],
+    
+    // Ahegao
     [/^(?:;p|;d|;\))$/i, { Eyes: 'Closed', Eyes2: null, Mouth: 'Ahegao' }],
     [/^:p$/i, { Mouth: 'Ahegao' }],
-    [/^(?:>\.>|<\.<|>~>)$/, { Eyes: 'Dazed' }],
-    [/^(?:t[_wxv.-]?t|qwq)$/i, { Eyes: 'Dazed', Fluids: 'TearsHigh' }],
+    
+    // Sad / Tears
+    [/^(?:t[_wv.-]?t|tt)$/i, { Eyes: 'Shy', Mouth: 'Sad', Fluids: 'TearsHigh', Eyebrows: 'Sad' }],
+    [/^qwq$/i, { Eyes: 'Shy', Mouth: 'Happy', Fluids: 'TearsHigh', Eyebrows: 'Sad' }],
     [/^(?::\(|=~=)$/, { Mouth: 'Frown' }],
-    [/^(?:=3=|>3<)$/, { Mouth: 'Pout' }],
-    [/^(?:>:<|>;<|>x<)$/, { Eyes: 'Angry', Mouth: 'Angry' }],
+    [/^D:$/i, { Eyes: 'Dazed', Mouth: 'Sad' }],
     [/^(?:twt;|x_x;|\^\^;)$/i, { Fluids: 'TearsLow' }],
-    [/^(?:[<>])?\/{2,5}(?:[<>])?$/, { Blush: 'Medium' }],
+    
+    // Pout
+    [/^(?:=3=|>3<|>3>|<3<)$/, { Mouth: 'Pout' }],
+    
+    // Angry
+    [/^(?:>:<|>;<|>x<|>[:;xX=]|[:;xX=]<)$/i, { Eyes: 'Angry', Mouth: 'Angry', Eyebrows: 'Angry' }],
+    
+    // Blush marks
+    [/^(?:[<>])?\/{2,5}(?:[<>])?$/, { Blush: 'Medium', Eyebrows: 'Lowered' }],
+    
+    // Floating Marks
     [/^\?$/, { Emoticon: 'Confusion' }],
     [/^!$/, { Emoticon: 'Exclamation' }],
     [/^#$/, { Emoticon: 'Annoyed' }],
