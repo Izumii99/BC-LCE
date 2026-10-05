@@ -25,11 +25,11 @@ export const faces = [
     [/^[:;]d$/i, { Mouth: 'Laughing' }],
     [/^(?::\)|:\])$/, { Mouth: 'Smile' }],
     
+    // Confused / Huh (Must be above Surprised to prevent /i override)
+    [/^(?:O[.,_]o|o[.,_]O|0[.,_]o|o[.,_]0)$/, { Eyes: 'Dazed', Mouth: 'HalfOpen', Eyebrows: 'OneRaised' }],
+    
     // Surprised
     [/^(?:0[._x]0|o[._x]o)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised' }],
-    
-    // Confused / Huh
-    [/^(?:O[.,_]o|o[.,_]O|0[.,_]o|o[.,_]0)$/, { Eyes: 'Dazed', Mouth: 'HalfOpen', Eyebrows: 'OneRaised' }],
     
     // Crazy / Dazed
     [/^@[_.,~-]*@$/, { Eyes: 'Crazy', Mouth: 'Sad' }],
