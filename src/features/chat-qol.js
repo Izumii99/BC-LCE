@@ -247,7 +247,7 @@ export function installChatQol() {
                 delete otherFace.Mouth;
 
                 // Game talking animation takes roughly 65ms per character
-                const delay = Math.min(String(original ?? data.Content).length * 65, 20000);
+                const delay = Math.min(String(original ?? data.Content).length * 65, 30000);
                 const totalDuration = 5000 + delay;
 
                 if (Object.keys(otherFace).length) {
