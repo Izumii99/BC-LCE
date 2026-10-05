@@ -10,13 +10,14 @@ export function emoticonExpression(text) {
         if (/https?:\/\//i.test(token)) continue;
         const bare = token.replace(/(?:~+|\/{2,5})$/g, '').replace(/\/{2,5}/g, '');
         const match = faces.find(([pattern]) => pattern.test(token) || pattern.test(bare));
-        if (match) Object.assign(result, match[1]);
-        
-        const slashMatch = token.match(/(\/{2,5})/);
-        if (slashMatch) {
-            const count = slashMatch[1].length;
-            const levels = { 2: 'Low', 3: 'Medium', 4: 'High', 5: 'VeryHigh' };
-            result.Blush = levels[count] || 'VeryHigh';
+        if (match) {
+            Object.assign(result, match[1]);
+            const slashMatch = token.match(/(\/{2,5})/);
+            if (slashMatch) {
+                const count = slashMatch[1].length;
+                const levels = { 2: 'Low', 3: 'Medium', 4: 'High', 5: 'VeryHigh' };
+                result.Blush = levels[count] || 'VeryHigh';
+            }
         }
 
         // Floating Marks from chat-qol

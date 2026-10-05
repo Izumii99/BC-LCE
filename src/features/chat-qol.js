@@ -11,6 +11,7 @@ import modApi from '../modsdk.js';
 const hook = createHook('chat-qol');
 let installed = false;
 let animation = null;
+let mouthDelayTimer = null;
 const poses = ['OverTheHead', 'BackElbowTouch'];
 const outgoingFaces = new WeakMap();
 
@@ -235,6 +236,10 @@ export function installChatQol() {
         const [kind, data] = args;
         if (kind === 'ChatRoomChat' && ['Chat', 'Whisper', 'Emote'].includes(data?.Type)
             && getFeature('chatEmoticons') && canUseExpressionEngine()) {
+            
+            cancelLater(mouthDelayTimer);
+            mouthDelayTimer = null;
+
             const original = data.Dictionary?.find(d => typeof d.Original === 'string')?.Original;
             const face = outgoingFaces.get(data) ?? emoticonExpression(original ?? data.Content);
             outgoingFaces.delete(data);
@@ -258,7 +263,7 @@ export function installChatQol() {
                 }
                 
                 if (mouthFace) {
-                    later(() => {
+                    mouthDelayTimer = later(() => {
                         holdFace('LceEmoticonMouth', mouthFace, 5000, { SingleEye: false,
                             Expression: Object.fromEntries(Object.entries(mouthFace).map(([group, expression]) =>
                                 [group, [{ Expression: expression, Duration: 5000 }]])),

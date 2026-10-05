@@ -308,3 +308,35 @@ test('temporary faces share one expression cache: first original wins, cleared a
     assert.equal(settled.length, 1);
     assert.ok(['Eyes', 'Eyes2'].every(g => settled[0].includes(g)));
 });
+
+test('consecutive chat messages cancel pending mouth expressions', async () => {
+    const timers = [];
+    const cleared = new Set();
+    const { rt, settings, module } = await fixture();
+    Object.assign(rt.context, { 
+        setTimeout: (fn, ms) => {
+            const id = timers.length + 1;
+            timers.push({ id, fn, ms });
+            return id;
+        }, 
+        clearTimeout: (id) => {
+            if (id) cleared.add(id);
+        } 
+    });
+    settings.setFeature('chatEmoticons', true);
+    settings.setFeature('animationEngine', true);
+    
+    // First message triggers a mouth delay
+    const msg1 = { Type: 'Chat', Content: 'a'.repeat(50), Dictionary: [] };
+    rt.hooks.get('ChatRoomGenerateChatRoomChatMessage')(['Chat', '>.< ' + 'a'.repeat(50)], () => msg1);
+    rt.hooks.get('ServerSend')(['ChatRoomChat', msg1], () => {});
+    
+    const firstMouthTimerId = timers.at(-1).id; // The delayed mouth is the last scheduled timer
+    
+    // Second message arrives immediately
+    const msg2 = { Type: 'Chat', Content: 'b', Dictionary: [] };
+    rt.hooks.get('ChatRoomGenerateChatRoomChatMessage')(['Chat', '>.< b'], () => msg2);
+    rt.hooks.get('ServerSend')(['ChatRoomChat', msg2], () => {});
+    
+    assert.ok(cleared.has(firstMouthTimerId), 'previous mouth timer is cancelled');
+});
