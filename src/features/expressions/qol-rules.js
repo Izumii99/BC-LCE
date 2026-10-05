@@ -8,7 +8,8 @@ export function emoticonExpression(text) {
     // not accidentally trigger a face. Later tokens win for the same group.
     for (const token of String(text).split(/\s+/)) {
         if (/https?:\/\//i.test(token)) continue;
-        const match = faces.find(([pattern]) => pattern.test(token));
+        const bare = token.replace(/~+$/, '');
+        const match = faces.find(([pattern]) => pattern.test(token) || pattern.test(bare));
         if (match) Object.assign(result, match[1]);
         
         const slashMatch = token.match(/(\/{2,5})/);
@@ -41,12 +42,14 @@ export function echoActivity(data) {
     const labelEntry = dict.find(d => d.Tag === 'ActivityName' && typeof d.Text === 'string');
     let name = nameEntry?.ActivityName || labelEntry?.Text?.replace(/^Activity/, '')
         || content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
-    if (typeof ActivityDictionaryText === 'function') {
-        const translated = ActivityDictionaryText(content);
-        if (translated) name += " " + translated;
-    }
-    const isActivity = data?.Type === 'Activity';
-    const custom = !isActivity || knownEchoNames.has(name) || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
+    // Custom Echo actions carry their wording in the translated label or in
+    // Dictionary text entries; read all of it like chat-qol's WCE bridge did.
+    const texts = dict.map(d => d.Text).filter(t => typeof t === 'string');
+    if (typeof ActivityDictionaryText === 'function' && content) texts.push(ActivityDictionaryText(content));
+    const known = knownEchoNames.has(name);
+    name = [name, ...texts].filter(Boolean).join(' ');
+    const custom = data.Type === 'Emote' || (data.Type === 'Action' && /\s/.test(content)) || known
+        || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
         || /Luzi_/i.test(nameEntry?.ActivityName || labelEntry?.Text || '');
     return { name, group: /^Chat(?:Other|Self)-([^-]+)-/.exec(content)?.[1], custom };
 }
@@ -69,6 +72,6 @@ export function echoSound(data) {
     if (/Whip|鞭打/i.test(activity.name)) return 'WhipCrack';
     if (/拍打|打屁股|轻拍|轻弹|扇耳光|Spank|Slap|Flick|Bap/i.test(activity.name)) return 'SpankSkin';
     if (/Pinch|掐|拧/i.test(activity.name)) return 'LeatherStretchingShort';
-    if (/(?:^|_)Hit(?:$|_)/i.test(activity.name)) return 'SmackCrop';
+    if (/(?<![a-z])hit(?:s|ting)?(?![a-z])|打/i.test(activity.name)) return 'SmackCrop';
     return null;
 }

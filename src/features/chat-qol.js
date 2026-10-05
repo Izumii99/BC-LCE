@@ -267,14 +267,23 @@ export function installChatQol() {
         return next(args);
     });
 
-    // A temporary last-resort AudioActions entry leaves native and other
-    // plugins' sounds first. BC still applies its mute/volume/involvement rules.
+    // BC ends AudioActions with a catch-all for every Activity that returns no
+    // sound for Echo actions, so a fallback appended at the end never runs.
+    // Ours goes first, but only when the native lookup produced no sound.
     hook('AudioPlaySoundForChatMessage', 0, (args, next) => {
-        const sound = getFeature('richerActivitySounds') && echoSound(args[0]);
+        const [data, , , metadata] = args;
+        const sound = getFeature('richerActivitySounds') && echoSound(data);
         const actions = globalThis.AudioActions;
         if (!sound || !Array.isArray(actions)) return next(args);
-        const fallback = { IsAction: data => data === args[0], GetSoundEffect: () => sound };
-        actions.push(fallback);
+        if (actions.find(a => a.IsAction?.(data))?.GetSoundEffect?.(data, metadata)) return next(args);
+        if (!metadata?.TargetCharacter || !['Activity', 'Action'].includes(data.Type)) {
+            // Emotes never reach BC's audio path; honour its mute rules and play directly.
+            const involved = globalThis.ChatRoomMessageInvolvesPlayer?.(data) ?? true;
+            if (!globalThis.AudioShouldSilenceSound?.(involved)) globalThis.AudioPlaySoundEffect?.(sound);
+            return next(args);
+        }
+        const fallback = { IsAction: d => d === data, GetSoundEffect: () => sound };
+        actions.unshift(fallback);
         try { return next(args); }
         finally { const index = actions.indexOf(fallback); if (index >= 0) actions.splice(index, 1); }
     });

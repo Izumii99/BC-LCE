@@ -1,6 +1,6 @@
 export const faces = [
     // Classic cat/cute faces
-    [/^(?:>\.<|><|>_<)$/i, { Eyes: 'Daydream', Mouth: 'Smirk' }],
+    [/^>[._~,]?<$/, { Eyes: 'Daydream', Mouth: 'Smirk' }],
     
     // Cat faces with W
     [/^(?:>w<)$/i, { Eyes: 'Daydream', Mouth: 'Happy' }],
@@ -23,11 +23,12 @@ export const faces = [
     
     // Crazy / Dazed
     [/^@[_.,~-]*@$/, { Eyes: 'Crazy', Mouth: 'Sad' }],
-    [/^(?:>\.>|<\.<|>~>)$/, { Eyes: 'Dazed', Eyebrows: 'Harsh' }],
+    [/^(?:>[.,~_]>|<[.,~_]<)$/, { Eyes: 'Dazed', Eyebrows: 'Harsh' }],
     
     // Horny / Closed
     [/^=\/{2,5}=$/, { Eyes: 'Horny', Mouth: 'Pout', Blush: 'Medium' }],
     [/^(?:==|=\[_\]=)$/, { Eyes: 'Horny' }],
+    [/^=~=$/, { Eyes: 'Horny', Mouth: 'Frown' }],
     [/^(?:=[_^.-]=)$/, { Eyes: 'Closed', Mouth: 'Frown' }],
     
     // Ahegao
@@ -35,9 +36,9 @@ export const faces = [
     [/^:p$/i, { Mouth: 'Ahegao' }],
     
     // Sad / Tears
-    [/^(?:t[_wv.-]?t|tt)$/i, { Eyes: 'Shy', Mouth: 'Sad', Fluids: 'TearsHigh', Eyebrows: 'Sad' }],
+    [/^(?:t[_wv.~-]?t)$/i, { Eyes: 'Shy', Mouth: 'Sad', Fluids: 'TearsHigh', Eyebrows: 'Sad' }],
     [/^qwq$/i, { Eyes: 'Shy', Mouth: 'Happy', Fluids: 'TearsHigh', Eyebrows: 'Sad' }],
-    [/^(?::\(|=~=)$/, { Mouth: 'Frown' }],
+    [/^:\($/, { Mouth: 'Frown' }],
     [/^D:$/i, { Eyes: 'Dazed', Mouth: 'Sad' }],
     [/^(?:twt;|x_x;|\^\^;)$/i, { Fluids: 'TearsLow' }],
     
