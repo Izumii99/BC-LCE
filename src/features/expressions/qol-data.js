@@ -3,6 +3,7 @@ export const faces = [
     [/^>\/{2,5}<$/, { Eyes: 'Daydream', Mouth: 'Pout', Eyebrows: 'Lowered' }],
     [/^(?:>\/{2,5}>|<\/{2,5}<)$/, { Eyes: 'Shy', Eyebrows: 'Lowered' }],
     [/^=\/{2,5}=$/, { Eyes: 'Horny', Mouth: 'Pout' }],
+    [/^(?:o|0)\/{2,5}(?:o|0)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised' }],
 
     // Classic cat/cute faces
     [/^>[._~,]?<$/, { Eyes: 'Daydream', Mouth: 'Smirk' }],
@@ -26,6 +27,9 @@ export const faces = [
     
     // Surprised
     [/^(?:0[._x]0|o[._x]o)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised' }],
+    
+    // Confused / Huh
+    [/^(?:O[.,_]o|o[.,_]O|0[.,_]o|o[.,_]0)$/, { Eyes: 'Dazed', Mouth: 'HalfOpen', Eyebrows: 'OneRaised' }],
     
     // Crazy / Dazed
     [/^@[_.,~-]*@$/, { Eyes: 'Crazy', Mouth: 'Sad' }],
