@@ -52,8 +52,8 @@ const charData = {};
 let animationGeneration = 0;
 
 /** 只對「單純的聊天發言」做動畫：指令 / OOC / 動作 / 悄悄話 / 連結都跳過。 */
-function isSimpleChat(msg) {
-    return msg.trim().length > 0
+export function isSimpleChat(msg) {
+    return typeof msg === 'string' && msg.trim().length > 0
         && (typeof ChatRoomTargetMemberNumber === 'undefined' || ChatRoomTargetMemberNumber === -1)
         && !msg.startsWith('/') && !msg.startsWith('(') && !msg.startsWith('*')
         && !msg.startsWith('!') && !msg.startsWith('.') && !msg.startsWith('@')
@@ -99,37 +99,32 @@ function runAnimation(c, list) {
 /** 未命中對照表時的交替嘴型：讓中日韓等非字母文字也會確實開口。 */
 const FALLBACK_CYCLE = [['Open', 350], ['HalfOpen', 300]];
 
-function animateSpeech(c, msg) {
+/**
+ * 把訊息換算成「嘴型 + 持續毫秒」的影格清單。
+ * animateSpeech()（實際播放）與 getSpeechDuration()（只算總長）共用這一份，避免兩邊日後不同步。
+ */
+export function buildSpeechAnimation(msg) {
+    if (!msg || typeof msg !== 'string') return [];
     // 中日韓一個字就是一個音節，3 字一組會太快；純 CJK 時改成逐字一格。
     const cjkHeavy = (msg.match(/[぀-ヿ㐀-䶿一-鿿가-힯]/g) || []).length >= msg.replace(/\s/g, '').length / 2;
     const chunks = msg.match(cjkHeavy ? /.{1}/g : /.{1,3}/g) || [];
 
     let alt = 0;
-    const animation = chunks.map(chunk => {
+    return chunks.map(chunk => {
         const hit = LETTER_MAP.find(({ regex }) => regex.test(chunk));
         if (hit) return hit.expr;
         // 沒有任何規則命中（中文/日文/韓文…）：交替張合，而不是原版的「不動」
         if (/\S/.test(chunk)) return FALLBACK_CYCLE[alt++ % FALLBACK_CYCLE.length];
         return [null, 200];
     }).slice(0, MAX_FRAMES);
+}
 
-    runAnimation(c, animation);
+function animateSpeech(c, msg) {
+    runAnimation(c, buildSpeechAnimation(msg));
 }
 
 export function getSpeechDuration(msg) {
-    if (!msg || typeof msg !== 'string') return 0;
-    const cjkHeavy = (msg.match(/[぀-ヿ㐀-䶿一-鿿가-힯]/g) || []).length >= msg.replace(/\s/g, '').length / 2;
-    const chunks = msg.match(cjkHeavy ? /.{1}/g : /.{1,3}/g) || [];
-
-    let alt = 0;
-    const animation = chunks.map(chunk => {
-        const hit = LETTER_MAP.find(({ regex }) => regex.test(chunk));
-        if (hit) return hit.expr;
-        if (/\S/.test(chunk)) return FALLBACK_CYCLE[alt++ % FALLBACK_CYCLE.length];
-        return [null, 200];
-    }).slice(0, MAX_FRAMES);
-
-    return animation.reduce((acc, [, duration]) => acc + duration, 0);
+    return buildSpeechAnimation(msg).reduce((acc, [, duration]) => acc + duration, 0);
 }
 
 let installed = false;

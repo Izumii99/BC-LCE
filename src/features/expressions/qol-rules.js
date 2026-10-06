@@ -4,6 +4,11 @@ const DEFAULT_EMOTICON_DURATION = 5000;
 const SLASH_DURATION_STEP = 1000;
 const MAX_SLASH_EMOTICON_DURATION = 30000;
 
+// Single definition of a "slash run" (2+ slashes/backslashes) shared by the blush
+// level in emoticonExpression() and the hold time in emoticonDuration().
+const SLASH_RUN = /[/\\]{2,}/;
+const slashRunLength = token => token.match(SLASH_RUN)?.[0].length ?? 0;
+
 // Chat-QoL feature ideas: Izumii99/BC-Desktop, Scripts/chat-qol.js.
 // Rules are kept separate from execution so LCE owns timing and cancellation.
 export function emoticonExpression(text) {
@@ -44,9 +49,8 @@ export function emoticonExpression(text) {
 
         if (match) {
             Object.assign(result, match[1]);
-            const slashMatch = token.match(/([/\\]{2,})/);
-            if (slashMatch) {
-                const count = slashMatch[1].length;
+            const count = slashRunLength(token);
+            if (count) {
                 const levels = { 2: 'Low', 3: 'Medium', 4: 'High', 5: 'VeryHigh', 6: 'Extreme' };
                 result.Blush = levels[count] || 'Extreme';
                 if (count >= 5) {
@@ -78,8 +82,8 @@ export function emoticonDuration(text) {
     for (const token of String(text).split(/\s+/)) {
         if (/https?:\/\//i.test(token)) continue;
         if (Object.keys(emoticonExpression(token)).length === 0) continue;
-        const slashRun = token.match(/[\\/]+/);
-        if (slashRun) duration = Math.max(duration, slashRun[0].length * SLASH_DURATION_STEP);
+        const count = slashRunLength(token);
+        if (count) duration = Math.max(duration, count * SLASH_DURATION_STEP);
     }
     return Math.min(Math.max(duration, DEFAULT_EMOTICON_DURATION), MAX_SLASH_EMOTICON_DURATION);
 }
