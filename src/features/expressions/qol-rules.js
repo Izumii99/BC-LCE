@@ -8,51 +8,24 @@ export function emoticonExpression(text) {
     // not accidentally trigger a face. Later tokens win for the same group.
     for (const token of String(text).split(/\s+/)) {
         if (/https?:\/\//i.test(token)) continue;
-        const bare = token.replace(/(?:~+|\/{2,5})$/g, '').replace(/\/{2,5}/g, '');
-        const match = faces.find(([pattern]) => pattern.test(token) || pattern.test(bare));
-        if (match) {
-            Object.assign(result, match[1]);
-            const slashMatch = token.match(/(\/{2,5})/);
-            if (slashMatch) {
-                const count = slashMatch[1].length;
-                const levels = { 2: 'Low', 3: 'Medium', 4: 'High', 5: 'VeryHigh' };
-                result.Blush = levels[count] || 'VeryHigh';
-            }
-        }
-
-        // Floating Marks from chat-qol
-        if (/[?!#]$/.test(token)) {
-            if (token.endsWith('?')) result.Emoticon = 'Confusion';
-            else if (token.endsWith('!')) result.Emoticon = 'Exclamation';
-            else if (token.endsWith('#')) result.Emoticon = 'Annoyed';
-        }
-
-        // Sweatdrop
-        if (/;\s*$/.test(token) || /[=><\^~-];/.test(token) || /(TwT|T_T|T-T|TvT|x_x|x-x);/i.test(token)) {
-            result.Emoticon = 'Tear';
-        }
+        const match = faces.find(([pattern]) => pattern.test(token));
+        if (match) Object.assign(result, match[1]);
     }
     return result;
 }
 
 export function echoActivity(data) {
-    if (data?.Type !== 'Activity' && data?.Type !== 'Emote' && data?.Type !== 'Action') return null;
+    if (data?.Type !== 'Activity') return null;
     const dict = Array.isArray(data.Dictionary) ? data.Dictionary : [];
     const content = typeof data.Content === 'string' ? data.Content : '';
     const nameEntry = dict.find(d => typeof d.ActivityName === 'string');
     const labelEntry = dict.find(d => d.Tag === 'ActivityName' && typeof d.Text === 'string');
-    let name = nameEntry?.ActivityName || labelEntry?.Text?.replace(/^Activity/, '')
+    const name = nameEntry?.ActivityName || labelEntry?.Text?.replace(/^Activity/, '')
         || content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
-    // Custom Echo actions carry their wording in the translated label or in
-    // Dictionary text entries; read all of it like chat-qol's WCE bridge did.
-    const texts = dict.map(d => d.Text).filter(t => typeof t === 'string');
-    if (typeof ActivityDictionaryText === 'function' && content) texts.push(ActivityDictionaryText(content));
-    const known = knownEchoNames.has(name);
-    name = [name, ...texts].filter(Boolean).join(' ');
-    const custom = data.Type === 'Emote' || (data.Type === 'Action' && /\s/.test(content)) || known
-        || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
+    const custom = knownEchoNames.has(name) || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
         || /Luzi_/i.test(nameEntry?.ActivityName || labelEntry?.Text || '');
-    return { name, group: /^Chat(?:Other|Self)-([^-]+)-/.exec(content)?.[1], custom };
+    if (!custom) return null;
+    return { name, group: /^Chat(?:Other|Self)-([^-]+)-/.exec(content)?.[1] };
 }
 
 export function echoExpressionEvent(data, memberNumber) {
@@ -69,10 +42,10 @@ export function echoExpressionEvent(data, memberNumber) {
 
 export function echoSound(data) {
     const activity = echoActivity(data);
-    if (!activity || !activity.custom) return null;
+    if (!activity) return null;
     if (/Whip|鞭打/i.test(activity.name)) return 'WhipCrack';
     if (/拍打|打屁股|轻拍|轻弹|扇耳光|Spank|Slap|Flick|Bap/i.test(activity.name)) return 'SpankSkin';
     if (/Pinch|掐|拧/i.test(activity.name)) return 'LeatherStretchingShort';
-    if (/(?<![a-z])hit(?:s|ting)?(?![a-z])|打/i.test(activity.name)) return 'SmackCrop';
+    if (/(?:^|_)Hit(?:$|_)/i.test(activity.name)) return 'SmackCrop';
     return null;
 }
