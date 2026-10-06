@@ -1,11 +1,11 @@
 import { createHook } from '../core/hooks.js';
 import { getFeature } from '../core/feature-settings.js';
-import { observeResponsive } from '../core/responsive-compat.js';
+import { observeResponsive, responsiveOwns } from '../core/responsive-compat.js';
 import { T } from '../core/i18n.js';
 import { canUseExpressionEngine, cancelExpressionEvent, pushEvent, restoreQolPose, readFace, settleFace } from './expressions/index.js';
 import { captureFace, releaseCachedFace } from './expressions/face-cache.js';
 import { emoticonExpression, emoticonDuration, echoSound } from './expressions/qol-rules.js';
-import { getSpeechDuration } from './expressions/char-talk.js';
+import { getSpeechDuration, isSimpleChat } from './expressions/char-talk.js';
 import { drawAlternatingPetsuit } from './petsuit-render.js';
 import { createSocketBinding } from '../core/lifecycle.js';
 import modApi from '../modsdk.js';
@@ -14,6 +14,8 @@ const hook = createHook('chat-qol');
 let installed = false;
 let animation = null;
 const poses = ['OverTheHead', 'BackElbowTouch'];
+// packet -> { face, duration, text }：打字當下（未被口塞等處理改寫前）算出的臉、持有時間與原文。
+// ServerSend 只讀這份，不再從封包重算，避免臉與時間來自不同版本的文字。
 const outgoingFaces = new WeakMap();
 let mouthDelayTimer = null;
 
@@ -241,7 +243,12 @@ export function installChatQol() {
     hook('ChatRoomGenerateChatRoomChatMessage', 200, (args, next) => {
         const packet = next(args);
         if (getFeature('chatEmoticons') && packet && typeof packet === 'object') {
-            outgoingFaces.set(packet, emoticonExpression(args[1]));
+            const text = args[1];
+            outgoingFaces.set(packet, {
+                face: emoticonExpression(text),
+                duration: emoticonDuration(text),
+                text,
+            });
         }
         return packet;
     });
@@ -254,17 +261,24 @@ export function installChatQol() {
             
             cancelLater(mouthDelayTimer);
             mouthDelayTimer = null;
-            cancelExpressionEvent('LceEmoticonMouth');
 
-            const original = data.Dictionary?.find(d => typeof d.Original === 'string')?.Original;
-            const text = original ?? data.Content;
-            const face = outgoingFaces.get(data) ?? emoticonExpression(text);
+            // 優先使用打字當下記下的資料；只有封包不是經由我們的 hook 產生時，才退回從封包推算。
+            const stored = outgoingFaces.get(data);
             outgoingFaces.delete(data);
+            const original = data.Dictionary?.find(d => typeof d.Original === 'string')?.Original;
+            const text = stored?.text ?? original ?? data.Content;
+            const face = stored?.face ?? emoticonExpression(text);
+            const duration = stored?.duration ?? emoticonDuration(text);
             if (Object.keys(face).length) {
                 if ('Eyes' in face && !('Eyes2' in face)) face.Eyes2 = face.Eyes;
-                
-                const delay = data?.Type === 'Chat' ? getSpeechDuration(text) : 0;
-                const duration = emoticonDuration(text);
+
+                // 與 CharTalk 的觸發條件一致：只有真的會播說話動畫時，臉才需要等嘴說完。
+                const delay = data.Type === 'Chat'
+                    && getFeature('autoMouthOnTalk')
+                    && !responsiveOwns('mouth')
+                    && isSimpleChat(text)
+                        ? getSpeechDuration(text)
+                        : 0;
 
                 mouthDelayTimer = later(() => {
                     mouthDelayTimer = null;

@@ -51,9 +51,9 @@ test('Echo bridge recognizes canonical names, filters uninvolved players and non
     assert.equal(echoSound(packet('Spank', 'ItemButt')), null, 'native activity stays native');
 });
 
-async function fixture() {
+async function fixture({ responsive = false } = {}) {
     const events = [], restored = [], cancelled = [], buttons = [], settled = [], timers = [];
-    let tick, ready = true;
+    let tick, ready = true, responsiveConsumer;
     const player = { Appearance: [{ Asset: { Name: 'Petsuit' } }], ActivePose: ['Kneel', 'BaseUpper'], _BlindLevel: 3 };
     const actions = [];
     const rt = runtime({ globals: {
@@ -65,7 +65,9 @@ async function fixture() {
         PoseFemale3DCG: [{ Name: 'Kneel', Category: 'BodyLower' }],
         setInterval: callback => { tick = callback; return 1; },
         setTimeout: (fn, ms) => timers.push({ fn, ms }) && timers.length,
-        clearTimeout: () => {},
+        // Timer ids are 1-based indexes into `timers`; clearTimeout marks the entry so tests can assert real cancellation.
+        clearTimeout: id => { if (timers[id - 1]) timers[id - 1].cancelled = true; },
+        ...(responsive ? { Liko: { Responsive_Liko: { apiVersion: 1, registerConsumer: (_name, cb) => { responsiveConsumer = cb; } } } } : {}),
     }, mocks: {
         'src/features/expressions/index.js': {
             canUseExpressionEngine: () => ready,
@@ -80,7 +82,8 @@ async function fixture() {
     const module = await rt.load('src/features/chat-qol.js');
     module.installChatQol();
     return { rt, settings, module, player, actions, events, restored, cancelled, buttons, settled, timers,
-        tick: () => tick(), setReady: value => { ready = value; } };
+        tick: () => tick(), setReady: value => { ready = value; },
+        setResponsive: desired => responsiveConsumer(desired) };
 }
 
 test('chat QoL leaves closed-eye settings and expression-dialog clicks to the game', async () => {
@@ -142,26 +145,93 @@ test('outgoing emoticons use pre-garble text without adding original to network 
     assert.equal(timers.at(-1).ms, 0, 'Whisper has no speech delay');
 });
 
-test('mouth delay timer is cancelled on room leave or disable', async () => {
+test('emoticon duration comes from the typed text even when Dictionary.Original is missing', async () => {
     const { rt, settings, events, timers } = await fixture();
     settings.setFeature('chatEmoticons', true);
-    
-    const message = { Type: 'Chat', Content: 'hello', Dictionary: [{ Original: '>.<' }] };
+    // A gag rewrote Content and no Original was recorded: the slash run only exists in the typed text.
+    const message = { Type: 'Chat', Content: 'mmm', Dictionary: [] };
+    rt.hooks.get('ChatRoomGenerateChatRoomChatMessage')(['Chat', '>//////<'], () => message);
     rt.hooks.get('ServerSend')(['ChatRoomChat', message], () => {});
-    
-    // Timer is scheduled, now we leave room
+    timers.at(-1).fn();
+    assert.equal(events[0].Expression.Blush[0].Expression, 'Extreme');
+    assert.equal(events[0].Duration, 6000, 'duration must follow the same text as the face, not the default 5000');
+    assert.equal(events[0].Expression.Blush[0].Duration, 6000);
+});
+
+test('face delay matches CharTalk eligibility (feature, Responsive ownership, simple chat, packet type)', async () => {
+    const { rt, settings, timers, setResponsive } = await fixture({ responsive: true });
+    const speech = await rt.load('src/features/expressions/char-talk.js');
+    settings.setFeature('chatEmoticons', true);
+    const send = (type, typed) => {
+        const message = { Type: type, Content: typed, Dictionary: [] };
+        rt.hooks.get('ChatRoomGenerateChatRoomChatMessage')([type, typed], () => message);
+        const before = timers.length;
+        rt.hooks.get('ServerSend')(['ChatRoomChat', message], () => {});
+        assert.equal(timers.length, before + 1, `a face timer is scheduled for ${type} "${typed}"`);
+        return timers.at(-1).ms;
+    };
+
+    settings.setFeature('autoMouthOnTalk', false);
+    assert.equal(send('Chat', 'hello >.<'), 0, 'autoMouthOnTalk off: CharTalk will not animate, so no delay');
+
+    settings.setFeature('autoMouthOnTalk', true);
+    assert.equal(send('Chat', 'hello >.<'), speech.getSpeechDuration('hello >.<'));
+    assert.ok(send('Chat', 'hello >.<') > 0);
+    assert.equal(send('Chat', '(haha >.< )'), 0, 'OOC chat is skipped by CharTalk');
+    assert.equal(send('Chat', '*waves >.< '), 0, 'action-style chat is skipped by CharTalk');
+    assert.equal(send('Emote', 'hello >.<'), 0);
+    assert.equal(send('Whisper', 'hello >.<'), 0);
+
+    setResponsive({ mouth: true, expressions: false });
+    assert.equal(send('Chat', 'hello >.<'), 0, 'Responsive owns the mouth: CharTalk is disabled');
+    setResponsive({ mouth: false, expressions: false });
+    assert.equal(send('Chat', 'hello >.<'), speech.getSpeechDuration('hello >.<'));
+
+    rt.context.ChatRoomTargetMemberNumber = 5;
+    assert.equal(send('Chat', 'hello >.<'), 0, 'targeted (whisper-mode) chat is skipped by CharTalk');
+});
+
+test('mouth delay timer is really cancelled on room leave, Responsive takeover and feature disable', async () => {
+    const { rt, settings, events, timers, tick, setReady, setResponsive } = await fixture({ responsive: true });
+    settings.setFeature('chatEmoticons', true);
+    const send = () => {
+        const message = { Type: 'Chat', Content: 'hello', Dictionary: [{ Original: '>.<' }] };
+        rt.hooks.get('ServerSend')(['ChatRoomChat', message], () => {});
+        return timers.at(-1);
+    };
+
+    let timer = send();
+    assert.equal(timer.cancelled, undefined);
     rt.hooks.get('ChatRoomLeave')([], () => {});
-    
-    // Fire the timer, but it was cancelled, and callback checks current room
-    rt.context.CurrentScreen = 'Main';
-    timers.at(-1).fn();
-    assert.equal(events.length, 0, 'Should not animate if left room');
-    
-    rt.context.CurrentScreen = 'ChatRoom';
-    rt.hooks.get('ServerSend')(['ChatRoomChat', message], () => {});
+    assert.equal(timer.cancelled, true, 'ChatRoomLeave cancels the pending timer');
+
+    timer = send();
+    setResponsive({ mouth: false, expressions: true });
+    assert.equal(timer.cancelled, true, 'Responsive takeover cancels the pending timer');
+    setResponsive({ mouth: false, expressions: false });
+
+    timer = send();
     settings.setFeature('chatEmoticons', false);
-    timers.at(-1).fn();
-    assert.equal(events.length, 0, 'Should not animate if feature disabled');
+    tick();
+    assert.equal(timer.cancelled, true, 'disabling the feature cancels the pending timer');
+    settings.setFeature('chatEmoticons', true);
+
+    timer = send();
+    setReady(false);
+    tick();
+    assert.equal(timer.cancelled, true, 'expression engine going away cancels the pending timer');
+    setReady(true);
+
+    // A newer message replaces the pending one instead of stacking timers.
+    const first = send();
+    const second = send();
+    assert.equal(first.cancelled, true);
+    assert.equal(second.cancelled, undefined);
+
+    // Defence in depth: a stale callback still must not animate outside the chat room.
+    rt.context.CurrentScreen = 'Main';
+    second.fn();
+    assert.equal(events.length, 0);
 });
 
 test('Petsuit cycles have two poses, stop restores pose, manual changes cancel without overwriting', async () => {
@@ -224,6 +294,41 @@ test('all three pet suits require both native arm poses before animating', async
         assert.equal(events.length, before + 1, 'blocked arms must stay blocked');
         rt.context.PoseCanChangeUnaided = () => true;
     }
+});
+
+test('emoticonDuration and emoticonExpression share one slash-run rule', () => {
+    // A stray single slash is neither a blush nor a longer hold time.
+    for (const text of ['xD/foo', 'xD/', '>/<', 'a//b']) {
+        assert.equal(emoticonDuration(text), 5000, text);
+    }
+    assert.deepEqual(emoticonExpression('xD/foo'), {});
+    assert.equal(emoticonExpression('xD//').Blush, 'Low');
+    assert.equal(emoticonDuration('>//////////<'), 10000);
+    assert.equal(emoticonExpression('>//////////<').Blush, 'Extreme');
+});
+
+test('getSpeechDuration reuses the CharTalk animation builder', async () => {
+    const { rt } = await fixture();
+    const speech = await rt.load('src/features/expressions/char-talk.js');
+    const total = list => list.reduce((sum, [, ms]) => sum + ms, 0);
+    for (const text of ['hello world', '你好嗎', 'a'.repeat(300), '...']) {
+        assert.equal(speech.getSpeechDuration(text), total(speech.buildSpeechAnimation(text)), text);
+    }
+    assert.equal(speech.getSpeechDuration('hello'), 600, 'Latin: "hel" (e) 300 + "lo" (o) 300');
+    assert.equal(speech.getSpeechDuration('你好嗎'), 1000, 'CJK: one frame per character, alternating Open/HalfOpen');
+    assert.equal(speech.buildSpeechAnimation('a'.repeat(300)).length, 30, 'frame cap');
+    assert.equal(speech.getSpeechDuration('a'.repeat(300)), 30 * 400);
+    assert.equal(speech.getSpeechDuration(''), 0);
+    assert.equal(speech.getSpeechDuration(undefined), 0);
+    assert.equal(speech.getSpeechDuration(42), 0);
+});
+
+test('isSimpleChat matches what CharTalk animates', async () => {
+    const { rt } = await fixture();
+    const { isSimpleChat } = await rt.load('src/features/expressions/char-talk.js');
+    for (const ok of ['hello', 'hello >.<', '你好']) assert.equal(isSimpleChat(ok), true, ok);
+    for (const no of ['', '   ', '(haha >.<)', '/me waves', '*waves', '!cmd', '.x', '@x', 'http://x']) assert.equal(isSimpleChat(no), false, no);
+    assert.equal(isSimpleChat(undefined), false);
 });
 
 test('all new settings and buttons have all seven LCE translations', () => {
