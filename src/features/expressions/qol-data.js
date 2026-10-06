@@ -24,6 +24,7 @@ export const faces = [
     // Surprised
     [/^(?:0[._x]0|o[._x]o)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised' }],
     // Crazy / Dazed
+    [/^x[_.]?x$/i, { Eyes: 'Dazed', Mouth: 'Sad' }],
     [/^@[_.,~-]*@$/, { Eyes: 'Crazy', Mouth: 'Sad' }],
     [/^(?:>[.,~_]>|<[.,~_]<)$/, { Eyes: 'Dazed', Eyebrows: 'Harsh' }],
     // Horny / Closed
@@ -34,11 +35,10 @@ export const faces = [
     [/^(?:;p|;d|;\))$/i, { Eyes: 'Closed', Eyes2: null, Mouth: 'Ahegao' }],
     [/^:p$/i, { Mouth: 'Ahegao' }],
     // Sad / Tears
-    [/^(?:t[_wv.~-]?t)$/i, { Eyes: 'Shy', Mouth: 'Sad', Fluids: 'TearsHigh', Eyebrows: 'Sad' }],
+    [/^(?:t[_xwv.~-]?t)$/i, { Eyes: 'Shy', Mouth: 'Sad', Fluids: 'TearsHigh', Eyebrows: 'Sad' }],
     [/^qwq$/i, { Eyes: 'Shy', Mouth: 'Happy', Fluids: 'TearsHigh', Eyebrows: 'Sad' }],
     [/^:\($/, { Mouth: 'Frown' }],
     [/^D:$/i, { Eyes: 'Dazed', Mouth: 'Sad' }],
-    [/^(?:twt;|x_x;|\^\^;)$/i, { Fluids: 'TearsLow' }],
     // Pout
     [/^(?:=3=|>3<|>3>|<3<)$/, { Mouth: 'Pout' }],
     // Angry
@@ -47,8 +47,6 @@ export const faces = [
     [/^\?$/, { Emoticon: 'Confusion' }],
     [/^!$/, { Emoticon: 'Exclamation' }],
     [/^#$/, { Emoticon: 'Annoyed' }],
-    [/^\(?afk\)?$/i, { Emoticon: 'Afk' }],
-    [/^\(?brb\)?$/i, { Emoticon: 'Brb' }],
     // Standalone slash/backslash blush faces
     [/^(?:[<>])?[\\/]{2,}(?:[<>])?$/, { Blush: 'Medium' }],
 ];

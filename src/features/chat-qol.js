@@ -5,6 +5,7 @@ import { T } from '../core/i18n.js';
 import { canUseExpressionEngine, cancelExpressionEvent, pushEvent, restoreQolPose, readFace, settleFace } from './expressions/index.js';
 import { captureFace, releaseCachedFace } from './expressions/face-cache.js';
 import { emoticonExpression, emoticonDuration, echoSound } from './expressions/qol-rules.js';
+import { getSpeechDuration } from './expressions/char-talk.js';
 import { drawAlternatingPetsuit } from './petsuit-render.js';
 import { createSocketBinding } from '../core/lifecycle.js';
 import modApi from '../modsdk.js';
@@ -14,6 +15,7 @@ let installed = false;
 let animation = null;
 const poses = ['OverTheHead', 'BackElbowTouch'];
 const outgoingFaces = new WeakMap();
+let mouthDelayTimer = null;
 
 const later = (fn, ms) => (typeof globalThis.setTimeout === 'function' ? globalThis.setTimeout(fn, ms) : null);
 const cancelLater = timer => { if (timer != null) globalThis.clearTimeout?.(timer); };
@@ -189,6 +191,10 @@ export function togglePetsuitAnimation() {
 function updateAnimationState() {
     if (faceHolds.has('LceEmoticon') && (!getFeature('chatEmoticons') || !canUseExpressionEngine())) releaseFaceHold('LceEmoticon');
     if (animation && !canAnimate()) stopPetsuitAnimation();
+    if (mouthDelayTimer && (!getFeature('chatEmoticons') || !canUseExpressionEngine())) {
+        cancelLater(mouthDelayTimer);
+        mouthDelayTimer = null;
+    }
 }
 
 export function petsuitButtonRect(position = getFeature('petsuitAnimationPosition')) {
@@ -227,6 +233,8 @@ export function installChatQol() {
         // immediately instead of waiting for the 250ms state poll to notice it.
         for (const type of [...faceHolds.keys()]) releaseFaceHold(type);
         if (animation) stopPetsuitAnimation(false);
+        cancelLater(mouthDelayTimer);
+        mouthDelayTimer = null;
     });
     // Retain the typed text locally even when a gag transforms the packet.
     // Nothing extra is added to the network message or anti-garble protocol.
@@ -243,17 +251,30 @@ export function installChatQol() {
         const [kind, data] = args;
         if (kind === 'ChatRoomChat' && ['Chat', 'Whisper', 'Emote'].includes(data?.Type)
             && getFeature('chatEmoticons') && canUseExpressionEngine()) {
+            
+            cancelLater(mouthDelayTimer);
+            mouthDelayTimer = null;
+            cancelExpressionEvent('LceEmoticonMouth');
+
             const original = data.Dictionary?.find(d => typeof d.Original === 'string')?.Original;
             const text = original ?? data.Content;
             const face = outgoingFaces.get(data) ?? emoticonExpression(text);
             outgoingFaces.delete(data);
             if (Object.keys(face).length) {
                 if ('Eyes' in face && !('Eyes2' in face)) face.Eyes2 = face.Eyes;
-                const duration = Math.max(...Object.keys(face).map(group => emoticonDuration(text, group)));
-                holdFace('LceEmoticon', face, duration, { SingleEye: 'Eyes2' in face,
-                    Expression: Object.fromEntries(Object.entries(face).map(([group, expression]) =>
-                        [group, [{ Expression: expression, Duration: emoticonDuration(text, group) }]])),
-                });
+                
+                const delay = data?.Type === 'Chat' ? getSpeechDuration(text) : 0;
+                const duration = emoticonDuration(text);
+
+                mouthDelayTimer = later(() => {
+                    mouthDelayTimer = null;
+                    if (!getFeature('chatEmoticons') || !canUseExpressionEngine() || globalThis.CurrentScreen !== 'ChatRoom') return;
+                    
+                    holdFace('LceEmoticon', face, duration, { SingleEye: 'Eyes2' in face,
+                        Expression: Object.fromEntries(Object.entries(face).map(([group, expression]) =>
+                            [group, [{ Expression: expression, Duration: duration }]])),
+                    });
+                }, delay);
             }
         }
         return next(args);
@@ -276,7 +297,13 @@ export function installChatQol() {
         if (args[0] === globalThis.Player) stopPetsuitAnimation(false);
         return next(args);
     });
-    hook('ChatRoomLeave', 50, (args, next) => { stopPetsuitAnimation(); renderers.clear(); return next(args); });
+    hook('ChatRoomLeave', 50, (args, next) => { 
+        stopPetsuitAnimation(); 
+        renderers.clear(); 
+        cancelLater(mouthDelayTimer);
+        mouthDelayTimer = null;
+        return next(args); 
+    });
     hook('CharacterAppearanceBuildCanvas', 10, (args, next) => {
         const character = args[0];
         const entry = renderers.get(character?.MemberNumber);
