@@ -7,8 +7,7 @@ import { parseJSON } from '../core/serialization.js';
 // 由 misc 的 `commander` 設定開關；於登入後、Commands 就緒時註冊。
 // ════════════════════════════════════════════════════════════════════════════
 
-import modApi from '../modsdk.js';
-import { MOD_VER, LCE_EXT_KEY } from '../core/constants.js';
+import { MOD_VER, LCE_EXT_KEY, LOG } from '../core/constants.js';
 import { getFeature } from '../core/feature-settings.js';
 import { openModal, openModalAsync } from '../core/modal-service.js';
 import { isWceLoaded } from '../core/wce-compat.js';
@@ -16,7 +15,6 @@ import { isExpressionEngineStarted } from '../features/expressions/index.js';
 import { lceChatNotify } from '../ui/chat/notification.js';
 import { toggleThemeTestBalloon } from '../features/theme/theme-test.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 
 
 /**
@@ -61,7 +59,7 @@ function openSettings() {
     }
 }
 
-export function buildLceDebugReport() {
+function buildLceDebugReport() {
     const info = [];
     info.push(`Browser: ${navigator.userAgent}`);
     info.push(`Game Version: ${typeof GameVersion !== 'undefined' ? GameVersion : '?'}`);

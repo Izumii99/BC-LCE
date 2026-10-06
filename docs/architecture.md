@@ -52,7 +52,7 @@ src/
 
 ## 驗證
 
-執行 `npm test`（目前 92 項）與 `npm run build`。測試以 Node VM 載入實際模組，模擬 BC、DOM、socket 和 IndexedDB，涵蓋設定交易、非同步競態、信任來源、hook 還原與卸載；不能取代實際 BC 和其他插件並存時的介面驗收。Pages 工作流程會先測試再建置。
+執行 `npm test`（目前 96 項）與 `npm run build`。測試以 Node VM 載入實際模組，模擬 BC、DOM、socket 和 IndexedDB，涵蓋設定交易、非同步競態、信任來源、hook 還原與卸載；不能取代實際 BC 和其他插件並存時的介面驗收。Pages 工作流程會先測試再建置。
 
 詳細問題與實施狀態見 [程式碼檢視報告](./code-review-2026-09-05.md)。互動圖已更新為目前的責任分組與主要事件流程，不代表完整 import 關係。未完工作以 [未完工作與驗收](./unfinished-work.md) 為準。
 

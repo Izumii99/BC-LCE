@@ -46,7 +46,7 @@ function toRgbParts(hex) {
 }
 
 /** 依目前設定重新注入配色變數。設定改了就再呼叫一次即可。 */
-export function applyUiColors() {
+function applyUiColors() {
     const accent = color('loginAccentColor');
     const sysBg = color('sysMsgBgColor');
     const sysText = color('sysMsgTextColor');

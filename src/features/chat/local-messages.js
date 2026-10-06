@@ -11,8 +11,8 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import modApi from '../../modsdk.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const STYLE_ID = 'lce-local-msg-style';
 
 // BCX 教學訊息的開頭（見 BCX src/modules/commands.ts 的 CommandsShowFirstTimeHelp）

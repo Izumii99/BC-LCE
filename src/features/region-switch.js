@@ -17,8 +17,8 @@ import { playerHasMaleGender, getCurrentSpace, getToggleTargetSpace, setSearchSp
 import modApi from '../modsdk.js';
 import { getFeature } from '../core/feature-settings.js';
 import { T } from '../core/i18n.js';
+import { LOG } from '../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const ES_KEY = 'RegionSwitch';              // Player.ExtensionSettings 的 key（與獨立版外掛相同）
 const LS_KEY = 'ChatSearchSwitch_Zone';     // 舊版 localStorage key（僅供一次性搬移）
 const BTN_ID = 'lce-region-switch-button';

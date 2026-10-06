@@ -18,8 +18,8 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import modApi from '../../modsdk.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 
 let installed = false;
 

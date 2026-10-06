@@ -68,7 +68,7 @@ const logChange = (key) => (newValue, init) => {
  *   2. 登入頁在 LoginLoad 就要套用（此時還沒有 Player），DB 根本讀不到。
  * 其餘分類一律留在 DB（每帳號 + 伺服器同步）。
  */
-export const GLOBAL_CATEGORIES = ['ui', 'theme'];
+const GLOBAL_CATEGORIES = ['ui', 'theme'];
 
 /**
  * 全域共用的設定鍵集合（含 withToggle / withSound 動態產生的鍵）。
@@ -85,9 +85,6 @@ export function globalKeys() {
     }
     return out;
 }
-
-/** 該鍵是否為全域共用設定。 */
-export const isGlobalKey = (key) => globalKeys().has(key);
 
 // 共用 select 選項
 const GARBLE_LEVEL     = ['none', 'low', 'medium', 'high', 'full'];

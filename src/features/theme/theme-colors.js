@@ -95,7 +95,7 @@ export const lighten = (color, ratio) => shift(color, ratio);
 export const darken = (color, ratio) => shift(color, -ratio);
 
 /** 兩色等比混合（等同 color 套件 .mix(other, 0.5)：同 alpha 時就是 RGB 平均）。 */
-export function mix(a, b, weight = 0.5) {
+function mix(a, b, weight = 0.5) {
     const ha = toHex(a), hb = toHex(b);
     if (!ha || !hb) return ha ?? hb ?? a;
     const ra = hexToRgb(ha), rb = hexToRgb(hb);

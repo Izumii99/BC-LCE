@@ -1,5 +1,5 @@
 import { lceChatNotify } from '../ui/chat/notification.js';
-const LOG = '🐈‍⬛ [LCE]';
+import { LOG } from '../core/constants.js';
 
 /**
  * 無視限制切換/離開房間。

@@ -15,11 +15,10 @@ import { createHook } from '../../core/hooks.js';
 // 前五項移植自 Liko - CRA；whisperItalic 同 WCE（.bce-whisper-input → font-style: italic）。
 // ════════════════════════════════════════════════════════════════════════════
 
-import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
 import { T } from '../../core/i18n.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const STYLE_ID = 'lce-chat-style';
 const HIST_CLASS = 'lce-hist-input';
 const WHISPER_CLASS = 'lce-whisper-input';

@@ -13,7 +13,7 @@ import { dbGet, dbPut, ACCOUNTS_UPDATED_EVENT } from '../storage/accounts.js';
 const MIN_AVATAR_BYTES = 900;
 
 /** @returns {Promise<Blob|null>} WebP 頭像；拍不到或拍到空白時回傳 null。 */
-export async function makeAvatarBlob(size = 56) {
+async function makeAvatarBlob(size = 56) {
     try {
         const src = Player?.Canvas;
         if (!src?.width || !src?.height) return null;

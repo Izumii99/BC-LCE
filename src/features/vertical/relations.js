@@ -66,7 +66,7 @@ function getFriendSet() {
 }
 
 /** @returns {'owner'|'lover'|'friend'|null} 該玩家與自己的最高關係 */
-export function getRelation(memberNumber) {
+function getRelation(memberNumber) {
     const mn = Number(memberNumber);
     if (!Number.isFinite(mn)) return null;
     if (getOwnerSet().has(mn)) return 'owner';

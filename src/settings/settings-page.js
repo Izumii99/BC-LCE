@@ -266,7 +266,7 @@ function run() {
 
     for (const layout of settingLayouts()) {
         const [key, def] = layout.entry;
-        const { x, y, width, controlX, controlW } = layout;
+        const { x, y, width, controlX } = layout;
         const disabled = !!def.disabled?.(fSettings);
         const hovered = !disabled && MouseIn(x, y, width, ITEM_H);
         if (hovered) {
@@ -659,10 +659,6 @@ function onGlobalMouseDown() {
     }
 }
 
-function onGlobalMouseUp() {
-    stopBarDrag();
-}
-
 /** 繪製 input 控制項：色彩型別 → 十六進位欄位 + 齊平色塊；其餘 → 一般數值鈕。 */
 function drawInputControl(key, def, layout, disabled) {
     const { controlX, controlW, y } = layout;
@@ -730,11 +726,11 @@ export function installSettingsPage() {
             load, run, click, exit,
         });
         document.addEventListener('keydown', keyHandler, true);
-        // bar 拖曳：mousedown 判定命中哪一項並開始拖，mouseup 結束（見 onGlobalMouseDown/Up）。
+        // bar 拖曳：mousedown 判定命中哪一項並開始拖，mouseup 結束（見 onGlobalMouseDown／stopBarDrag）。
         // 只在有 currentCategory 時才動作，離開 LCE 設定頁後這兩個監聽器什麼都不做，不必額外移除。
         window.addEventListener('mousedown', onGlobalMouseDown, true);
-        window.addEventListener('mouseup', onGlobalMouseUp, true);
-        window.addEventListener('touchend', onGlobalMouseUp, true);
+        window.addEventListener('mouseup', stopBarDrag, true);
+        window.addEventListener('touchend', stopBarDrag, true);
         installed = true;
     })();
 }

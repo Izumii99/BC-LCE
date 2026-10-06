@@ -19,8 +19,8 @@ import {
     cacheReconnectPassword, getReconnectPassword, warmReconnectPassword,
 } from '../../storage/reconnect-credentials.js';
 import { T } from '../../core/i18n.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 
 let breakCircuit = false;       // 單次重連進行中
 let breakCircuitFull = false;   // 永久停止（重整前不再嘗試）
@@ -44,10 +44,6 @@ function disconnectChatRestoreObservers() {
     chatRestoreLogObserver = null;
 }
 
-function cancelChatRestore() {
-    disconnectChatRestoreObservers();
-}
-
 function chatMessageKey(el) {
     if (!el) return '';
     const attrs = ['data-time', 'data-sender', 'data-target', 'data-msgid', 'data-type']
@@ -58,7 +54,7 @@ function chatMessageKey(el) {
 /** 斷線當下只保存 ChatMessage，避免把 separator / 其他插件 UI 一起重播。 */
 function snapshotChatLog() {
     try {
-        cancelChatRestore();
+        disconnectChatRestoreObservers();
         const log = document.getElementById(CHATLOG_ID);
         if (!log) return;
         const messages = [...log.querySelectorAll('.ChatMessage')];
@@ -116,13 +112,13 @@ function restoreChatLogIfWiped() {
     // 同一元素仍有內容：沒有被清空。
     if (preserved && currentCount > 0) {
         chatSnapshot = null;
-        cancelChatRestore();
+        disconnectChatRestoreObservers();
         return true;
     }
     // BC 已經恢復至少同等數量的訊息，不再重播。
     if (currentCount >= snap.count) {
         chatSnapshot = null;
-        cancelChatRestore();
+        disconnectChatRestoreObservers();
         return true;
     }
 
@@ -137,7 +133,7 @@ function restoreChatLogIfWiped() {
             console.info(LOG, `已還原重連前的 ${restored} 則聊天紀錄`);
         }
         chatSnapshot = null;
-        cancelChatRestore();
+        disconnectChatRestoreObservers();
         return true;
     } catch (e) {
         console.warn(LOG, '還原聊天紀錄失敗:', e?.message ?? e);

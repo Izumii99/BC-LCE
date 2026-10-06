@@ -17,10 +17,9 @@ import { settingChangeAffects } from '../../core/settings-values.js';
 // ════════════════════════════════════════════════════════════════════════════
 
 import { getFeature } from '../../core/feature-settings.js';
-import { SETTING_CHANGED_EVENT } from '../../core/constants.js';
+import { SETTING_CHANGED_EVENT, LOG } from '../../core/constants.js';
 import { injectStyle } from '../../core/util.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const STYLE_ID = 'lce-theme-font';
 
 // 萬用後備字型鏈：西文 + 常見 CJK（Windows / macOS / Linux 各一）+ generic。
@@ -233,7 +232,7 @@ function applyCssFont() {
 }
 
 /** 依目前設定套用字型（canvas + CSS）。設定改了就再呼叫一次。 */
-export function applyThemeFont() {
+function applyThemeFont() {
     applyCanvasFont();
     applyCssFont();
 }

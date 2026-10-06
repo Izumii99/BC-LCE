@@ -1,8 +1,6 @@
 import { createHook } from '../../core/hooks.js';
-import { getFeature } from '../../core/feature-settings.js';
-import { DEFAULT_FEATURE_SETTINGS, clampBar } from '../../core/settings-schema.js';
+import { getFeature, getBarFeature } from '../../core/feature-settings.js';
 const hook = createHook('performance');
-const bar = key => clampBar(DEFAULT_FEATURE_SETTINGS[key], getFeature(key));
 // ───────────────────────── 低幀率 ─────────────────────────
 //
 // 不能直接用 BC 自己的 Player.GraphicsSettings.MaxFPS：那個值受伺服器驗證，
@@ -13,7 +11,7 @@ const bar = key => clampBar(DEFAULT_FEATURE_SETTINGS[key], getFeature(key));
 function shouldSkipFrame(timestamp) {
     if (!getFeature('lowFrameRateFpsEnabled')) return false;
     if (typeof TimerLastTime !== 'number' || TimerLastTime <= 0 || !(timestamp > 0)) return false;
-    return TimerLastTime + 1000 / bar('lowFrameRateFps') > timestamp;
+    return TimerLastTime + 1000 / getBarFeature('lowFrameRateFps') > timestamp;
 }
 
 // ───────────────────────── FPS 顯示 ─────────────────────────

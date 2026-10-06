@@ -64,7 +64,7 @@ function releaseFaceHold(type) {
 // 客戶端各自依時間畫出交替；不必逐步送封包。沒裝 LCE 的人看到的是一般姿勢切換，
 // 為避免封包連丟，網路姿勢的步進不低於 NET_MIN_STEP，與本地渲染的間隔脫鉤。
 const PETSUIT_MSG = 'LCEPetsuit';
-export const PETSUIT_MIN_DELAY = 100;
+const PETSUIT_MIN_DELAY = 100;
 const PETSUIT_MAX_DELAY = 1000;
 const PETSUIT_MAX_CYCLES = 20;
 const NET_MIN_STEP = 350;
