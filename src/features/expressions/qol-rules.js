@@ -8,15 +8,18 @@ export function emoticonExpression(text) {
     // not accidentally trigger a face. Later tokens win for the same group.
     for (const token of String(text).split(/\s+/)) {
         if (/https?:\/\//i.test(token)) continue;
-        const bare = token.replace(/^[?!#]+/, '').replace(/(?:[?!#~;]+|\/{2,5})$/g, '').replace(/\/{2,5}/g, '');
+        const bare = token.replace(/^[?!#]+/, '').replace(/(?:[?!#~;]+|[/\\]{2,6})$/g, '').replace(/[/\\]{2,6}/g, '');
         const match = faces.find(([pattern]) => pattern.test(token) || pattern.test(bare));
         if (match) {
             Object.assign(result, match[1]);
-            const slashMatch = token.match(/(\/{2,5})/);
+            const slashMatch = token.match(/([/\\]{2,6})/);
             if (slashMatch) {
                 const count = slashMatch[1].length;
-                const levels = { 2: 'Low', 3: 'Medium', 4: 'High', 5: 'VeryHigh' };
-                result.Blush = levels[count] || 'VeryHigh';
+                const levels = { 2: 'Low', 3: 'Medium', 4: 'High', 5: 'VeryHigh', 6: 'Extreme' };
+                result.Blush = levels[count] || 'Extreme';
+                if (count >= 5) {
+                    result.Emoticon = 'Hearts';
+                }
             }
 
             // Floating Marks from chat-qol (only if face matched!)

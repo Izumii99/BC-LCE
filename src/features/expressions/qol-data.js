@@ -1,9 +1,9 @@
 export const faces = [
     // Explicit slash faces (must be at top to prevent bare match override)
-    [/^>\/{2,5}<$/, { Eyes: 'Daydream', Mouth: 'Pout', Eyebrows: 'Lowered' }],
-    [/^(?:>\/{2,5}>|<\/{2,5}<)$/, { Eyes: 'Shy', Eyebrows: 'Lowered' }],
-    [/^=\/{2,5}=$/, { Eyes: 'Horny', Mouth: 'Pout' }],
-    [/^(?:o|0)\/{2,5}(?:o|0)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised' }],
+    [/^>[/\\]{2,6}<$/, { Eyes: 'Daydream', Mouth: 'Pout', Eyebrows: 'Lowered' }],
+    [/^(?:>[/\\]{2,6}>|<[/\\]{2,6}<)$/, { Eyes: 'Shy', Eyebrows: 'Lowered' }],
+    [/^=[/\\]{2,6}=$/, { Eyes: 'Horny', Mouth: 'Pout' }],
+    [/^(?:o|0)[/\\]{2,6}(?:o|0)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised' }],
     
     // Explicit sweatdrop faces (must be at top to prevent bare match override)
     [/^(?:twt;|x_x;|\^\^;)$/i, { Fluids: 'TearsLow' }],
