@@ -11,7 +11,6 @@ import modApi from '../modsdk.js';
 const hook = createHook('chat-qol');
 let installed = false;
 let animation = null;
-let mouthDelayTimer = null;
 const poses = ['OverTheHead', 'BackElbowTouch'];
 const outgoingFaces = new WeakMap();
 
@@ -236,68 +235,31 @@ export function installChatQol() {
         const [kind, data] = args;
         if (kind === 'ChatRoomChat' && ['Chat', 'Whisper', 'Emote'].includes(data?.Type)
             && getFeature('chatEmoticons') && canUseExpressionEngine()) {
-            
-            cancelLater(mouthDelayTimer);
-            mouthDelayTimer = null;
-            cancelExpressionEvent('LceEmoticonMouth');
-
             const original = data.Dictionary?.find(d => typeof d.Original === 'string')?.Original;
             const face = outgoingFaces.get(data) ?? emoticonExpression(original ?? data.Content);
             outgoingFaces.delete(data);
             if (Object.keys(face).length) {
                 if ('Eyes' in face && !('Eyes2' in face)) face.Eyes2 = face.Eyes;
-                
-                const hasMouth = 'Mouth' in face;
-                const mouthFace = hasMouth ? { Mouth: face.Mouth } : null;
-                const otherFace = { ...face };
-                delete otherFace.Mouth;
-
-                // Game talking animation takes roughly 65-150ms per character depending on engine
-                const delay = Math.min(String(original ?? data.Content).length * 150, 30000);
-                const totalDuration = 5000 + delay;
-
-                if (Object.keys(otherFace).length) {
-                    holdFace('LceEmoticon', otherFace, totalDuration, { SingleEye: 'Eyes2' in otherFace,
-                        Expression: Object.fromEntries(Object.entries(otherFace).map(([group, expression]) =>
-                            [group, [{ Expression: expression, Duration: totalDuration }]])),
-                    });
-                }
-                
-                if (mouthFace) {
-                    mouthDelayTimer = later(() => {
-                        holdFace('LceEmoticonMouth', mouthFace, 5000, { SingleEye: false,
-                            Expression: Object.fromEntries(Object.entries(mouthFace).map(([group, expression]) =>
-                                [group, [{ Expression: expression, Duration: 5000 }]])),
-                        });
-                    }, delay);
-                }
+                holdFace('LceEmoticon', face, 5000, { SingleEye: 'Eyes2' in face,
+                    Expression: Object.fromEntries(Object.entries(face).map(([group, expression]) =>
+                        [group, [{ Expression: expression, Duration: 5000 }]])),
+                });
             }
         }
         return next(args);
     });
 
-    // BC ends AudioActions with a catch-all for every Activity that returns no
-    // sound for Echo actions, so a fallback appended at the end never runs.
-    // Ours goes first, but only when the native lookup produced no sound.
+    // A temporary last-resort AudioActions entry leaves native and other
+    // plugins' sounds first. BC still applies its mute/volume/involvement rules.
     hook('AudioPlaySoundForChatMessage', 0, (args, next) => {
-        const [data, , , metadata] = args;
-        const sound = getFeature('richerActivitySounds') && echoSound(data);
+        const sound = getFeature('richerActivitySounds') && echoSound(args[0]);
         const actions = globalThis.AudioActions;
         if (!sound || !Array.isArray(actions)) return next(args);
-        if (actions.find(a => a.IsAction?.(data))?.GetSoundEffect?.(data, metadata)) return next(args);
-        if (!metadata?.TargetCharacter || !['Activity', 'Action'].includes(data.Type)) {
-            // Emotes never reach BC's audio path; honour its mute rules and play directly.
-            const involved = globalThis.ChatRoomMessageInvolvesPlayer?.(data) ?? true;
-            if (!globalThis.AudioShouldSilenceSound?.(involved)) globalThis.AudioPlaySoundEffect?.(sound);
-            return next(args);
-        }
-        const fallback = { IsAction: d => d === data, GetSoundEffect: () => sound };
-        actions.unshift(fallback);
+        const fallback = { IsAction: data => data === args[0], GetSoundEffect: () => sound };
+        actions.push(fallback);
         try { return next(args); }
         finally { const index = actions.indexOf(fallback); if (index >= 0) actions.splice(index, 1); }
     });
-
-
 
     // Manual pose changes cancel our sequence before the engine records them.
     for (const fn of ['CharacterSetActivePose', 'PoseSetActive']) hook(fn, 50, (args, next) => {
