@@ -1,4 +1,4 @@
-import { SETTING_CHANGED_EVENT } from '../../core/constants.js';
+import { SETTING_CHANGED_EVENT, LOG } from '../../core/constants.js';
 import { createHook } from '../../core/hooks.js';
 import { parseJSON } from '../../core/serialization.js';
 // ════════════════════════════════════════════════════════════════════════════
@@ -16,7 +16,6 @@ import { parseJSON } from '../../core/serialization.js';
 
 import { openDB } from 'idb';
 import { createNoteState } from './note-state.js';
-import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
 import { shouldLceHandle } from '../../core/wce-compat.js';
 import { createPositionableButton, exposeButton, LCE_API } from '../../core/public-api.js';
@@ -24,7 +23,6 @@ import { T } from '../../core/i18n.js';
 import { positionElement, deepCopy } from '../../core/util.js';
 import { lceChatNotify } from '../../ui/chat/notification.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const NOTE_ID = 'lceNoteInput';
 const STYLE_ID = 'lce-notes-style';
 

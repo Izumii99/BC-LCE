@@ -12,8 +12,6 @@ import { getCanvas, injectStyle, removeStyle, isPortrait, getLockedVH } from '..
 import { createScope } from '../../core/lifecycle.js';
 import { Z, forceCanvasStyle, clearCanvasStyle } from './common.js';
 
-const LOG = '🐈‍⬛ [LCE]';
-
 // ───────────────────────── 聊天室本體 ─────────────────────────
 let crActive = false;
 let crLockedVH = 0;
@@ -255,7 +253,7 @@ function drMapColorPicker() {
 }
 
 /** 每幀把 dialog 頂層容器搬到下半螢幕（只動頂層，子元素相對定位不變）。 */
-export function drMoveDomElements() {
+function drMoveDomElements() {
     if (!drActive) return;
     const vw = window.innerWidth;
     const cvH = Math.round(window.innerHeight * 0.5);
@@ -385,4 +383,3 @@ export function drMaintain() {
     forceCanvasStyle(Math.round(window.innerHeight * 0.5), true);
 }
 
-export { LOG };

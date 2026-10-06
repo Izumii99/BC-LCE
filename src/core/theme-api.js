@@ -16,7 +16,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { getFeature } from './feature-settings.js';
-import { plainColors, specialColors, composeColors, getHexComputed, isDark } from '../features/theme/theme-colors.js';
+import { plainColors, specialColors, composeColors, isDark } from '../features/theme/theme-colors.js';
 
 /** 染色總開關目前是否啟用。 */
 export function isThemeEnabled() { return !!getFeature('themeEnabled'); }
@@ -61,5 +61,3 @@ export function getAccentColor() { return Theme.Accent; }
 export function getTextColor() { return Theme.Text; }
 export function getPalette() { return Theme.palette; }
 export function isDarkTheme() { return Theme.isDark; }
-
-export { getHexComputed, isDark };

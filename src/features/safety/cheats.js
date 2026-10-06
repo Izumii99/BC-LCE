@@ -11,14 +11,13 @@ import { createHook } from '../../core/hooks.js';
 // 移植自 WCE lockpickHelp.js / autoStruggle.js / layeringMenu.ts / itemAntiCheat.js
 // ════════════════════════════════════════════════════════════════════════════
 
-import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
 import { isWceFeatureEnabled, shouldLceHandle } from '../../core/wce-compat.js';
 import { T } from '../../core/i18n.js';
 import { deepCopy } from '../../core/util.js';
 import { lceChatNotify } from '../../ui/chat/notification.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 
 const hook = createHook('cheats');
 
@@ -328,9 +327,3 @@ export function installCheats() {
 
     installAntiCheat();
 }
-
-/** 綑綁時是否允許使用分層選單（供 layering 相關流程查詢）。 */
-export const layeringAllowedWhileBound = () => shouldLceHandle('allowLayeringWhileBound');
-
-/** IM 是否可繞過 BCX beep 限制。 */
-export const imBypassBCX = () => !!getFeature('allowIMBypassBCX');

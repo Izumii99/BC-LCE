@@ -13,14 +13,13 @@ import { parseJSON } from './serialization.js';
 // ════════════════════════════════════════════════════════════════════════════
 
 import { DEFAULT_FEATURE_SETTINGS, defaultValues, globalKeys, clampBar } from './settings-schema.js';
-import { FEATURE_SETTINGS_VERSION, LCE_EXT_KEY, SETTINGS_KEY, SETTING_CHANGED_EVENT } from './constants.js';
+import { FEATURE_SETTINGS_VERSION, LCE_EXT_KEY, SETTINGS_KEY, SETTING_CHANGED_EVENT, LOG } from './constants.js';
 import { readRoot as readGlobalRoot } from './settings-root.js';
 
 // 載入後即為完整設定物件；載入前為空物件（getFeature 會 fallback 到預設）。
 export let fSettings = {};
 let accountSettingsLoaded = false;
 
-const LOG = '🐈‍⬛ [LCE]';
 
 
 
@@ -35,7 +34,7 @@ function decompress(b) {
 // 讀取點共用 state.js 的 readRoot（見上方 import）—— 同一格別讓兩邊各解析各的。
 
 /** 讀取全域功能設定（ui / theme）。登入前也能呼叫。 */
-export function loadGlobalFeatures() {
+function loadGlobalFeatures() {
     const root = readGlobalRoot();
     return (root.features && typeof root.features === 'object') ? root.features : {};
 }
@@ -165,7 +164,7 @@ export async function loadFeatureSettings() {
  * 登入前用的輕量載入：只取全域的 ui / theme，補齊預設。
  * 登入頁（LoginLoad）拿不到 Player，只能用這個。
  */
-export function loadGlobalFeatureSettings() {
+function loadGlobalFeatureSettings() {
     const defs = defaultValues();
     const globals = loadGlobalFeatures();
     const out = {};
@@ -271,6 +270,9 @@ export function getFeature(key) {
     if (setting.derived === 'Sound') return setting.def.soundDefault ?? true;
     return setting.def.value;
 }
+
+/** 讀取 bar（數值滑桿）型設定，並夾到 schema 允許的範圍與級距。 */
+export const getBarFeature = key => clampBar(DEFAULT_FEATURE_SETTINGS[key], getFeature(key));
 
 const sameValue = (a, b) => Object.is(a, b) || (typeof a === 'object' && typeof b === 'object' && JSON.stringify(a) === JSON.stringify(b));
 

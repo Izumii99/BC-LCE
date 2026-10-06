@@ -97,8 +97,3 @@ export function openModal(options) {
     }
     void openLocalAsync(options).catch(error => console.warn('🐈‍⬛ [LCE] modal 失敗:', error));
 }
-
-export async function confirmModal(prompt, { confirm = 'OK', cancel = 'Cancel' } = {}) {
-    const [action] = await openModalAsync({ prompt, buttons: { submit: confirm, cancel } });
-    return action === 'submit';
-}

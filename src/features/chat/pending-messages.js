@@ -4,7 +4,6 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import modApi from '../../modsdk.js';
-import { getFeature } from '../../core/feature-settings.js';
 import { shouldLceHandle } from '../../core/wce-compat.js';
 
 const STYLE_ID = 'lce-pending-style';

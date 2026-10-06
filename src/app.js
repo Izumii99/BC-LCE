@@ -7,7 +7,7 @@ import { runSafely } from './core/lifecycle.js';
 // ════════════════════════════════════════════════════════════════════════════
 
 import { LCE_ALREADY_LOADED } from './modsdk.js';
-import { MOD_VER } from './core/constants.js';
+import { MOD_VER, LOG } from './core/constants.js';
 import { reloadSettings } from './core/state.js';
 import { refreshI18n } from './core/i18n.js';
 import { getCryptoKey } from './storage/credentials.js';
@@ -83,7 +83,6 @@ if (LCE_ALREADY_LOADED) {
     window.Liko.LCE = window.Liko.LCE ?? {};
     window.Liko.LCE.version = MOD_VER;
 
-    const LOG = '🐈‍⬛ [LCE]';
     // 逐步初始化：單一步驟丟例外只記警告並跳過，不會連累後面的模組
     //（原本全部擠在一個 .then() 裡，任一個 throw 就整串中斷，一顆壞掉半個插件就黑了）。
     const safe = runSafely;

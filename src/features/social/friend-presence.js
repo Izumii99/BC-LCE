@@ -18,8 +18,8 @@ import { getFeature } from '../../core/feature-settings.js';
 import { isWceFeatureEnabled } from '../../core/wce-compat.js';
 import { T } from '../../core/i18n.js';
 import { LOCAL_MARKER } from '../chat/local-messages.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 
 // 註：通知訊息的配色交給 features/local-messages.js 統一處理
 // （所有 ChatRoomSendLocal 一律紫框黑字），這裡不再自己染色。

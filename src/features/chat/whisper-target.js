@@ -11,12 +11,11 @@ import { createHook } from '../../core/hooks.js';
 // 不在場對象」時也重置，但那要靠精確比對 BC 原始碼字串、跨版本易碎，暫不移植。
 // ════════════════════════════════════════════════════════════════════════════
 
-import modApi from '../../modsdk.js';
 import { shouldLceHandle } from '../../core/wce-compat.js';
 import { T } from '../../core/i18n.js';
 import { LOCAL_MARKER } from './local-messages.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const GRACE_MS = 60 * 1000;   // 離開後的寬限：一分鐘內回來就不清（同 WCE）
 const LEAVE_PREFIXES = ['ServerLeave', 'ServerBan', 'ServerKick', 'ServerDisconnect'];
 

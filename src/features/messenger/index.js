@@ -16,13 +16,12 @@ export { stripBeepMetadata } from './codec.js';
 // 歷史紀錄存 IndexedDB（不用 localStorage —— 那是全網域共用的空間，很容易被塞爆）。
 // ════════════════════════════════════════════════════════════════════════════
 
-import { getFeature } from '../../core/feature-settings.js';
 import { shouldLceHandle } from '../../core/wce-compat.js';
 import { createPositionableButton, exposeButton } from '../../core/public-api.js';
 import { T } from '../../core/i18n.js';
 import { processChatAugmentsForLine } from '../chat/chat-augments.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const DEFAULT_Z_INDEX = 10;
 const {
     api: messengerButtonApi,

@@ -36,7 +36,7 @@ export function emoticonDuration(text, group = null) {
     return DEFAULT_EMOTICON_DURATION;
 }
 
-export function echoActivity(data) {
+function echoActivity(data) {
     if (data?.Type !== 'Activity') return null;
     const dict = Array.isArray(data.Dictionary) ? data.Dictionary : [];
     const content = typeof data.Content === 'string' ? data.Content : '';

@@ -23,7 +23,7 @@ export function loadAccounts() {
     try { const list = JSON.parse(localStorage.getItem(ACCT_KEY) || '[]'); return Array.isArray(list) ? list : []; }
     catch { return []; }
 }
-export function saveAccounts(list) { localStorage.setItem(ACCT_KEY, JSON.stringify(list)); }
+function saveAccounts(list) { localStorage.setItem(ACCT_KEY, JSON.stringify(list)); }
 
 export async function addOrUpdateAccount(accountName, plainPassword) {
     const key       = accountName.toUpperCase();

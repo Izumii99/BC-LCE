@@ -11,8 +11,8 @@ import { observeResponsive, responsiveOwns } from '../../core/responsive-compat.
 
 import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const MAX_FRAMES = 30;
 
 // 字母 → [嘴型, 持續毫秒]，依優先序比對（移植自 BC-Responsive，含拉丁與斯拉夫字母）

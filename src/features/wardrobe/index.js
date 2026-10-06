@@ -12,14 +12,11 @@ import { parseJSON } from '../../core/serialization.js';
 // 註：WCE 的 localWardrobe（+288 格，存 IndexedDB）不在規格內，未移植。
 // ════════════════════════════════════════════════════════════════════════════
 
-import modApi from '../../modsdk.js';
-import { getFeature } from '../../core/feature-settings.js';
-import { SETTING_CHANGED_EVENT } from '../../core/constants.js';
+import { SETTING_CHANGED_EVENT, LOG } from '../../core/constants.js';
 import { T } from '../../core/i18n.js';
 import { openModalAsync } from '../../core/modal-service.js';
 import { isWceFeatureEnabled, shouldLceHandle } from '../../core/wce-compat.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const DEFAULT_WARDROBE_SIZE = 24;
 const EXPANDED_WARDROBE_SIZE = 96;
 const WARDROBE_KEY = 'FBCWardrobe';      // 與 WCE 相同（勿改，否則資料不互通）
@@ -274,7 +271,7 @@ export function installWardrobe() {
  * 依目前設定套用/還原拓展衣櫃格數。可重複呼叫。
  * @param {boolean} init 見 loadExtendedWardrobe：只影響「找不到資料」時的提示文案。
  */
-export function applyExtendedWardrobe(init = false) {
+function applyExtendedWardrobe(init = false) {
     try {
         if (!Player?.Wardrobe) return;
         if (shouldLceHandle('extendedWardrobe')) {

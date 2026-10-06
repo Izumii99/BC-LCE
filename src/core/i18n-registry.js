@@ -2,9 +2,9 @@
 // 引擎原始碼以 liko-Plugin-Repository/Plugins/expand/BC_i18n.js 為唯一來源；
 // 本專案內嵌同步副本，確保沒有 PCM / CDN 時仍能獨立運作。
 import './i18n-engine.js';
+import { LOG } from './constants.js';
 
 const API_VERSION = '2.2.0';
-const LOG = '🐈‍⬛ [LCE]';
 
 function transposeTables(tables) {
     const strings = Object.create(null);

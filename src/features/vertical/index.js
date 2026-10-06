@@ -13,7 +13,7 @@ import { createHook } from '../../core/hooks.js';
 
 import { getFeature } from '../../core/feature-settings.js';
 import { isPortrait } from '../../core/util.js';
-import { SETTING_CHANGED_EVENT } from '../../core/constants.js';
+import { SETTING_CHANGED_EVENT, LOG } from '../../core/constants.js';
 import {
     crApply, crRemove, crMaintain, crUpdateViewport, isCrActive, isKeyboardLayoutLocked, getDialogRect,
     drApply, drRemove, drMaintain, isDrActive,
@@ -23,7 +23,6 @@ import {
     cshApply, cshRemove, renderCshList, isCshActive, cshMarkNeedSync, cshSyncIfNeeded,
 } from './chatsearch.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 
 const registerHook = createHook('vertical');
 let scope = null;

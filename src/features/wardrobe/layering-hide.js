@@ -20,12 +20,11 @@ import { parseJSON } from '../../core/serialization.js';
 
 import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
-import { SETTING_CHANGED_EVENT } from '../../core/constants.js';
+import { SETTING_CHANGED_EVENT, LOG } from '../../core/constants.js';
 import { injectStyle, removeStyle } from '../../core/util.js';
 import { T } from '../../core/i18n.js';
 import { isWceFeatureEnabled, shouldLceHandle } from '../../core/wce-compat.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const CAP = 'layeringHide';            // 能力名（沿用 WCE 的字串，才能與 WCE 使用者互通）
 const OVERRIDE_KEY = 'WCEOverrides';   // ExtensionSettings 鍵（與 WCE 相同，勿改）
 const HIDE_PROP = 'wceOverrideHide';   // item.Property 欄位（與 WCE 相同，勿改）
@@ -94,7 +93,7 @@ function patch(name, patches, hint) {
  * 有這個能力，設定框才會在「自己的物品」上顯示（UI 的能力判斷對象是 Layering.Character，
  * 編輯自己時就是 Player）。切換設定時也要即時更新並重新對房間報名，別人才會同步顯示效果。
  */
-export function refreshLayeringCapability() {
+function refreshLayeringCapability() {
     if (typeof Player === 'undefined' || !Player) return;
     // WCE 接管時不觸碰共用的 BCECapabilities，避免 LCE 把 WCE 的能力宣告移除。
     if (wceOwnsLayeringHide()) return;

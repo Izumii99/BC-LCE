@@ -21,9 +21,6 @@ export function ensureAddonManagersVisible() {
     injectStyle(ADDON_MANAGER_TOP_STYLE_ID, ADDON_MANAGER_TOP_CSS);
 }
 
-// 舊名稱保留給可能引用此模組的既有 LCE 程式。
-export const ensureFusamVisible = ensureAddonManagersVisible;
-
 /**
  * 隱藏 BC 原生登入 HTML（保留 canvas —— canvas 由滿版背景圖蓋住，但仍需其幾何供座標對齊），
  * 並遮蔽第三方登入元素（Themed 的登入選項按鈕），確保外掛管理器可見。

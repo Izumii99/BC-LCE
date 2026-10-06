@@ -2,6 +2,9 @@
 // 常數集中管理
 // ════════════════════════════════════════════════════════════════════════════
 
+/** 所有 console 訊息共用的前綴。 */
+export const LOG = '🐈‍⬛ [LCE]';
+
 /* global __LCE_VERSION__ */
 // 版本號由 Vite 的 define 於建置時注入（見 vite.config.js）；未定義時 fallback。
 export const MOD_VER = (typeof __LCE_VERSION__ !== 'undefined' ? __LCE_VERSION__ : '0.1.0');

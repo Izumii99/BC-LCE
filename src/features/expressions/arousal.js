@@ -13,11 +13,11 @@
 
 import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 
 /** 目前的成長倍率；未啟用或值無效時回傳 1（等同原版）。 */
-export function growthFactor() {
+function growthFactor() {
     if (!getFeature('arousalGrowthAmountEnabled')) return 1;
     const raw = parseFloat(getFeature('arousalGrowthAmount'));
     if (!Number.isFinite(raw)) return 1;
