@@ -8,7 +8,7 @@ export function emoticonExpression(text) {
     // not accidentally trigger a face. Later tokens win for the same group.
     for (const token of String(text).split(/\s+/)) {
         if (/https?:\/\//i.test(token)) continue;
-        const bare = token.replace(/^[?!#]+/, '').replace(/(?:[?!#~]+|\/{2,5})$/g, '').replace(/\/{2,5}/g, '');
+        const bare = token.replace(/^[?!#]+/, '').replace(/(?:[?!#~;]+|\/{2,5})$/g, '').replace(/\/{2,5}/g, '');
         const match = faces.find(([pattern]) => pattern.test(token) || pattern.test(bare));
         if (match) {
             Object.assign(result, match[1]);
