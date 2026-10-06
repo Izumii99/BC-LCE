@@ -12,9 +12,36 @@ export function emoticonExpression(text) {
     // not accidentally trigger a face. Later tokens win for the same group.
     for (const token of String(text).split(/\s+/)) {
         if (/https?:\/\//i.test(token)) continue;
-        const cleanToken = token.replace(/^[?!#]+/, '').replace(/[?!#~;'"]+$/g, '');
-        const bare = cleanToken.replace(/[/\\]{2,}/g, '');
-        const match = faces.find(([pattern]) => pattern.test(token) || pattern.test(cleanToken) || pattern.test(bare));
+        
+        let match = faces.find(([pattern]) => pattern.test(token));
+        let baseToken = token;
+        let strippedMarks = '';
+        
+        if (!match) {
+            const markMatch = baseToken.match(/([?!#~;'"]+)$/);
+            if (markMatch) {
+                strippedMarks = markMatch[1];
+                baseToken = baseToken.slice(0, -strippedMarks.length);
+                match = faces.find(([pattern]) => pattern.test(baseToken));
+            }
+        }
+        
+        if (!match) {
+            const slashMatch = baseToken.match(/([/\\]{2,})$/);
+            if (slashMatch) {
+                baseToken = baseToken.slice(0, -slashMatch[1].length);
+                match = faces.find(([pattern]) => pattern.test(baseToken));
+            }
+        }
+        
+        if (!match) {
+            const preMatch = baseToken.match(/^([?!#]+)/);
+            if (preMatch) {
+                baseToken = baseToken.slice(preMatch[1].length);
+                match = faces.find(([pattern]) => pattern.test(baseToken));
+            }
+        }
+
         if (match) {
             Object.assign(result, match[1]);
             const slashMatch = token.match(/([/\\]{2,})/);
@@ -27,16 +54,17 @@ export function emoticonExpression(text) {
                 }
             }
 
-            // Floating Marks from chat-qol (only if face matched!)
-            if (/^[?!#]|[?!#]$/.test(token)) {
-                if (token.includes('?')) result.Emoticon = 'Confusion';
-                else if (token.includes('!')) result.Emoticon = 'Exclamation';
-                else if (token.includes('#')) result.Emoticon = 'Annoyed';
-            }
-            // Sweatdrop (only if face matched!)
-            if (/['";]\s*$/.test(token)) {
+            // Additive sweatdrop: only if trailing marks were stripped and contained a sweatdrop char
+            if (/['";]/.test(strippedMarks)) {
+                result.Fluids = result.Fluids || 'TearsLow';
                 result.Emoticon = 'Tear';
             }
+
+            // Additive floating marks
+            const allMarks = token.replace(baseToken, '');
+            if (allMarks.includes('?')) result.Emoticon = 'Confusion';
+            else if (allMarks.includes('!')) result.Emoticon = 'Exclamation';
+            else if (allMarks.includes('#')) result.Emoticon = 'Annoyed';
         }
     }
     return result;
@@ -45,7 +73,7 @@ export function emoticonExpression(text) {
 // Slash/backslash blushes historically used the number of slashes as their
 // hold time. Keep that behavior, while accepting longer runs instead of
 // silently losing the blush when someone types more than five slashes.
-export function emoticonDuration(text, group = null) {
+export function emoticonDuration(text) {
     let duration = 0;
     for (const token of String(text).split(/\s+/)) {
         if (/https?:\/\//i.test(token)) continue;

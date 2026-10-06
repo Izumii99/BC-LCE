@@ -116,6 +116,22 @@ function animateSpeech(c, msg) {
     runAnimation(c, animation);
 }
 
+export function getSpeechDuration(msg) {
+    if (!msg || typeof msg !== 'string') return 0;
+    const cjkHeavy = (msg.match(/[぀-ヿ㐀-䶿一-鿿가-힯]/g) || []).length >= msg.replace(/\s/g, '').length / 2;
+    const chunks = msg.match(cjkHeavy ? /.{1}/g : /.{1,3}/g) || [];
+
+    let alt = 0;
+    const animation = chunks.map(chunk => {
+        const hit = LETTER_MAP.find(({ regex }) => regex.test(chunk));
+        if (hit) return hit.expr;
+        if (/\S/.test(chunk)) return FALLBACK_CYCLE[alt++ % FALLBACK_CYCLE.length];
+        return [null, 200];
+    }).slice(0, MAX_FRAMES);
+
+    return animation.reduce((acc, [, duration]) => acc + duration, 0);
+}
+
 let installed = false;
 
 export function installCharTalk() {

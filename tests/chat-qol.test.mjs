@@ -20,11 +20,24 @@ test('textmoji handle mixed faces without matching URLs or ordinary words', () =
     assert.equal(emoticonExpression('///////').Blush, 'Extreme');
     assert.equal(emoticonExpression('=w=/////').Emoticon, 'Hearts');
     assert.equal(emoticonExpression('=w=////').Emoticon, undefined);
-    assert.equal(emoticonDuration('///', 'Blush'), 5000);
-    assert.equal(emoticonDuration('>///<', 'Blush'), 5000);
-    assert.equal(emoticonDuration('///////', 'Blush'), 7000);
-    assert.equal(emoticonDuration('////////////////', 'Blush'), 16000);
-    assert.equal(emoticonDuration('>///<', 'Eyes'), 5000);
+    assert.equal(emoticonDuration('///'), 5000);
+    assert.equal(emoticonDuration('>///<'), 5000);
+    assert.equal(emoticonDuration('///////'), 7000);
+    assert.equal(emoticonDuration('////////////////'), 16000);
+
+    // Trailing marks and sweatdrops
+    assert.equal(emoticonExpression('TwT;').Fluids, 'TearsHigh');
+    assert.equal(emoticonExpression('TwT;').Eyes, 'Shy');
+    assert.equal(emoticonExpression('^^;').Fluids, 'TearsLow');
+    assert.equal(emoticonExpression('x_x;').Fluids, 'TearsLow');
+    
+    // >; is an angry face, the ; is not a sweatdrop
+    assert.equal(emoticonExpression('>;').Fluids, undefined);
+    assert.equal(emoticonExpression('>;').Eyes, 'Angry');
+    
+    // Slash stripping should not create faces from internal slashes
+    assert.deepEqual(emoticonExpression('x//d'), {});
+    assert.deepEqual(emoticonExpression('t//t'), {});
 });
 
 test('Echo bridge recognizes canonical names, filters uninvolved players and non-mouth kisses', () => {
@@ -119,6 +132,36 @@ test('outgoing emoticons use pre-garble text without adding original to network 
     assert.equal(events[1].Duration, 6000);
     assert.equal(events[1].Expression.Blush[0].Expression, 'Extreme');
     assert.equal(events[1].Expression.Blush[0].Duration, 6000);
+
+    const emoteMessage = { Type: 'Emote', Content: 'ignored', Dictionary: [{ Original: '>.<' }] };
+    rt.hooks.get('ServerSend')(['ChatRoomChat', emoteMessage], () => {});
+    assert.equal(timers.at(-1).ms, 0, 'Emote has no speech delay');
+    
+    const whisperMessage = { Type: 'Whisper', Content: 'ignored', Dictionary: [{ Original: '>.<' }] };
+    rt.hooks.get('ServerSend')(['ChatRoomChat', whisperMessage], () => {});
+    assert.equal(timers.at(-1).ms, 0, 'Whisper has no speech delay');
+});
+
+test('mouth delay timer is cancelled on room leave or disable', async () => {
+    const { rt, settings, events, timers } = await fixture();
+    settings.setFeature('chatEmoticons', true);
+    
+    const message = { Type: 'Chat', Content: 'hello', Dictionary: [{ Original: '>.<' }] };
+    rt.hooks.get('ServerSend')(['ChatRoomChat', message], () => {});
+    
+    // Timer is scheduled, now we leave room
+    rt.hooks.get('ChatRoomLeave')([], () => {});
+    
+    // Fire the timer, but it was cancelled, and callback checks current room
+    rt.context.CurrentScreen = 'Main';
+    timers.at(-1).fn();
+    assert.equal(events.length, 0, 'Should not animate if left room');
+    
+    rt.context.CurrentScreen = 'ChatRoom';
+    rt.hooks.get('ServerSend')(['ChatRoomChat', message], () => {});
+    settings.setFeature('chatEmoticons', false);
+    timers.at(-1).fn();
+    assert.equal(events.length, 0, 'Should not animate if feature disabled');
 });
 
 test('Petsuit cycles have two poses, stop restores pose, manual changes cancel without overwriting', async () => {

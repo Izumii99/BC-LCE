@@ -4,8 +4,6 @@ export const faces = [
     [/^(?:>[\\/]{2,}>|<[\\/]{2,}<)$/, { Eyes: 'Shy', Eyebrows: 'Lowered', Blush: 'Medium' }],
     [/^=[\\/]{2,}=$/, { Eyes: 'Horny', Mouth: 'Pout', Blush: 'Medium' }],
     [/^(?:o|0)[\\/]{2,}(?:o|0)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised', Blush: 'Medium' }],
-    // Explicit sweatdrop faces (must be at top to prevent bare match override)
-    [/^(?:twt|x_x|\^\^)['";]$/i, { Fluids: 'TearsLow' }],
     // Classic cat/cute faces
     [/^>[._~,]?<$/, { Eyes: 'Daydream', Mouth: 'Smirk' }],
     // Cat faces with W
@@ -26,6 +24,7 @@ export const faces = [
     // Surprised
     [/^(?:0[._x]0|o[._x]o)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised' }],
     // Crazy / Dazed
+    [/^x[_.]?x$/i, { Eyes: 'Dazed', Mouth: 'Sad' }],
     [/^@[_.,~-]*@$/, { Eyes: 'Crazy', Mouth: 'Sad' }],
     [/^(?:>[.,~_]>|<[.,~_]<)$/, { Eyes: 'Dazed', Eyebrows: 'Harsh' }],
     // Horny / Closed
