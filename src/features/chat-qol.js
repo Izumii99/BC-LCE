@@ -1,9 +1,10 @@
 import { createHook } from '../core/hooks.js';
 import { getFeature } from '../core/feature-settings.js';
+import { observeResponsive } from '../core/responsive-compat.js';
 import { T } from '../core/i18n.js';
 import { canUseExpressionEngine, cancelExpressionEvent, pushEvent, restoreQolPose, readFace, settleFace } from './expressions/index.js';
 import { captureFace, releaseCachedFace } from './expressions/face-cache.js';
-import { emoticonExpression, echoSound } from './expressions/qol-rules.js';
+import { emoticonExpression, emoticonDuration, echoSound } from './expressions/qol-rules.js';
 import { drawAlternatingPetsuit } from './petsuit-render.js';
 import { createSocketBinding } from '../core/lifecycle.js';
 import modApi from '../modsdk.js';
@@ -220,6 +221,13 @@ function drawPetsuitButton() {
 export function installChatQol() {
     if (installed) return;
     installed = true;
+    observeResponsive((next) => {
+        if (!next.expressions) return;
+        // Responsive now owns the expression surface. Cancel every LCE temporary hold
+        // immediately instead of waiting for the 250ms state poll to notice it.
+        for (const type of [...faceHolds.keys()]) releaseFaceHold(type);
+        if (animation) stopPetsuitAnimation(false);
+    });
     // Retain the typed text locally even when a gag transforms the packet.
     // Nothing extra is added to the network message or anti-garble protocol.
     hook('ChatRoomGenerateChatRoomChatMessage', 200, (args, next) => {
@@ -236,13 +244,15 @@ export function installChatQol() {
         if (kind === 'ChatRoomChat' && ['Chat', 'Whisper', 'Emote'].includes(data?.Type)
             && getFeature('chatEmoticons') && canUseExpressionEngine()) {
             const original = data.Dictionary?.find(d => typeof d.Original === 'string')?.Original;
-            const face = outgoingFaces.get(data) ?? emoticonExpression(original ?? data.Content);
+            const text = original ?? data.Content;
+            const face = outgoingFaces.get(data) ?? emoticonExpression(text);
             outgoingFaces.delete(data);
             if (Object.keys(face).length) {
                 if ('Eyes' in face && !('Eyes2' in face)) face.Eyes2 = face.Eyes;
-                holdFace('LceEmoticon', face, 5000, { SingleEye: 'Eyes2' in face,
+                const duration = Math.max(...Object.keys(face).map(group => emoticonDuration(text, group)));
+                holdFace('LceEmoticon', face, duration, { SingleEye: 'Eyes2' in face,
                     Expression: Object.fromEntries(Object.entries(face).map(([group, expression]) =>
-                        [group, [{ Expression: expression, Duration: 5000 }]])),
+                        [group, [{ Expression: expression, Duration: emoticonDuration(text, group) }]])),
                 });
             }
         }

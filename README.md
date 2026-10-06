@@ -73,7 +73,7 @@ src/
   assets/            建置時由 assets lock 補齊的登入圖片／影片（選配）
   Translation/       七語 JSON 字表
 
-loader.user.js       正式版載入器（讀 GitHub main 分支的 dist/assets/main.js）
+loader.user.js       正式版載入器（讀 GitHub Pages 自動生成的 assets/main.js）
 loader.local.user.js 本地開發載入器（讀 http://localhost:5174/assets/main.js）
 ```
 
@@ -152,5 +152,5 @@ LCE.ProfileShare.handlesReceive()           // LCE 是否為目前的 PROFILESHA
 ```
 npm run build
 ```
-產物在 `dist/assets/main.js`，由 `loader.user.js` 以 dynamic import 載入。
+建置產物會在 CI 中生成到 `dist/`，再部署到 GitHub Pages；`loader.user.js` 直接從 Pages 載入 `assets/main.js`。`dist/` 不進 Git，避免 build 產物在分支合併時產生衝突。
 loader 採獨立版本，只有載入機制變更時才手動更新；build / dev 不會跟隨 `package.json` 改寫 loader 的 `@version`。

@@ -1,9 +1,9 @@
 export const faces = [
     // Explicit slash/backslash faces (must be at top to prevent bare match override)
-    [/^>[\\/]{2,5}<$/, { Eyes: 'Daydream', Mouth: 'Pout', Eyebrows: 'Lowered' }],
-    [/^(?:>[\\/]{2,5}>|<[\\/]{2,5}<)$/, { Eyes: 'Shy', Eyebrows: 'Lowered' }],
-    [/^=[\\/]{2,5}=$/, { Eyes: 'Horny', Mouth: 'Pout' }],
-    [/^(?:o|0)[\\/]{2,5}(?:o|0)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised', Blush: 'Medium' }],
+    [/^>[\\/]{2,}<$/, { Eyes: 'Daydream', Mouth: 'Pout', Eyebrows: 'Lowered', Blush: 'Medium' }],
+    [/^(?:>[\\/]{2,}>|<[\\/]{2,}<)$/, { Eyes: 'Shy', Eyebrows: 'Lowered', Blush: 'Medium' }],
+    [/^=[\\/]{2,}=$/, { Eyes: 'Horny', Mouth: 'Pout', Blush: 'Medium' }],
+    [/^(?:o|0)[\\/]{2,}(?:o|0)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised', Blush: 'Medium' }],
     // Classic cat/cute faces
     [/^>[._~,]?<$/, { Eyes: 'Daydream', Mouth: 'Smirk' }],
     // Cat faces with W
@@ -50,7 +50,7 @@ export const faces = [
     [/^\(?afk\)?$/i, { Emoticon: 'Afk' }],
     [/^\(?brb\)?$/i, { Emoticon: 'Brb' }],
     // Standalone slash/backslash blush faces
-    [/^(?:[<>])?[\\/]{2,5}(?:[<>])?$/, { Blush: 'Medium' }],
+    [/^(?:[<>])?[\\/]{2,}(?:[<>])?$/, { Blush: 'Medium' }],
 ];
 
 export const knownEchoNames = new Set([

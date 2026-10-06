@@ -214,33 +214,42 @@ export function initGlobalFeatures() {
  */
 export function saveFeatureSettings() {
     const gKeys = globalKeys();
+    let globalSaved = true;
+    let accountSaved = true;
 
     // ── 全域（ui / theme）──
     const globals = {};
     for (const k of gKeys) if (k in fSettings) globals[k] = fSettings[k];
-    const globalSaved = saveGlobalFeatures(globals);
+    globalSaved = saveGlobalFeatures(globals);
 
     // ── 每帳號（其餘）──
-    if (!accountSettingsLoaded || typeof Player === 'undefined' || !Player?.AccountName) return globalSaved;
+    if (!accountSettingsLoaded || typeof Player === 'undefined' || !Player?.AccountName) {
+        return globalSaved;
+    }
     try {
-        if (typeof LZString === 'undefined' || !Player.ExtensionSettings) return false;
-        // 全域鍵不再寫進 DB，避免同一份資料兩邊各存一份、日後不知道誰是正本
-        const perAccount = {};
-        for (const [k, v] of Object.entries(fSettings)) {
-            if (!gKeys.has(k)) perAccount[k] = v;
+        if (typeof LZString === 'undefined' || !Player.ExtensionSettings) {
+            console.warn(LOG, '設定同步失敗：帳號設定儲存環境尚未就緒');
+            accountSaved = false;
         }
-        Player.ExtensionSettings[LCE_EXT_KEY] = LZString.compressToBase64(JSON.stringify(perAccount));
-        if (typeof ServerPlayerExtensionSettingsSync === 'function') {
-            ServerPlayerExtensionSettingsSync(LCE_EXT_KEY);
-        } else {
-            console.warn(LOG, '設定同步未送出：ServerPlayerExtensionSettingsSync 尚未就緒');
-            return false;
+        else {
+            // 全域鍵不再寫進 DB，避免同一份資料兩邊各存一份、日後不知道誰是正本
+            const perAccount = {};
+            for (const [k, v] of Object.entries(fSettings)) {
+                if (!gKeys.has(k)) perAccount[k] = v;
+            }
+            Player.ExtensionSettings[LCE_EXT_KEY] = LZString.compressToBase64(JSON.stringify(perAccount));
+            if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+                ServerPlayerExtensionSettingsSync(LCE_EXT_KEY);
+            } else {
+                console.warn(LOG, '設定同步未送出：ServerPlayerExtensionSettingsSync 尚未就緒');
+                accountSaved = false;
+            }
         }
     } catch (e) {
         console.warn(LOG, '設定同步到伺服器失敗:', e);
-        return false;
+        accountSaved = false;
     }
-    return globalSaved;
+    return globalSaved && accountSaved;
 }
 
 /** 載入後執行一次所有 sideEffects（init=true），套用設定初始狀態。 */
