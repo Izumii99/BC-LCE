@@ -8,7 +8,7 @@ export function emoticonExpression(text) {
     // not accidentally trigger a face. Later tokens win for the same group.
     for (const token of String(text).split(/\s+/)) {
         if (/https?:\/\//i.test(token)) continue;
-        const bare = token.replace(/^[?!#]+/, '').replace(/(?:[?!#~;]+|[/\\]{2,6})$/g, '').replace(/[/\\]{2,6}/g, '');
+        const bare = token.replace(/^[?!#]+/, '').replace(/(?:[?!#~;'"]+|[/\\]{2,6})$/g, '').replace(/[/\\]{2,6}/g, '');
         const match = faces.find(([pattern]) => pattern.test(token) || pattern.test(bare));
         if (match) {
             Object.assign(result, match[1]);
@@ -28,11 +28,10 @@ export function emoticonExpression(text) {
                 else if (token.includes('!')) result.Emoticon = 'Exclamation';
                 else if (token.includes('#')) result.Emoticon = 'Annoyed';
             }
-        }
-
-        // Sweatdrop
-        if (/;\s*$/.test(token) || /[=><\^~-];/.test(token) || /(TwT|T_T|T-T|TvT|x_x|x-x);/i.test(token)) {
-            result.Emoticon = 'Tear';
+            // Sweatdrop (only if face matched!)
+            if (/['";]\s*$/.test(token)) {
+                result.Emoticon = 'Tear';
+            }
         }
     }
     return result;
