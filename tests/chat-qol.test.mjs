@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { runtime } from './helpers/runtime.mjs';
-import { emoticonExpression, echoExpressionEvent, echoSound } from '../src/features/expressions/qol-rules.js';
+import { emoticonExpression, emoticonDuration, echoExpressionEvent, echoSound } from '../src/features/expressions/qol-rules.js';
 
 const packet = (name, group = 'ItemMouth', sender = 2, target = 1) => ({
     Type: 'Activity', Content: `ChatOther-${group}-${name}`, Sender: sender,
@@ -14,6 +14,15 @@ test('textmoji handle mixed faces without matching URLs or ordinary words', () =
     assert.deepEqual(emoticonExpression('https://example.com/#hello?x=0.0 ordinaryxD'), {});
     assert.equal(emoticonExpression(':3 >.<').Eyes, 'Daydream');
     assert.equal(emoticonExpression(';p').Eyes2, null);
+    assert.equal(emoticonExpression('0///0').Blush, 'Medium');
+    assert.equal(emoticonExpression('>///<').Blush, 'Medium');
+    assert.equal(emoticonExpression('<\\\\\\>').Blush, 'Medium');
+    assert.equal(emoticonExpression('///////').Blush, 'Medium');
+    assert.equal(emoticonDuration('///', 'Blush'), 3000);
+    assert.equal(emoticonDuration('>///<', 'Blush'), 3000);
+    assert.equal(emoticonDuration('///////', 'Blush'), 7000);
+    assert.equal(emoticonDuration('////////////////', 'Blush'), 16000);
+    assert.equal(emoticonDuration('>///<', 'Eyes'), 5000);
 });
 
 test('Echo bridge recognizes canonical names, filters uninvolved players and non-mouth kisses', () => {
@@ -96,7 +105,14 @@ test('outgoing emoticons use pre-garble text without adding original to network 
     assert.equal(events.length, 0, 'preparing a cancelled message does not animate');
     rt.hooks.get('ServerSend')(['ChatRoomChat', message], () => {});
     assert.equal(events[0].Expression.Eyes[0].Expression, 'Daydream');
+    assert.equal(events[0].Duration, 5000);
     assert.equal(message.Dictionary.length, 0);
+
+    const blushMessage = { Type: 'Chat', Content: 'ignored', Dictionary: [{ Original: '>//////<' }] };
+    rt.hooks.get('ServerSend')(['ChatRoomChat', blushMessage], () => {});
+    assert.equal(events[1].Duration, 6000);
+    assert.equal(events[1].Expression.Blush[0].Expression, 'Medium');
+    assert.equal(events[1].Expression.Blush[0].Duration, 6000);
 });
 
 test('Petsuit cycles have two poses, stop restores pose, manual changes cancel without overwriting', async () => {

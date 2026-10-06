@@ -121,6 +121,49 @@ test('IM history read failure blocks writes and can retry without erasing saved 
     assert.equal(await repo.save(restored), true); assert.equal(writes, 1);
 });
 
+test('IM history is isolated when the account changes during restore or save', async () => {
+    let account = 'alice';
+    let releaseOpen;
+    const writes = [];
+    const rt = runtime({ mocks: { idb: { openDB: () => new Promise(resolve => {
+        releaseOpen = () => resolve({
+            get: async () => ({ old: true }),
+            put: async (store, value, key) => writes.push({ value, key }),
+        });
+    }) } } });
+    const { createHistoryRepository } = await rt.load('src/features/messenger/history.js');
+    const repo = createHistoryRepository(() => account);
+    const restore = repo.restore(() => assert.fail('stale account must not render history'));
+    account = 'bob';
+    releaseOpen();
+    assert.equal(await restore, false);
+    assert.equal(await repo.save({ wrong: true }), false);
+    account = 'alice';
+    const fresh = repo.restore(value => assert.deepEqual(value, { old: true }));
+    // The repository is already opening the same DB promise; release it only once.
+    await fresh;
+    assert.equal(await repo.save({ ok: true }), true);
+    assert.deepEqual(writes[0], { value: { ok: true }, key: 'im-alice' });
+});
+
+test('settings keep applied values and report persistence failures only to the console', async () => {
+    const warnings = [];
+    const rt = runtime({ globals: {
+        Player: { AccountName: 'Alice', ExtensionSettings: {} },
+        LZString: { compressToBase64: value => value },
+        ServerPlayerExtensionSettingsSync() {},
+        console: { warn: (...args) => warnings.push(args) },
+    } });
+    const settings = await rt.load('src/core/feature-settings.js');
+    settings.initGlobalFeatures();
+    settings.setFeature('themeMainColor', '#123456');
+    warnings.length = 0;
+    rt.context.localStorage.setItem = () => { throw Error('quota'); };
+    assert.equal(settings.setFeature('themeMainColor', '#654321'), false);
+    assert.equal(settings.getFeature('themeMainColor'), '#654321');
+    assert.ok(warnings.length > 0);
+});
+
 test('settings report local persistence and action failures instead of success', async () => {
     const rt = runtime({ globals: { LogAdd() { throw Error('denied'); } } });
     const settings = await rt.load('src/core/feature-settings.js'); settings.initGlobalFeatures();
