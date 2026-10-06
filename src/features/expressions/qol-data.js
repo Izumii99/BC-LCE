@@ -57,12 +57,6 @@ export const faces = [
     // Angry
     [/^(?:>:<|>;<|>x<|>[:;xX=]|[:;xX=]<)$/i, { Eyes: 'Angry', Mouth: 'Angry', Eyebrows: 'Angry' }],
     
-    // Floating Marks
-    [/^\?$/, { Emoticon: 'Confusion' }],
-    [/^!$/, { Emoticon: 'Exclamation' }],
-    [/^#$/, { Emoticon: 'Annoyed' }],
-    [/^\(?afk\)?$/i, { Emoticon: 'Afk' }],
-    [/^\(?brb\)?$/i, { Emoticon: 'Brb' }],
 ];
 
 

@@ -8,7 +8,7 @@ export function emoticonExpression(text) {
     // not accidentally trigger a face. Later tokens win for the same group.
     for (const token of String(text).split(/\s+/)) {
         if (/https?:\/\//i.test(token)) continue;
-        const bare = token.replace(/(?:~+|\/{2,5})$/g, '').replace(/\/{2,5}/g, '');
+        const bare = token.replace(/^[?!#]+/, '').replace(/(?:[?!#~]+|\/{2,5})$/g, '').replace(/\/{2,5}/g, '');
         const match = faces.find(([pattern]) => pattern.test(token) || pattern.test(bare));
         if (match) {
             Object.assign(result, match[1]);
@@ -18,13 +18,13 @@ export function emoticonExpression(text) {
                 const levels = { 2: 'Low', 3: 'Medium', 4: 'High', 5: 'VeryHigh' };
                 result.Blush = levels[count] || 'VeryHigh';
             }
-        }
 
-        // Floating Marks from chat-qol
-        if (/[?!#]$/.test(token)) {
-            if (token.endsWith('?')) result.Emoticon = 'Confusion';
-            else if (token.endsWith('!')) result.Emoticon = 'Exclamation';
-            else if (token.endsWith('#')) result.Emoticon = 'Annoyed';
+            // Floating Marks from chat-qol (only if face matched!)
+            if (/^[?!#]|[?!#]$/.test(token)) {
+                if (token.includes('?')) result.Emoticon = 'Confusion';
+                else if (token.includes('!')) result.Emoticon = 'Exclamation';
+                else if (token.includes('#')) result.Emoticon = 'Annoyed';
+            }
         }
 
         // Sweatdrop
