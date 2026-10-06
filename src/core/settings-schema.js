@@ -68,7 +68,7 @@ const logChange = (key) => (newValue, init) => {
  *   2. 登入頁在 LoginLoad 就要套用（此時還沒有 Player），DB 根本讀不到。
  * 其餘分類一律留在 DB（每帳號 + 伺服器同步）。
  */
-export const GLOBAL_CATEGORIES = ['ui', 'theme'];
+const GLOBAL_CATEGORIES = ['ui', 'theme'];
 
 /**
  * 全域共用的設定鍵集合（含 withToggle / withSound 動態產生的鍵）。
@@ -86,9 +86,6 @@ export function globalKeys() {
     return out;
 }
 
-/** 該鍵是否為全域共用設定。 */
-export const isGlobalKey = (key) => globalKeys().has(key);
-
 // 共用 select 選項
 const GARBLE_LEVEL     = ['none', 'low', 'medium', 'high', 'full'];
 const GARBLE_LEVEL_LBL = ['so_g_none', 'so_g_low', 'so_g_medium', 'so_g_high', 'so_g_full'];
@@ -98,6 +95,7 @@ const TALK_MODE     = ['remove', 'ignore', 'preserve'];
 const TALK_MODE_LBL = ['so_t_remove', 'so_t_ignore', 'so_t_preserve'];
 const NOTIFY_STYLE     = ['bubble', 'message', 'both'];         // 已有啟用勾選箱，故不需「關閉」
 const NOTIFY_STYLE_LBL = ['so_n_bubble', 'so_n_message', 'so_n_both'];
+const NOTIFY_DURATION_MAX = 999;
 
 // 貼圖畫質：值即縮放比例的代號，實際比例見 features/performance.js 的 TEXTURE_SCALE
 const TEX_QUALITY     = ['normal', 'low', 'lowest'];
@@ -190,6 +188,8 @@ export const DEFAULT_FEATURE_SETTINGS = {
         withToggle: true, toggleDefault: false, withSound: true, soundDefault: true,
         disabled: () => false, sideEffects: logChange('friendOfflineNotify'),
     },
+    friendOnlineNotifyDuration: { label: 's_friendNotifyDuration', desc: 'sd_friendNotifyDuration', type: 'input', subtype: 'number', value: 5, min: 0, max: NOTIFY_DURATION_MAX, step: 1, category: 'chat', hidden: true, disabled: () => false, sideEffects: logChange('friendOnlineNotifyDuration') },
+    friendOfflineNotifyDuration: { label: 's_friendNotifyDuration', desc: 'sd_friendNotifyDuration', type: 'input', subtype: 'number', value: 5, min: 0, max: NOTIFY_DURATION_MAX, step: 1, category: 'chat', hidden: true, disabled: () => false, sideEffects: logChange('friendOfflineNotifyDuration') },
     pastProfiles: {
         label: 's_pastProfiles', desc: 'sd_pastProfiles',
         type: 'checkbox', value: false, category: 'chat', disabled: () => false, sideEffects: logChange('pastProfiles'),

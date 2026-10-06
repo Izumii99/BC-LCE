@@ -6,7 +6,7 @@ export function applyAnimationEngineSetting(newValue, init, s) {
     // 絕不可在 init 時做：postFeatureSettings 每次載入都會用當下值跑一次
     // sideEffects 並存檔，而本開關是後加的、預設 false —— 舊存檔的
     // activityExpressions=true 會在每次登入被靜靜清成 false，表情引擎形同永久停用。
-    // （附屬功能留著 true 也無害：disabled 會擋 UI，engineOn 會擋執行。）
+    // （附屬功能留著 true 也無害：disabled 會擋 UI，canUseExpressionEngine 會擋執行。）
     if (!init && !newValue) {
         s.autoArousalExpression = false;
         s.activityExpressions = false;

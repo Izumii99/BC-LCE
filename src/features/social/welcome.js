@@ -10,11 +10,10 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import modApi from '../../modsdk.js';
-import { MOD_VER } from '../../core/constants.js';
+import { MOD_VER, LOG } from '../../core/constants.js';
 import { T } from '../../core/i18n.js';
 import { lceChatNotify } from '../../ui/chat/notification.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 
 /** 只活在這次連線期間：重新登入後應該要再看到一次。 */
 let shown = false;

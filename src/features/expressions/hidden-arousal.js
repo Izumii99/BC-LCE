@@ -2,8 +2,8 @@
 
 import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const REGISTRY_KEY = '__hotfix_HiddenArousal';
 
 function shouldHide() {

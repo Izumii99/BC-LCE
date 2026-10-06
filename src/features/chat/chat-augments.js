@@ -7,7 +7,6 @@ import { registerChatProcessor } from '../../ui/chat/pipeline.js';
 //   chatColors ：body 掛 lce-colors class，調整悄悄話對比與深色輸入框。
 // ════════════════════════════════════════════════════════════════════════════
 
-import { getFeature } from '../../core/feature-settings.js';
 import { T } from '../../core/i18n.js';
 import { shouldLceHandle } from '../../core/wce-compat.js';
 import { isTrustedOrigin, requestOriginTrust } from '../trusted-domains.js';

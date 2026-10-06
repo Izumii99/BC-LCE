@@ -26,10 +26,9 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { getFeature } from '../../core/feature-settings.js';
-import { SETTING_CHANGED_EVENT } from '../../core/constants.js';
+import { SETTING_CHANGED_EVENT, LOG } from '../../core/constants.js';
 import { createHook } from '../../core/hooks.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const SETTING = 'chatScrollFreeze';
 const SRC = 'https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_ChatScrollFreeze.js';
 

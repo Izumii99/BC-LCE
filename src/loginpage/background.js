@@ -37,7 +37,7 @@ function videoFor(imgName) {
 }
 
 /** @type {{ name: string, url: string, video: string|null }[]} 依檔名排序的自訂背景清單 */
-export const CUSTOM_BACKGROUNDS = Object.keys(_modules)
+const CUSTOM_BACKGROUNDS = Object.keys(_modules)
     .sort()
     .map(path => {
         const name = path.split('/').pop().replace(/\.[^.]+$/, '');
@@ -50,7 +50,7 @@ export function getBackgroundList() {
 }
 
 /** @returns {{name:string,url:string}|null} 依設定挑選背景（隨機模式每次重抽） */
-export function pickBackground() {
+function pickBackground() {
     if (!CUSTOM_BACKGROUNDS.length) return null;
     if (S.settings.bgMode === 'select' && S.settings.bgName) {
         const found = CUSTOM_BACKGROUNDS.find(b => b.name === S.settings.bgName);

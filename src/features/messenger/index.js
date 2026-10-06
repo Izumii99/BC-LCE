@@ -16,13 +16,12 @@ export { stripBeepMetadata } from './codec.js';
 // 歷史紀錄存 IndexedDB（不用 localStorage —— 那是全網域共用的空間，很容易被塞爆）。
 // ════════════════════════════════════════════════════════════════════════════
 
-import { getFeature } from '../../core/feature-settings.js';
 import { shouldLceHandle } from '../../core/wce-compat.js';
 import { createPositionableButton, exposeButton } from '../../core/public-api.js';
 import { T } from '../../core/i18n.js';
 import { processChatAugmentsForLine } from '../chat/chat-augments.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const DEFAULT_Z_INDEX = 10;
 const {
     api: messengerButtonApi,
@@ -37,6 +36,8 @@ const OFFLINE_CLS = 'lce-friend-offline';
 
 let container, friendList, messageContainer, messageInput, friendSearch;
 let activeChat = -1;
+let sessionAccount = null;
+let sessionGeneration = 0;
 let unreadSinceOpened = 0;
 const friendMessages = new Map();
 
@@ -131,7 +132,25 @@ function buildDom() {
 
 // ───────────────────────────── 歷史（IndexedDB）─────────────────────────────
 const historyRepository = createHistoryRepository(() => Player?.AccountName?.toLowerCase() ?? 'anon');
+function currentAccountKey() {
+    return String(Player?.AccountName || 'anon').trim().toLowerCase();
+}
+function ensureAccountSession() {
+    const next = currentAccountKey();
+    if (sessionAccount === null) { sessionAccount = next; return sessionGeneration; }
+    if (sessionAccount === next) return sessionGeneration;
+    sessionAccount = next;
+    sessionGeneration++;
+    activeChat = -1;
+    unreadSinceOpened = 0;
+    friendMessages.clear();
+    if (friendList) friendList.replaceChildren();
+    if (messageContainer) messageContainer.replaceChildren();
+    if (messageInput) messageInput.value = '';
+    return sessionGeneration;
+}
 function saveHistory() {
+    ensureAccountSession();
     const history = {};
     friendMessages.forEach((friend, id) => {
         if (friend.historyRaw.length) history[id] = { historyRaw: friend.historyRaw.slice(-100) };
@@ -159,6 +178,7 @@ function sortIM() {
 }
 
 function changeActiveChat(friendId) {
+    ensureAccountSession();
     const friend = friendMessages.get(friendId);
     messageInput.disabled = !friend?.online;
     messageContainer.innerHTML = '';
@@ -225,6 +245,7 @@ function renderMessage({ messageText, messageType, messageColor, author, sent, c
 }
 
 function addMessage(friendId, sent, beep, skipHistory, createdAt) {
+    ensureAccountSession();
     const friend = friendMessages.get(friendId);
     if (!friend || beep.BeepType) return;
 
@@ -257,7 +278,11 @@ function addMessage(friendId, sent, beep, skipHistory, createdAt) {
     if (!skipHistory) saveHistory();
 }
 
-const loadIM = () => historyRepository.restore(history => {
+const loadIM = () => {
+    const generation = ensureAccountSession();
+    const account = sessionAccount;
+    return historyRepository.restore(history => {
+    if (generation !== sessionGeneration || account !== sessionAccount) return;
     for (const [idStr, fh] of Object.entries(history ?? {})) {
         const friendId = Number(idStr);
         if (!Number.isFinite(friendId) || !Array.isArray(fh?.historyRaw)) continue;
@@ -272,7 +297,8 @@ const loadIM = () => historyRepository.restore(history => {
             if (h.createdAt) friend.listElement.setAttribute('data-last-updated', String(h.createdAt));
         }
     }
-});
+    });
+};
 
 const pendingBeeps = [];
 let flushingBeeps = null;
@@ -294,6 +320,7 @@ function enqueueBeep(id, sent, beep) {
 
 // ───────────────────────────── 互動 ─────────────────────────────
 function onSearch() {
+    ensureAccountSession();
     const search = friendSearch.value.toLowerCase();
     for (const [friendId, friend] of friendMessages) {
         const name = Player.FriendNames?.get(friendId)?.toLowerCase();
@@ -304,6 +331,7 @@ function onSearch() {
 }
 
 function onInputKey(e) {
+    ensureAccountSession();
     if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
     e.preventDefault();
     let text = messageInput.value;
@@ -332,6 +360,7 @@ let installed = false;
 export async function installInstantMessenger() {
     if (installed) return;
     installed = true;
+    ensureAccountSession();
     injectStyle();
     buildDom();
     // Hooks are installed synchronously; history is awaited by the event queue.
@@ -354,6 +383,7 @@ export async function installInstantMessenger() {
 
     // 好友線上狀態
     const onQueryResult = (data) => {
+        ensureAccountSession();
         if (!data || data.Query !== 'OnlineFriends' || !Array.isArray(data.Result) || !imOn()) return;
         for (const f of data.Result) {
             const e = handleUnseenFriend(f.MemberNumber);
@@ -380,6 +410,7 @@ export async function installInstantMessenger() {
     // 忽略「自己 beep 自己」：有些插件會送一則 beep 給自己當作通知，那不是聊天，
     // 收進即時通訊只會多一個跟自己的對話、還會亮未讀。這是聊天用途，直接濾掉。
     hook('ServerAccountBeep', 15, (args, next) => {
+        ensureAccountSession();
         const [beep] = args;
         if (beep && typeof beep === 'object' && !beep.BeepType && beep.MemberNumber !== Player?.MemberNumber && imOn()) {
             enqueueBeep(beep.MemberNumber, false, beep);
@@ -389,6 +420,7 @@ export async function installInstantMessenger() {
 
     // 送件（別的來源送的 beep 也記進來；自己送的已帶 META，不重複記）
     hook('ServerSend', 0, (args, next) => {
+        ensureAccountSession();
         const [command, beep] = args;
         // 同上：別的插件送給自己的 beep 也不記進來（否則會變成「自己跟自己」的對話）。
         if (command === 'AccountBeep' && beep && !beep.BeepType && beep.MemberNumber !== Player?.MemberNumber && typeof beep.Message === 'string' && !beep.Message.includes(META) && imOn()) {

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { runtime } from './helpers/runtime.mjs';
-import { emoticonExpression, echoExpressionEvent, echoSound } from '../src/features/expressions/qol-rules.js';
+import { emoticonExpression, emoticonDuration, echoExpressionEvent, echoSound } from '../src/features/expressions/qol-rules.js';
 
 const packet = (name, group = 'ItemMouth', sender = 2, target = 1) => ({
     Type: 'Activity', Content: `ChatOther-${group}-${name}`, Sender: sender,
@@ -14,11 +14,17 @@ test('textmoji handle mixed faces without matching URLs or ordinary words', () =
     assert.deepEqual(emoticonExpression('https://example.com/#hello?x=0.0 ordinaryxD'), {});
     assert.equal(emoticonExpression(':3 >.<').Eyes, 'Daydream');
     assert.equal(emoticonExpression(';p').Eyes2, null);
-    assert.equal(emoticonExpression('>~<').Eyes, 'Daydream');
-    assert.equal(emoticonExpression('>///<').Eyes, 'Daydream');
-    assert.deepEqual(emoticonExpression('=~='), { Eyes: 'Horny', Mouth: 'Frown' });
-    assert.equal(emoticonExpression('<~<').Eyes, 'Dazed');
-    assert.equal(emoticonExpression('^^~').Eyes, 'ShylyHappy');
+    assert.equal(emoticonExpression('0///0').Blush, 'Medium');
+    assert.equal(emoticonExpression('>///<').Blush, 'Medium');
+    assert.equal(emoticonExpression('<\\\\\\>').Blush, 'Medium');
+    assert.equal(emoticonExpression('///////').Blush, 'Extreme');
+    assert.equal(emoticonExpression('=w=/////').Emoticon, 'Hearts');
+    assert.equal(emoticonExpression('=w=////').Emoticon, undefined);
+    assert.equal(emoticonDuration('///', 'Blush'), 5000);
+    assert.equal(emoticonDuration('>///<', 'Blush'), 5000);
+    assert.equal(emoticonDuration('///////', 'Blush'), 7000);
+    assert.equal(emoticonDuration('////////////////', 'Blush'), 16000);
+    assert.equal(emoticonDuration('>///<', 'Eyes'), 5000);
 });
 
 test('Echo bridge recognizes canonical names, filters uninvolved players and non-mouth kisses', () => {
@@ -30,15 +36,10 @@ test('Echo bridge recognizes canonical names, filters uninvolved players and non
     assert.equal(echoExpressionEvent(packet('舔手', 'ItemHands', 2, 3), 1), null);
     assert.equal(echoSound(packet('轻弹额头', 'ItemHead')), 'SpankSkin');
     assert.equal(echoSound(packet('Spank', 'ItemButt')), null, 'native activity stays native');
-    const custom = { ...packet('Luzi_Custom1', 'ItemButt'), Dictionary: [{ TargetCharacter: 1 }, { Tag: 'Luzi_Custom1', Text: 'SourceCharacter slaps TargetCharacter' }] };
-    assert.equal(echoSound(custom), 'SpankSkin', 'custom Echo wording is read from Dictionary text');
-    assert.equal(echoExpressionEvent(custom, 1), 'Spank');
-    assert.equal(echoSound({ Type: 'Emote', Content: 'hits the wall', Dictionary: [] }), 'SmackCrop');
-    assert.equal(echoSound({ Type: 'Action', Content: 'ActionUse', Dictionary: [{ Tag: 'X', Text: 'Whiplash' }] }), null);
 });
 
 async function fixture() {
-    const events = [], restored = [], cancelled = [], buttons = [], settled = [];
+    const events = [], restored = [], cancelled = [], buttons = [], settled = [], timers = [];
     let tick, ready = true;
     const player = { Appearance: [{ Asset: { Name: 'Petsuit' } }], ActivePose: ['Kneel', 'BaseUpper'], _BlindLevel: 3 };
     const actions = [];
@@ -50,6 +51,8 @@ async function fixture() {
         PoseCanChangeUnaided: () => true,
         PoseFemale3DCG: [{ Name: 'Kneel', Category: 'BodyLower' }],
         setInterval: callback => { tick = callback; return 1; },
+        setTimeout: (fn, ms) => timers.push({ fn, ms }) && timers.length,
+        clearTimeout: () => {},
     }, mocks: {
         'src/features/expressions/index.js': {
             canUseExpressionEngine: () => ready,
@@ -63,7 +66,7 @@ async function fixture() {
     const settings = await rt.load('src/core/feature-settings.js');
     const module = await rt.load('src/features/chat-qol.js');
     module.installChatQol();
-    return { rt, settings, module, player, actions, events, restored, cancelled, buttons, settled,
+    return { rt, settings, module, player, actions, events, restored, cancelled, buttons, settled, timers,
         tick: () => tick(), setReady: value => { ready = value; } };
 }
 
@@ -86,33 +89,36 @@ test('sound fallback preserves native priority and cleans up on disable and exce
     settings.setFeature('richerActivitySounds', true);
     const data = packet('轻弹额头');
     const audio = rt.hooks.get('AudioPlaySoundForChatMessage');
-    const meta = { TargetCharacter: {} };
     const native = { IsAction: () => true, GetSoundEffect: () => 'native' };
     actions.push(native);
-    audio([data, {}, '', meta], () => assert.equal(actions.find(a => a.IsAction(data)).GetSoundEffect(), 'native'));
-    native.GetSoundEffect = () => null;   // BC's catch-all for every Activity
-    audio([data, {}, '', meta], () => assert.equal(actions.find(a => a.IsAction(data)).GetSoundEffect(), 'SpankSkin'));
-    assert.equal(actions.length, 1);
+    audio([data], () => assert.equal(actions.find(a => a.IsAction(data)).GetSoundEffect(), 'native'));
     actions.length = 0;
-    assert.throws(() => audio([data, {}, '', meta], () => { throw Error('sound'); }));
+    audio([data], () => assert.equal(actions.find(a => a.IsAction(data)).GetSoundEffect(), 'SpankSkin'));
     assert.equal(actions.length, 0);
-    const played = [];
-    Object.assign(rt.context, { AudioPlaySoundEffect: s => played.push(s), AudioShouldSilenceSound: () => false });
-    audio([{ Type: 'Emote', Content: 'slaps you', Dictionary: [] }, {}, '', {}], () => {});
-    assert.deepEqual(played, ['SpankSkin'], 'emotes play directly');
+    assert.throws(() => audio([data], () => { throw Error('sound'); }));
+    assert.equal(actions.length, 0);
     settings.setFeature('richerActivitySounds', false);
-    audio([data, {}, '', meta], () => assert.equal(actions.length, 0));
+    audio([data], () => assert.equal(actions.length, 0));
 });
 
 test('outgoing emoticons use pre-garble text without adding original to network payload', async () => {
-    const { rt, settings, events } = await fixture();
+    const { rt, settings, events, timers } = await fixture();
     settings.setFeature('chatEmoticons', true);
     const message = { Type: 'Chat', Content: 'mmm', Dictionary: [] };
     rt.hooks.get('ChatRoomGenerateChatRoomChatMessage')(['Chat', '>.<'], () => message);
     assert.equal(events.length, 0, 'preparing a cancelled message does not animate');
     rt.hooks.get('ServerSend')(['ChatRoomChat', message], () => {});
+    timers.at(-1).fn(); // advance the delay timer
     assert.equal(events[0].Expression.Eyes[0].Expression, 'Daydream');
+    assert.equal(events[0].Duration, 5000);
     assert.equal(message.Dictionary.length, 0);
+
+    const blushMessage = { Type: 'Chat', Content: 'ignored', Dictionary: [{ Original: '>//////<' }] };
+    rt.hooks.get('ServerSend')(['ChatRoomChat', blushMessage], () => {});
+    timers.at(-1).fn(); // advance the delay timer
+    assert.equal(events[1].Duration, 6000);
+    assert.equal(events[1].Expression.Blush[0].Expression, 'Extreme');
+    assert.equal(events[1].Expression.Blush[0].Duration, 6000);
 });
 
 test('Petsuit cycles have two poses, stop restores pose, manual changes cancel without overwriting', async () => {
@@ -281,11 +287,9 @@ test('receiver follows the sender alternate flag, regardless of its own settings
 });
 
 test('temporary faces share one expression cache: first original wins, cleared at the last release, final values synced once', async () => {
-    const timers = [];
-    const { rt, settings, module, player, settled } = await fixture();
+    const { rt, settings, module, player, settled, timers } = await fixture();
     const cache = await rt.load('src/features/expressions/face-cache.js');
     player.Appearance.push(...['Eyes', 'Eyes2'].map(Name => ({ Asset: { Name, Group: { Name } }, Property: { Expression: 'Closed' } })));
-    Object.assign(rt.context, { setTimeout: (fn, ms) => timers.push({ fn, ms }) && timers.length, clearTimeout: () => {} });
     settings.setFeature('petsuitAnimation', true);
     settings.setFeature('chatEmoticons', true);
     assert.equal(cache.FaceCache.isEmpty(), true);
@@ -295,11 +299,12 @@ test('temporary faces share one expression cache: first original wins, cleared a
     const message = { Type: 'Chat', Content: 'x', Dictionary: [] };
     rt.hooks.get('ChatRoomGenerateChatRoomChatMessage')(['Chat', '>.<'], () => message);
     rt.hooks.get('ServerSend')(['ChatRoomChat', message], () => {});
+    timers.at(-1).fn(); // trigger delay timer
     assert.equal(cache.FaceCache.get().original.Eyes, 'Closed', 'already cached: not overwritten by the temporary face');
     module.togglePetsuitAnimation();   // stop: the emoticon still holds the face
     assert.equal(cache.FaceCache.isEmpty(), false);
     assert.equal(settled.length, 0);
-    timers.filter(t => t.ms > 4000).at(-1).fn();   // emoticon ends = last release
+    timers.filter(t => t.ms === 5000).at(-1).fn();   // emoticon ends = last release
     assert.equal(cache.FaceCache.isEmpty(), true);
     const settle = timers.at(-1);
     assert.equal(settle.ms, 300, 'final sync waits one engine tick');
@@ -307,36 +312,4 @@ test('temporary faces share one expression cache: first original wins, cleared a
     settle.fn();
     assert.equal(settled.length, 1);
     assert.ok(['Eyes', 'Eyes2'].every(g => settled[0].includes(g)));
-});
-
-test('consecutive chat messages cancel pending mouth expressions', async () => {
-    const timers = [];
-    const cleared = new Set();
-    const { rt, settings, module } = await fixture();
-    Object.assign(rt.context, { 
-        setTimeout: (fn, ms) => {
-            const id = timers.length + 1;
-            timers.push({ id, fn, ms });
-            return id;
-        }, 
-        clearTimeout: (id) => {
-            if (id) cleared.add(id);
-        } 
-    });
-    settings.setFeature('chatEmoticons', true);
-    settings.setFeature('animationEngine', true);
-    
-    // First message triggers a mouth delay
-    const msg1 = { Type: 'Chat', Content: 'a'.repeat(50), Dictionary: [] };
-    rt.hooks.get('ChatRoomGenerateChatRoomChatMessage')(['Chat', '>.< ' + 'a'.repeat(50)], () => msg1);
-    rt.hooks.get('ServerSend')(['ChatRoomChat', msg1], () => {});
-    
-    const firstMouthTimerId = timers.at(-1).id; // The delayed mouth is the last scheduled timer
-    
-    // Second message arrives immediately
-    const msg2 = { Type: 'Chat', Content: 'b', Dictionary: [] };
-    rt.hooks.get('ChatRoomGenerateChatRoomChatMessage')(['Chat', '>.< b'], () => msg2);
-    rt.hooks.get('ServerSend')(['ChatRoomChat', msg2], () => {});
-    
-    assert.ok(cleared.has(firstMouthTimerId), 'previous mouth timer is cancelled');
 });

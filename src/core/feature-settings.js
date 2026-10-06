@@ -13,14 +13,13 @@ import { parseJSON } from './serialization.js';
 // ════════════════════════════════════════════════════════════════════════════
 
 import { DEFAULT_FEATURE_SETTINGS, defaultValues, globalKeys, clampBar } from './settings-schema.js';
-import { FEATURE_SETTINGS_VERSION, LCE_EXT_KEY, SETTINGS_KEY, SETTING_CHANGED_EVENT } from './constants.js';
+import { FEATURE_SETTINGS_VERSION, LCE_EXT_KEY, SETTINGS_KEY, SETTING_CHANGED_EVENT, LOG } from './constants.js';
 import { readRoot as readGlobalRoot } from './settings-root.js';
 
 // 載入後即為完整設定物件；載入前為空物件（getFeature 會 fallback 到預設）。
 export let fSettings = {};
 let accountSettingsLoaded = false;
 
-const LOG = '🐈‍⬛ [LCE]';
 
 
 
@@ -35,7 +34,7 @@ function decompress(b) {
 // 讀取點共用 state.js 的 readRoot（見上方 import）—— 同一格別讓兩邊各解析各的。
 
 /** 讀取全域功能設定（ui / theme）。登入前也能呼叫。 */
-export function loadGlobalFeatures() {
+function loadGlobalFeatures() {
     const root = readGlobalRoot();
     return (root.features && typeof root.features === 'object') ? root.features : {};
 }
@@ -165,7 +164,7 @@ export async function loadFeatureSettings() {
  * 登入前用的輕量載入：只取全域的 ui / theme，補齊預設。
  * 登入頁（LoginLoad）拿不到 Player，只能用這個。
  */
-export function loadGlobalFeatureSettings() {
+function loadGlobalFeatureSettings() {
     const defs = defaultValues();
     const globals = loadGlobalFeatures();
     const out = {};
@@ -214,33 +213,42 @@ export function initGlobalFeatures() {
  */
 export function saveFeatureSettings() {
     const gKeys = globalKeys();
+    let globalSaved = true;
+    let accountSaved = true;
 
     // ── 全域（ui / theme）──
     const globals = {};
     for (const k of gKeys) if (k in fSettings) globals[k] = fSettings[k];
-    const globalSaved = saveGlobalFeatures(globals);
+    globalSaved = saveGlobalFeatures(globals);
 
     // ── 每帳號（其餘）──
-    if (!accountSettingsLoaded || typeof Player === 'undefined' || !Player?.AccountName) return globalSaved;
+    if (!accountSettingsLoaded || typeof Player === 'undefined' || !Player?.AccountName) {
+        return globalSaved;
+    }
     try {
-        if (typeof LZString === 'undefined' || !Player.ExtensionSettings) return false;
-        // 全域鍵不再寫進 DB，避免同一份資料兩邊各存一份、日後不知道誰是正本
-        const perAccount = {};
-        for (const [k, v] of Object.entries(fSettings)) {
-            if (!gKeys.has(k)) perAccount[k] = v;
+        if (typeof LZString === 'undefined' || !Player.ExtensionSettings) {
+            console.warn(LOG, '設定同步失敗：帳號設定儲存環境尚未就緒');
+            accountSaved = false;
         }
-        Player.ExtensionSettings[LCE_EXT_KEY] = LZString.compressToBase64(JSON.stringify(perAccount));
-        if (typeof ServerPlayerExtensionSettingsSync === 'function') {
-            ServerPlayerExtensionSettingsSync(LCE_EXT_KEY);
-        } else {
-            console.warn(LOG, '設定同步未送出：ServerPlayerExtensionSettingsSync 尚未就緒');
-            return false;
+        else {
+            // 全域鍵不再寫進 DB，避免同一份資料兩邊各存一份、日後不知道誰是正本
+            const perAccount = {};
+            for (const [k, v] of Object.entries(fSettings)) {
+                if (!gKeys.has(k)) perAccount[k] = v;
+            }
+            Player.ExtensionSettings[LCE_EXT_KEY] = LZString.compressToBase64(JSON.stringify(perAccount));
+            if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+                ServerPlayerExtensionSettingsSync(LCE_EXT_KEY);
+            } else {
+                console.warn(LOG, '設定同步未送出：ServerPlayerExtensionSettingsSync 尚未就緒');
+                accountSaved = false;
+            }
         }
     } catch (e) {
         console.warn(LOG, '設定同步到伺服器失敗:', e);
-        return false;
+        accountSaved = false;
     }
-    return globalSaved;
+    return globalSaved && accountSaved;
 }
 
 /** 載入後執行一次所有 sideEffects（init=true），套用設定初始狀態。 */
@@ -262,6 +270,9 @@ export function getFeature(key) {
     if (setting.derived === 'Sound') return setting.def.soundDefault ?? true;
     return setting.def.value;
 }
+
+/** 讀取 bar（數值滑桿）型設定，並夾到 schema 允許的範圍與級距。 */
+export const getBarFeature = key => clampBar(DEFAULT_FEATURE_SETTINGS[key], getFeature(key));
 
 const sameValue = (a, b) => Object.is(a, b) || (typeof a === 'object' && typeof b === 'object' && JSON.stringify(a) === JSON.stringify(b));
 

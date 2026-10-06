@@ -13,8 +13,8 @@
 
 import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 let installed = false;
 
 /** 無條件掛 hook，執行時才看設定 —— 與其他 LCE 功能一致，切換設定即時生效、免重整。 */

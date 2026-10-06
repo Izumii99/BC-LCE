@@ -9,16 +9,13 @@ import { createHook } from '../core/hooks.js';
 // 移植自 WCE shareAddons.ts / autoGhostBroadcast.ts / customContentDomainCheck.js
 // ════════════════════════════════════════════════════════════════════════════
 
-import modApi from '../modsdk.js';
-import { MOD_VER } from '../core/constants.js';
-import { getFeature } from '../core/feature-settings.js';
+import { MOD_VER, LOG } from '../core/constants.js';
 import { T } from '../core/i18n.js';
 import { shouldLceHandle } from '../core/wce-compat.js';
 // 與聊天嵌入共用同一份「本次連線已授權來源」名單（WCE 也是共用同一個 map），
 // 在聊天嵌入授權過的來源，這裡就不會再問一次。
 import { getTrustDecision, isTrustedOrigin, requestOriginTrust, sessionCustomOrigins } from './trusted-domains.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const NEW_ACCOUNT_MS = 30000;              // 建立不到 30 秒就進房 = 異常新（同 WCE）
 const hook = createHook('misc');
 

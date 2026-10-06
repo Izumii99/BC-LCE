@@ -11,8 +11,8 @@ import { observeResponsive, responsiveOwns } from '../../core/responsive-compat.
 
 import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const MAX_FRAMES = 30;
 
 // 字母 → [嘴型, 持續毫秒]，依優先序比對（移植自 BC-Responsive，含拉丁與斯拉夫字母）
@@ -49,6 +49,7 @@ const LETTER_MAP = [
 
 /** MemberNumber -> { realExpression, currentExpression, animation, animationFrame } */
 const charData = {};
+let animationGeneration = 0;
 
 /** 只對「單純的聊天發言」做動畫：指令 / OOC / 動作 / 悄悄話 / 連結都跳過。 */
 function isSimpleChat(msg) {
@@ -68,27 +69,31 @@ function setLocalMouthExpression(c, expressionName) {
     CharacterRefresh(c, false);
 }
 
-function cleanup(c) {
+function cleanup(c, generation = charData[c.MemberNumber]?.generation) {
     const d = charData[c.MemberNumber];
-    if (!d) return;
+    if (!d || d.generation !== generation) return;
     setLocalMouthExpression(c, d.realExpression);
     delete charData[c.MemberNumber];
 }
 
-function runStep(c) {
-    if (responsiveOwns('mouth')) return;
+function runStep(c, generation) {
+    if (responsiveOwns('mouth')) {
+        if (charData[c.MemberNumber]?.generation === generation) delete charData[c.MemberNumber];
+        return;
+    }
     const d = charData[c.MemberNumber];
-    if (!d) return;
-    if (d.animationFrame >= d.animation.length) { cleanup(c); return; }
+    if (!d || d.generation !== generation) return;
+    if (d.animationFrame >= d.animation.length) { cleanup(c, generation); return; }
     const [expression, duration] = d.animation[d.animationFrame++];
     setLocalMouthExpression(c, expression);
-    d.timer = setTimeout(() => runStep(c), duration);
+    d.timer = setTimeout(() => runStep(c, generation), duration);
 }
 
 function runAnimation(c, list) {
     if (charData[c.MemberNumber]) return;   // 已在動畫中就不重疊
-    charData[c.MemberNumber] = { realExpression: null, currentExpression: null, animation: list, animationFrame: 0 };
-    runStep(c);
+    const generation = ++animationGeneration;
+    charData[c.MemberNumber] = { realExpression: null, currentExpression: null, animation: list, animationFrame: 0, generation };
+    runStep(c, generation);
 }
 
 /** 未命中對照表時的交替嘴型：讓中日韓等非字母文字也會確實開口。 */
@@ -118,6 +123,7 @@ export function installCharTalk() {
     installed = true;
     observeResponsive((next) => {
         if (!next.mouth) return;
+        ++animationGeneration;
         const ids = Object.keys(charData);
         ids.forEach(id => { clearTimeout(charData[id].timer); delete charData[id]; });
         for (const c of (globalThis.ChatRoomCharacter || [])) {

@@ -33,10 +33,9 @@ import { acceptLiteHello, refreshLiteIdentity, forgetLiteIdentity } from './lite
 // ════════════════════════════════════════════════════════════════════════════
 
 import modApi from '../../modsdk.js';
-import { MOD_VER } from '../../core/constants.js';
+import { MOD_VER, LOG } from '../../core/constants.js';
 import { getFeature } from '../../core/feature-settings.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 
 const HIDDEN = 'Hidden';
 const BCE_MSG = 'BCEMsg';   // WCE 的頻道 —— 收送都做（送的訊息夾 lce 標記讓 LCE 端能區分）
@@ -52,7 +51,7 @@ const inChatRoom = () =>
  * @param {number|null} target   指定對象的會員編號；null = 廣播給整個房間
  * @param {boolean} requestReply 要求對方也回報一次（進房時用，否則看不到既有的人）
  */
-export function sendLceHello(target = null, requestReply = false) {
+function sendLceHello(target = null, requestReply = false) {
     if (!inChatRoom()) return;
     try {
         const payload = {

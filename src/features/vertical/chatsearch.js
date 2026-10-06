@@ -12,12 +12,11 @@ import { playerHasMaleGender, getCurrentSpace, getToggleTargetSpace, applySpace 
 // ════════════════════════════════════════════════════════════════════════════
 
 import { injectStyle, removeStyle } from '../../core/util.js';
-import { BASE_URL } from '../../core/constants.js';
+import { BASE_URL, LOG } from '../../core/constants.js';
 import { T } from '../../core/i18n.js';
 import { forceCanvasStyle, clearCanvasStyle } from './common.js';
 import { buildRoomCard, cshCloseRoomInfo } from './room-view.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const CARD_MIN_H = 82;
 const CARD_GAP = 5;
 const HEADER_H = 52;

@@ -13,6 +13,7 @@ import { mk, place, getCanvas, isLandscape, isPortrait } from '../core/util.js';
 import { getFeature, setFeature } from '../core/feature-settings.js';
 import { previewLoginAccent, clearLoginAccentPreview } from '../features/theme/ui-colors.js';
 import { addOrUpdateAccount } from '../storage/accounts.js';
+import { cacheReconnectPassword } from '../storage/reconnect-credentials.js';
 import { saveWallpaper, deleteWallpaper } from '../storage/wallpaper.js';
 import { hideBC, showBC } from './bc.js';
 import { applyBackground, handleBackgroundError, disposeBackground } from './background.js';
@@ -22,7 +23,7 @@ import { buildSettingsOverlay, toggleSettings, closeSettings, applyShowSettings 
 // ── 建構 ──────────────────────────────────────────────────────────────────
 
 /** 建立整個登入 UI（只建立一次） */
-export function buildUI() {
+function buildUI() {
     if (document.getElementById('lce-stage')) return;
 
     const stage = mk('div', '', { id: 'lce-stage' });
@@ -318,7 +319,7 @@ function buildLanguageSelect() {
 
 // ── 登入 ──────────────────────────────────────────────────────────────────
 
-export function doLogin() {
+function doLogin() {
     const name = document.getElementById('lce-input-name')?.value || '';
     const pass = document.getElementById('lce-input-pass')?.value || '';
 
@@ -327,6 +328,9 @@ export function doLogin() {
         if (el) { el.textContent = T('fill_fields'); el.classList.add('error'); S.lastStatusMsg = el.textContent; S.lastStatusError = true; }
         return;
     }
+
+    // 自動重連只需要在本次登入期間暫存一份明文密碼；持久化帳號仍由 AES-GCM 帳號庫保存。
+    if (getFeature('relogin')) cacheReconnectPassword(name, pass);
 
     // 直接把帳密交給 BC 的登入函式，完全不碰它的 InputName / InputPassword。
     // 這是 WCE 的作法（見 automaticReconnect.js）：只要密碼被寫進 BC 那組 DOM 欄位，
@@ -346,7 +350,7 @@ export function doLogin() {
 
 // ── 狀態列同步（讀取 BC 登入狀態） ────────────────────────────────────────
 
-export function syncStatus() {
+function syncStatus() {
     const el = document.getElementById('lce-status');
     if (!el) return;
 
@@ -419,7 +423,7 @@ export function lceLayout() {
 
 // ── 啟用 / 停用 ────────────────────────────────────────────────────────────
 
-export function lceApply() {
+function lceApply() {
     if (S.active) return;
     S.active = true;
     S.settings = loadSettings(); // 確保讀到最新設定
@@ -492,7 +496,7 @@ export function handleResize() {
 }
 
 /** 設定浮層切換「直式登入介面」後即時重套版面。 */
-export function refreshOrientation() {
+function refreshOrientation() {
     const scr = typeof CurrentScreen !== 'undefined' ? CurrentScreen : '';
     if (scr !== 'Login') return;
     if (!shouldEnhance()) { if (S.active) lceRemove(); return; }

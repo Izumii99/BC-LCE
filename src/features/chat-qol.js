@@ -1,9 +1,10 @@
 import { createHook } from '../core/hooks.js';
 import { getFeature } from '../core/feature-settings.js';
+import { observeResponsive } from '../core/responsive-compat.js';
 import { T } from '../core/i18n.js';
 import { canUseExpressionEngine, cancelExpressionEvent, pushEvent, restoreQolPose, readFace, settleFace } from './expressions/index.js';
 import { captureFace, releaseCachedFace } from './expressions/face-cache.js';
-import { emoticonExpression, echoSound } from './expressions/qol-rules.js';
+import { emoticonExpression, emoticonDuration, echoSound } from './expressions/qol-rules.js';
 import { drawAlternatingPetsuit } from './petsuit-render.js';
 import { createSocketBinding } from '../core/lifecycle.js';
 import modApi from '../modsdk.js';
@@ -11,9 +12,9 @@ import modApi from '../modsdk.js';
 const hook = createHook('chat-qol');
 let installed = false;
 let animation = null;
-let mouthDelayTimer = null;
 const poses = ['OverTheHead', 'BackElbowTouch'];
 const outgoingFaces = new WeakMap();
+let mouthDelayTimer = null;
 
 const later = (fn, ms) => (typeof globalThis.setTimeout === 'function' ? globalThis.setTimeout(fn, ms) : null);
 const cancelLater = timer => { if (timer != null) globalThis.clearTimeout?.(timer); };
@@ -64,7 +65,7 @@ function releaseFaceHold(type) {
 // 客戶端各自依時間畫出交替；不必逐步送封包。沒裝 LCE 的人看到的是一般姿勢切換，
 // 為避免封包連丟，網路姿勢的步進不低於 NET_MIN_STEP，與本地渲染的間隔脫鉤。
 const PETSUIT_MSG = 'LCEPetsuit';
-export const PETSUIT_MIN_DELAY = 100;
+const PETSUIT_MIN_DELAY = 100;
 const PETSUIT_MAX_DELAY = 1000;
 const PETSUIT_MAX_CYCLES = 20;
 const NET_MIN_STEP = 350;
@@ -221,6 +222,13 @@ function drawPetsuitButton() {
 export function installChatQol() {
     if (installed) return;
     installed = true;
+    observeResponsive((next) => {
+        if (!next.expressions) return;
+        // Responsive now owns the expression surface. Cancel every LCE temporary hold
+        // immediately instead of waiting for the 250ms state poll to notice it.
+        for (const type of [...faceHolds.keys()]) releaseFaceHold(type);
+        if (animation) stopPetsuitAnimation(false);
+    });
     // Retain the typed text locally even when a gag transforms the packet.
     // Nothing extra is added to the network message or anti-garble protocol.
     hook('ChatRoomGenerateChatRoomChatMessage', 200, (args, next) => {
@@ -242,62 +250,37 @@ export function installChatQol() {
             cancelExpressionEvent('LceEmoticonMouth');
 
             const original = data.Dictionary?.find(d => typeof d.Original === 'string')?.Original;
-            const face = outgoingFaces.get(data) ?? emoticonExpression(original ?? data.Content);
+            const text = original ?? data.Content;
+            const face = outgoingFaces.get(data) ?? emoticonExpression(text);
             outgoingFaces.delete(data);
             if (Object.keys(face).length) {
                 if ('Eyes' in face && !('Eyes2' in face)) face.Eyes2 = face.Eyes;
                 
-                const hasMouth = 'Mouth' in face;
-                const mouthFace = hasMouth ? { Mouth: face.Mouth } : null;
-                const otherFace = { ...face };
-                delete otherFace.Mouth;
+                const delay = Math.min(String(text).length * 150, 30000);
+                const duration = Math.max(...Object.keys(face).map(group => emoticonDuration(text, group)));
 
-                // Game talking animation takes roughly 65-150ms per character depending on engine
-                const delay = Math.min(String(original ?? data.Content).length * 150, 30000);
-                const totalDuration = 5000 + delay;
-
-                if (Object.keys(otherFace).length) {
-                    holdFace('LceEmoticon', otherFace, totalDuration, { SingleEye: 'Eyes2' in otherFace,
-                        Expression: Object.fromEntries(Object.entries(otherFace).map(([group, expression]) =>
-                            [group, [{ Expression: expression, Duration: totalDuration }]])),
+                mouthDelayTimer = later(() => {
+                    holdFace('LceEmoticon', face, duration, { SingleEye: 'Eyes2' in face,
+                        Expression: Object.fromEntries(Object.entries(face).map(([group, expression]) =>
+                            [group, [{ Expression: expression, Duration: duration }]])),
                     });
-                }
-                
-                if (mouthFace) {
-                    mouthDelayTimer = later(() => {
-                        holdFace('LceEmoticonMouth', mouthFace, 5000, { SingleEye: false,
-                            Expression: Object.fromEntries(Object.entries(mouthFace).map(([group, expression]) =>
-                                [group, [{ Expression: expression, Duration: 5000 }]])),
-                        });
-                    }, delay);
-                }
+                }, delay);
             }
         }
         return next(args);
     });
 
-    // BC ends AudioActions with a catch-all for every Activity that returns no
-    // sound for Echo actions, so a fallback appended at the end never runs.
-    // Ours goes first, but only when the native lookup produced no sound.
+    // A temporary last-resort AudioActions entry leaves native and other
+    // plugins' sounds first. BC still applies its mute/volume/involvement rules.
     hook('AudioPlaySoundForChatMessage', 0, (args, next) => {
-        const [data, , , metadata] = args;
-        const sound = getFeature('richerActivitySounds') && echoSound(data);
+        const sound = getFeature('richerActivitySounds') && echoSound(args[0]);
         const actions = globalThis.AudioActions;
         if (!sound || !Array.isArray(actions)) return next(args);
-        if (actions.find(a => a.IsAction?.(data))?.GetSoundEffect?.(data, metadata)) return next(args);
-        if (!metadata?.TargetCharacter || !['Activity', 'Action'].includes(data.Type)) {
-            // Emotes never reach BC's audio path; honour its mute rules and play directly.
-            const involved = globalThis.ChatRoomMessageInvolvesPlayer?.(data) ?? true;
-            if (!globalThis.AudioShouldSilenceSound?.(involved)) globalThis.AudioPlaySoundEffect?.(sound);
-            return next(args);
-        }
-        const fallback = { IsAction: d => d === data, GetSoundEffect: () => sound };
-        actions.unshift(fallback);
+        const fallback = { IsAction: data => data === args[0], GetSoundEffect: () => sound };
+        actions.push(fallback);
         try { return next(args); }
         finally { const index = actions.indexOf(fallback); if (index >= 0) actions.splice(index, 1); }
     });
-
-
 
     // Manual pose changes cancel our sequence before the engine records them.
     for (const fn of ['CharacterSetActivePose', 'PoseSetActive']) hook(fn, 50, (args, next) => {

@@ -39,8 +39,8 @@ import { getFeature } from '../../core/feature-settings.js';
 import { deepCopy } from '../../core/util.js';
 import { ArousalExpressionStages, EventExpressions, ActivityTriggers } from './data.js';
 import { echoExpressionEvent } from './qol-rules.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 
 const AROUSAL_EVT = 'AutomatedByArousal';
 const DEFAULT_EVT = 'DEFAULT';
@@ -131,7 +131,7 @@ let lastUniqueId = 0;
 let lastOrgasm = 0, orgasmCount = 0;
 let PreviousArousal = null;
 let PreviousDirection = DIR.Up;
-let engineStarted = false;   // 進過聊天室、250ms 迴圈已在跑（engineOn 用）
+let engineStarted = false;   // 進過聊天室、250ms 迴圈已在跑（canUseExpressionEngine 用）
 let notifying = false;       // 引擎正在通知其他模組，此時鉤子必須放行（見 notifyMods）
 
 // ───────────────────────── 小工具 ─────────────────────────
@@ -148,7 +148,7 @@ const mustNum = (v, d = 0) => (typeof v === 'number' && !isNaN(v) ? v : d);
  */
 const anotherEngineOwnsExpressions = () =>
     responsiveOwns('expressions') || isWceFeatureEnabled('animationEngine');
-const engineOn = () => engineStarted
+export const canUseExpressionEngine = () => engineStarted
     && Array.isArray(globalThis.Player?.Appearance)
     && !!globalThis.Player?.AppearanceLayers
     && !!globalThis.Player?.ArousalSettings
@@ -259,8 +259,6 @@ export function cancelExpressionEvent(type) {
     for (let i = queue.length - 1; i >= 0; i--) if (queue[i].Type === type) queue.splice(i, 1);
 }
 
-export const canUseExpressionEngine = () => engineOn();
-
 /** 目前玩家某個臉部群組的表情（沒有則 null）。 */
 export const readFace = (group) => (globalThis.Player ? expression(group)[0] : null);
 
@@ -271,7 +269,6 @@ export const readFace = (group) => (globalThis.Player ? expression(group)[0] : n
  */
 export function settleFace(groups) {
     if (anotherEngineOwnsExpressions() || !globalThis.Player) return;
-    const now = Date.now();
     for (const group of groups) {
         if (hscExpressionGroups().has(group)) continue;
         sendExpression(group, expression(group)[0]);
@@ -386,7 +383,7 @@ function customArousalExpression() {
     if (!getFeature('chatEmoticons')) cancelExpressionEvent('LceEmoticon');
     if (!getFeature('petsuitAnimation')) cancelExpressionEvent('LcePetsuit');
     if (!getFeature('activityExpressions')) cancelExpressionEvent('LceEchoActivity');
-    if (!engineOn() || !Player?.AppearanceLayers || !Player.ArousalSettings) return;
+    if (!canUseExpressionEngine() || !Player?.AppearanceLayers || !Player.ArousalSettings) return;
     if (!PreviousArousal) PreviousArousal = { ...Player.ArousalSettings };
 
     const faceParts = faceComponents();
@@ -708,7 +705,7 @@ function installExpressionIntegration() {
     hook('ServerSend', 100, (args, next) => {
         const result = next(args);
         try {
-            if (sendingOwn || !engineOn()) return result;
+            if (sendingOwn || !canUseExpressionEngine()) return result;
             const [kind, data] = args;
             if (kind === 'ChatRoomCharacterExpressionUpdate' && data && typeof data.Group === 'string') {
                 // 只比對封包指名的群組（伺服器也只改那一個；Eyes2 另有自己的封包）。
@@ -725,17 +722,17 @@ function installExpressionIntegration() {
     });
 
     // 保留已公開的 LCE 入口供外部整合使用；內部 hook 直接呼叫模組函式。
-    window.lceAnimationEngineEnabled = engineOn;
+    window.lceAnimationEngineEnabled = canUseExpressionEngine;
     window.lcePushEvent = pushEvent;
     // 不覆寫 WCE 的旗標；WCE 尚未載入時才提供 LCE 的相容入口。
     if (typeof window.bceAnimationEngineEnabled !== 'function') {
-        window.bceAnimationEngineEnabled = engineOn;
+        window.bceAnimationEngineEnabled = canUseExpressionEngine;
     }
 
     // 先消費玩家到期事件，再讓 BC 處理 NPC、物品與鎖；不修改函式原始碼。
     hook('TimerInventoryRemove', 10, (args, next) => {
         if (isWceFeatureEnabled('animationEngine')) queue.length = 0;
-        if (engineOn() && Player?.OnlineSharedSettings?.ItemsAffectExpressions
+        if (canUseExpressionEngine() && Player?.OnlineSharedSettings?.ItemsAffectExpressions
             && Array.isArray(Player.ExpressionQueue)) {
             Player.ExpressionQueue.sort((a, b) => a.Time - b.Time);
             while (Player.ExpressionQueue.length && Player.ExpressionQueue[0].Time <= CurrentTime) {
@@ -752,7 +749,7 @@ function installExpressionIntegration() {
         const [C, item] = args;
         const previous = item?.Property?.Expression;
         const result = next(args);
-        if (engineOn() && C?.IsPlayer?.() && previous != null
+        if (canUseExpressionEngine() && C?.IsPlayer?.() && previous != null
             && item?.Property?.Expression == null && item?.Asset?.Group?.Name) {
             CharacterSetFacialExpression(C, item.Asset.Group.Name, null);
         }
@@ -810,10 +807,10 @@ export function installExpressions() {
         const socketBinding = createSocketBinding({
             ChatRoomMessage: handleChatMessage,
             ChatRoomSyncPose: data => {
-                if (engineOn() && data && Array.isArray(data.Pose) && data.MemberNumber === Player.MemberNumber) setPoses(data.Pose);
+                if (canUseExpressionEngine() && data && Array.isArray(data.Pose) && data.MemberNumber === Player.MemberNumber) setPoses(data.Pose);
             },
             ChatRoomSyncSingle: data => {
-                if (engineOn() && data?.Character?.MemberNumber === Player.MemberNumber) setPoses(data.Character.ActivePose ?? []);
+                if (canUseExpressionEngine() && data?.Character?.MemberNumber === Player.MemberNumber) setPoses(data.Character.ActivePose ?? []);
             },
         });
         const bind = () => socketBinding.bind(typeof ServerSocket === 'undefined' ? null : ServerSocket);
@@ -832,7 +829,7 @@ export function installExpressions() {
     for (const poseFunc of ['CharacterSetActivePose', 'PoseSetActive']) {
         hook(poseFunc, ENGINE_HOOK_PRIORITY, (args, next) => {
             const [C, Pose] = args;
-            if (!isCharacter(C) || (!isStringOrStringArray(Pose) && Pose !== null) || !C.IsPlayer() || !engineOn()) {
+            if (!isCharacter(C) || (!isStringOrStringArray(Pose) && Pose !== null) || !C.IsPlayer() || !canUseExpressionEngine()) {
                 return next(args);
             }
             const p = !Pose || (Array.isArray(Pose) && Pose.every(pp => !pp)) ? ['BaseUpper', 'BaseLower'] : [Pose];
@@ -843,7 +840,7 @@ export function installExpressions() {
 
     // 掙扎結束 → 清掉遊戲計時類表情
     hook('StruggleMinigameStop', 5, (args, next) => {
-        if (engineOn()) {
+        if (canUseExpressionEngine()) {
             try { StruggleExpressionStore = undefined; } catch { /* ignore */ }
             resetExpressionQueue([GAME_TIMED_EVT], [MANUAL_EVT]);
         }
@@ -867,7 +864,7 @@ export function installExpressions() {
         if (Expression === undefined) Expression = null;
         // notifying：這通是引擎自己發的通知（見 notifyMods），一律放行，不可再入佇列
         if (!isCharacter(C) || !isString(AssetGroup) || (!isString(Expression) && Expression !== null)
-            || !C.IsPlayer() || !engineOn() || notifying) {
+            || !C.IsPlayer() || !canUseExpressionEngine() || notifying) {
             return next(args);
         }
         const duration = typeof Timer === 'number' && Timer > 0 ? Timer * 1000 : -1;

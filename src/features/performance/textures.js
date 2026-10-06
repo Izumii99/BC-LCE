@@ -1,8 +1,7 @@
 import { createHook } from '../../core/hooks.js';
 import { getFeature } from '../../core/feature-settings.js';
 import { shouldLceHandle } from '../../core/wce-compat.js';
-import { SETTING_CHANGED_EVENT } from '../../core/constants.js';
-const LOG = '🐈‍⬛ [LCE]';
+import { SETTING_CHANGED_EVENT, LOG } from '../../core/constants.js';
 const hook = createHook('performance');
 import { T } from '../../core/i18n.js';
 const CACHE_CLEAR_INTERVAL = 60 * 60 * 1000;

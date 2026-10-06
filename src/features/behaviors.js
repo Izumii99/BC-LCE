@@ -5,7 +5,6 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import modApi from '../modsdk.js';
-import { getFeature } from '../core/feature-settings.js';
 import { shouldLceHandle } from '../core/wce-compat.js';
 
 let installed = false;

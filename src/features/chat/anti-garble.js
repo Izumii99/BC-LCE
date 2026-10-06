@@ -14,11 +14,10 @@ import { createHook } from '../../core/hooks.js';
 // 注意：WCE 的 antiGarbleChatOptions（聊天框上的快捷按鈕列）不在規格內，未移植。
 // ════════════════════════════════════════════════════════════════════════════
 
-import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
 import { shouldLceHandle } from '../../core/wce-compat.js';
+import { LOG } from '../../core/constants.js';
 
-const LOG = '🐈‍⬛ [LCE]';
 const LEVEL_INTENSITY = { low: 1, medium: 3, high: 5 };
 
 const hook = createHook('anti-garble');
@@ -29,7 +28,7 @@ const END_SOUNDS = ['...', '~', '~..', '~~', '..~'];
 const EGGED_SOUNDS = ['ah', 'aah', 'mnn', 'nn', 'mnh', 'mngh', 'haa', 'nng', 'mnng'];
 
 /** 依慾望與震動強度，替單字加上 s-s-結巴，並可能插入呻吟。 */
-export function stutterWord(word, forceStutter) {
+function stutterWord(word, forceStutter) {
     if (!word?.length) return { results: [word], stutter: false };
 
     const addStutter = (w) =>
@@ -152,7 +151,7 @@ export function installAntiGarble() {
 
     // 送出端：附上未混淆（或較低混淆）的版本供對方顯示
     hook('ChatRoomGenerateChatRoomChatMessage', 100, (args, next) => {
-        const [type, , replyId, ...rest] = args;
+        const [type, , replyId] = args;
         let msg = args[1];
         if (!shouldLceHandle('antiGarble') || type === 'Emote') return next(args);
 

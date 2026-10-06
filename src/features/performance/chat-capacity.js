@@ -1,10 +1,7 @@
 import { createHook } from '../../core/hooks.js';
-import { getFeature } from '../../core/feature-settings.js';
-import { SETTING_CHANGED_EVENT } from '../../core/constants.js';
-const LOG = '🐈‍⬛ [LCE]';
+import { getFeature, getBarFeature } from '../../core/feature-settings.js';
+import { SETTING_CHANGED_EVENT, LOG } from '../../core/constants.js';
 const hook = createHook('performance');
-import { DEFAULT_FEATURE_SETTINGS, clampBar } from '../../core/settings-schema.js';
-const bar = key => clampBar(DEFAULT_FEATURE_SETTINGS[key], getFeature(key));
 const CHATLOG = 'TextAreaChatLog';
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -43,8 +40,8 @@ let observedLog = null;
 
 const lazyOn = () => !!getFeature('scrollMaxMessagesEnabled');
 const pruneOn = () => !!getFeature('autoPruneMessagesEnabled');
-const softLimit = () => bar('scrollMaxMessages');
-const hardLimit = () => bar('autoPruneMessages');
+const softLimit = () => getBarFeature('scrollMaxMessages');
+const hardLimit = () => getBarFeature('autoPruneMessages');
 /** 清除後保留的訊息數。可見數上限（100）遠低於 PRUNE_KEEP，取大的純粹是防呆。 */
 const pruneFloor = () => Math.max(PRUNE_KEEP, softLimit());
 
@@ -171,8 +168,10 @@ function pruneOldest(targetRemoveCount) {
     let node = log.firstElementChild;
     while (node && node !== lastSep && removed < targetRemoveCount) {
         const next = node.nextElementSibling;
-        if (node.classList.contains('ChatMessage')) removed++;
-        node.remove();
+        if (node.classList.contains('ChatMessage')) {
+            node.remove();
+            removed++;
+        }
         node = next;
     }
 
