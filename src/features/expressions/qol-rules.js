@@ -9,10 +9,30 @@ const MAX_SLASH_EMOTICON_DURATION = 30000;
 const SLASH_RUN = /[/\\]{2,}/;
 const slashRunLength = token => token.match(SLASH_RUN)?.[0].length ?? 0;
 
+function getPunctuationEffect(str) {
+    if (str.match(/\?{2,}/) || str.includes('?!') || str.includes('!?')) {
+        return {
+            Emoticon: 'Confusion',
+            Eyebrows: (str.includes('?!') || str.includes('!?')) ? 'Angry' : 'OneRaised'
+        };
+    } else if (str.includes('!')) {
+        let brows = null;
+        if (str.match(/!{3,}/)) brows = 'Angry';
+        else if (str.match(/!{2}/)) brows = 'Harsh';
+        return { Emoticon: 'Exclamation', Eyebrows: brows };
+    } else if (str.includes('#')) {
+        return { Emoticon: 'Annoyed' };
+    }
+    return null;
+}
+
 // Chat-QoL feature ideas: Izumii99/BC-Desktop, Scripts/chat-qol.js.
 // Rules are kept separate from execution so LCE owns timing and cancellation.
 export function emoticonExpression(text) {
     const result = {};
+    let lastPunctuation = null;
+    let hasTextmojiEyebrows = false;
+
     // Whole tokens only: URLs, commands and substrings of ordinary words do
     // not accidentally trigger a face. Later tokens win for the same group.
     for (const token of String(text).split(/\s+/)) {
@@ -49,6 +69,8 @@ export function emoticonExpression(text) {
 
         if (match) {
             Object.assign(result, match[1]);
+            if (match[1].Eyebrows !== undefined) hasTextmojiEyebrows = true;
+            
             const count = slashRunLength(token);
             if (count) {
                 const levels = { 2: 'Low', 3: 'Medium', 4: 'High', 5: 'VeryHigh', 6: 'Extreme' };
@@ -66,20 +88,26 @@ export function emoticonExpression(text) {
 
             // Additive floating marks and expressive punctuation
             const allMarks = token.replace(baseToken, '');
-            if (allMarks.match(/\?{2,}/) || allMarks.includes('?!') || allMarks.includes('!?')) {
-                result.Emoticon = 'Confusion';
-                result.Eyebrows = result.Eyebrows || ((allMarks.includes('?!') || allMarks.includes('!?')) ? 'Angry' : 'OneRaised');
-            } else if (allMarks.includes('?')) {
-                // We ignore single attached '?' because it's too common in normal chatting
-            } else if (allMarks.includes('!')) {
-                result.Emoticon = 'Exclamation';
-                if (allMarks.match(/!{3,}/)) result.Eyebrows = result.Eyebrows || 'Angry';
-                else if (allMarks.match(/!{2}/)) result.Eyebrows = result.Eyebrows || 'Harsh';
-            } else if (allMarks.includes('#')) {
-                result.Emoticon = 'Annoyed';
+            const effect = getPunctuationEffect(allMarks);
+            if (effect) lastPunctuation = effect;
+        } else {
+            // Not a textmoji token, check if it's purely standalone punctuation
+            // (Only ! ? and # since they trigger marks)
+            const marksOnly = token.replace(/[^?!#]/g, '');
+            if (marksOnly === token && marksOnly.length > 0) {
+                const effect = getPunctuationEffect(token);
+                if (effect) lastPunctuation = effect;
             }
         }
     }
+
+    if (lastPunctuation) {
+        result.Emoticon = lastPunctuation.Emoticon;
+        if (lastPunctuation.Eyebrows && !hasTextmojiEyebrows) {
+            result.Eyebrows = lastPunctuation.Eyebrows;
+        }
+    }
+    
     return result;
 }
 

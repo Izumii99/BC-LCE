@@ -44,18 +44,11 @@ export const faces = [
     [/^(?:=3=|>3<|>3>|<3<)$/, { Mouth: 'Pout' }],
     // Angry
     [/^(?:>:<|>;<|>x<|>[:;xX=]|[:;xX=]<)$/i, { Eyes: 'Angry', Mouth: 'Angry', Eyebrows: 'Angry' }],
-    // Floating Marks and Expressive Punctuation
-    [/^\?{2,}$/, { Emoticon: 'Confusion', Eyebrows: 'OneRaised' }],
-    [/^(?:\?!|!\?)$/, { Emoticon: 'Confusion', Eyebrows: 'Angry' }],
-    [/^!$/, { Emoticon: 'Exclamation' }],
-    [/^!{2}$/, { Emoticon: 'Exclamation', Eyebrows: 'Harsh' }],
-    [/^!{3,}$/, { Emoticon: 'Exclamation', Eyebrows: 'Angry' }],
-    [/^#$/, { Emoticon: 'Annoyed' }],
     // Standalone slash/backslash blush faces
     [/^(?:[<>])?[\\/]{2,}(?:[<>])?$/, { Blush: 'Medium' }],
     // Hearts and Sleep
     [/^<3+$/i, { Emoticon: 'Hearts' }],
-    [/^z{3,}[.~]*$/i, { Eyes: 'Closed', Emoticon: 'Sleep' }],
+    [/^z{3,}[.~]*$/i, { Eyes: 'Closed', Emoticon: 'Sleep' }]
 ];
 
 export const knownEchoNames = new Set([
