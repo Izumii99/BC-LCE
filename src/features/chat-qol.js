@@ -258,7 +258,23 @@ export function installChatQol() {
 
             const original = data.Dictionary?.find(d => typeof d.Original === 'string')?.Original;
             const text = original ?? data.Content;
+            
+            // OOC AFK/BRB/Back logic
+            if (text.trim().startsWith('(')) {
+                let afkMatch = text.match(/\b(afk|brb|back)\b/i);
+                if (afkMatch) {
+                    let type = afkMatch[1].toLowerCase();
+                    if (type === 'back') {
+                        if (typeof CharacterSetFacialExpression === 'function') CharacterSetFacialExpression(globalThis.Player, 'Emoticon', null, null);
+                    } else {
+                        if (typeof CharacterSetFacialExpression === 'function') CharacterSetFacialExpression(globalThis.Player, 'Emoticon', type.charAt(0).toUpperCase() + type.slice(1), null);
+                    }
+                }
+            }
+            
             const face = outgoingFaces.get(data) ?? emoticonExpression(text);
+            if (text.trim().startsWith('(') && /\b(afk|brb|back)\b/i.test(text)) delete face.Emoticon; // Prevent temporary overwrite
+            
             outgoingFaces.delete(data);
             if (Object.keys(face).length) {
                 if ('Eyes' in face && !('Eyes2' in face)) face.Eyes2 = face.Eyes;
