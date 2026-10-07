@@ -5,7 +5,8 @@ export const faces = [
     [/^=[\\/]{2,}=$/, { Eyes: 'Horny', Mouth: 'Pout', Blush: 'Medium' }],
     [/^(?:o|0)[\\/]{2,}(?:o|0)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised', Blush: 'Medium' }],
     // Classic cat/cute faces
-    [/^>[._~,]?<$/, { Eyes: 'Daydream', Mouth: 'Smirk' }],
+    [/^>~<$/, { Eyes: 'Daydream', Mouth: 'Smirk' }],
+    [/^>[._,]?<$/, { Eyes: 'Daydream' }],
     // Cat faces with W
     [/^(?:>w<)$/i, { Eyes: 'Daydream', Mouth: 'Happy' }],
     [/^(?:=w=|>w>|<w<)$/i, { Eyes: 'Horny', Mouth: 'Happy' }],
