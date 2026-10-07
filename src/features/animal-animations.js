@@ -44,8 +44,7 @@ export function clearAnimalAnim(type) {
 }
 
 export function testAnimalAnim(type) {
-    if (globalThis.CurrentScreen !== 'ChatRoom') return false;
-    triggerAnimation(type);
+    triggerAnimation(type, true); // true = force local only, no server send
     return true;
 }
 
@@ -69,7 +68,7 @@ function startRender(char, type, state1, state2, delay, cycles) {
     let i = 0;
     
     function step() {
-        if (i >= cycles * 2 || globalThis.CurrentScreen !== 'ChatRoom') {
+        if (i >= cycles * 2) {
             refreshCharacter(char);
             renderers.delete(id + type);
             return;
@@ -100,9 +99,9 @@ function startRender(char, type, state1, state2, delay, cycles) {
 }
 
 // Send the one-packet network trigger
-function triggerAnimation(type) {
+function triggerAnimation(type, localOnly = false) {
     const player = globalThis.Player;
-    if (!player || globalThis.CurrentScreen !== 'ChatRoom') return;
+    if (!player) return;
     
     const state1 = getFeature(`animal${type}State1`);
     const state2 = getFeature(`animal${type}State2`);
@@ -119,6 +118,9 @@ function triggerAnimation(type) {
     
     // Animate locally for ourselves
     startRender(player, type, state1, state2, delay, cycles);
+    
+    if (localOnly) return;
+    if (globalThis.CurrentScreen !== 'ChatRoom') return;
     
     // Broadcast hidden message
     if (typeof ServerSend === 'function') {
