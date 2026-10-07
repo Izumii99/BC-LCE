@@ -460,5 +460,7 @@
   "s_friendNotifyDuration": "Anzeigedauer der Nachricht",
   "sd_friendNotifyDuration": "Die Anzeigedauer der Nachricht kann eingestellt werden; 0 bedeutet keine Entfernung, Sprechblasen werden immer nach 5 Sekunden entfernt.",
   "unit_seconds": "Sek.",
-  "settings_tab_immersion_animal": "Animals"
+  "settings_tab_immersion_ears": "Anim: Ears",
+  "settings_tab_immersion_tails": "Anim: Tails",
+  "settings_tab_immersion_wings": "Anim: Wings"
 }

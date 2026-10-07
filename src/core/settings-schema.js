@@ -42,9 +42,9 @@ export const IMMERSION_SECTIONS = [
         'antiGarbleChatBabyTalk', 'antiGarbleWhisperLevel', 'antiGarbleWhisperStutter', 'antiGarbleWhisperBabyTalk'],
     ['urlAsOoc', 'echoMouthPull', 'richerActivitySounds', 'petsuitAnimation', 'petsuitAnimationCycles',
         'petsuitAnimationDelay', 'petsuitAnimationPosition', 'petsuitAlternate'],
-    ['animalEars', 'animalEarsInterval', 'animalEarsCycles', 'animalEarsDelay', 'animalEarsSave1', 'animalEarsSave2', 'animalEarsTest', 'animalEarsClear',
-     'animalTails', 'animalTailsInterval', 'animalTailsCycles', 'animalTailsDelay', 'animalTailsSave1', 'animalTailsSave2', 'animalTailsTest', 'animalTailsClear',
-     'animalWings', 'animalWingsInterval', 'animalWingsCycles', 'animalWingsDelay', 'animalWingsSave1', 'animalWingsSave2', 'animalWingsTest', 'animalWingsClear'],
+    ['animalEars', 'animalEarsInterval', 'animalEarsCycles', 'animalEarsDelay', 'animalEarsSave1', 'animalEarsSave2', 'animalEarsTest', 'animalEarsClear'],
+    ['animalTails', 'animalTailsInterval', 'animalTailsCycles', 'animalTailsDelay', 'animalTailsSave1', 'animalTailsSave2', 'animalTailsTest', 'animalTailsClear'],
+    ['animalWings', 'animalWingsInterval', 'animalWingsCycles', 'animalWingsDelay', 'animalWingsSave1', 'animalWingsSave2', 'animalWingsTest', 'animalWingsClear'],
 ];
 
 // 主題所有顏色鍵（供紀錄快照 / 恢復預設 / 染色引擎使用）
