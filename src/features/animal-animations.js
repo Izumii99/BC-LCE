@@ -33,6 +33,7 @@ export function saveAnimalPose(type, stateNum) {
         Property: item.Property ? structuredClone(item.Property) : undefined
     };
     
+    console.log(`[LCE Debug] saveAnimalPose type=${type}, stateNum=${stateNum}`, state);
     setFeature(`animal${type}State${stateNum}`, state);
     return true;
 }
@@ -105,23 +106,38 @@ function triggerAnimation(type, localOnly = false) {
     
     const state1 = getFeature(`animal${type}State1`);
     const state2 = getFeature(`animal${type}State2`);
-    if (!state1 || !state2) return;
+    console.log(`[LCE Debug] triggerAnimation type=${type}, localOnly=${localOnly}, state1=${!!state1}, state2=${!!state2}`);
+    if (!state1 || !state2) {
+        console.log(`[LCE Debug] Missing states! state1:`, state1, `state2:`, state2);
+        return;
+    }
     
     const slot = SLOTS[type];
     const currentItem = player.Appearance.find(i => i.Asset.Group.Name === slot);
-    if (!currentItem || (currentItem.Asset.Name !== state1.Name && currentItem.Asset.Name !== state2.Name)) {
+    if (!currentItem) {
+        console.log(`[LCE Debug] No item found on player for slot ${slot}`);
+        return;
+    }
+    
+    if (currentItem.Asset.Name !== state1.Name && currentItem.Asset.Name !== state2.Name) {
+        console.log(`[LCE Debug] Item name mismatch. Current: ${currentItem.Asset.Name}, State1: ${state1.Name}, State2: ${state2.Name}`);
         return;
     }
     
     const cycles = Math.max(1, Math.min(10, getFeature(`animal${type}Cycles`) || 2));
     const delay = Math.max(100, Math.min(2000, getFeature(`animal${type}Delay`) || 250));
     
+    console.log(`[LCE Debug] Starting render. Cycles: ${cycles}, Delay: ${delay}`);
     // Animate locally for ourselves
     startRender(player, type, state1, state2, delay, cycles);
     
     if (localOnly) return;
-    if (globalThis.CurrentScreen !== 'ChatRoom') return;
+    if (globalThis.CurrentScreen !== 'ChatRoom') {
+        console.log(`[LCE Debug] Not in ChatRoom, skipping broadcast.`);
+        return;
+    }
     
+    console.log(`[LCE Debug] Broadcasting hidden packet.`);
     // Broadcast hidden message
     if (typeof ServerSend === 'function') {
         ServerSend('ChatRoomChat', { 
