@@ -34,14 +34,17 @@ export function emoticonExpression(text) {
     let hasTextmojiEyebrows = false;
 
     // Whole tokens only: URLs, commands and substrings of ordinary words do
-    // not accidentally trigger a face. Later tokens win for the same group.
+    // not accidentally trigger a face. Later textmoji tokens win for the same group.
+    // Expressive punctuation is resolved after the loop: the last punctuation token's
+    // Emoticon always wins over a textmoji's own Emoticon (Hearts, Tear, ...), and its
+    // Eyebrows are only used when no textmoji set Eyebrows, regardless of token order.
     for (const token of String(text).split(/\s+/)) {
         if (/https?:\/\//i.test(token)) continue;
-        
+
         let match = faces.find(([pattern]) => pattern.test(token));
         let baseToken = token;
         let strippedMarks = '';
-        
+
         if (!match) {
             const markMatch = baseToken.match(/([?!#~;'"]+)$/);
             if (markMatch) {
@@ -50,7 +53,7 @@ export function emoticonExpression(text) {
                 match = faces.find(([pattern]) => pattern.test(baseToken));
             }
         }
-        
+
         if (!match) {
             const slashMatch = baseToken.match(/([/\\]{2,})$/);
             if (slashMatch) {
@@ -58,7 +61,7 @@ export function emoticonExpression(text) {
                 match = faces.find(([pattern]) => pattern.test(baseToken));
             }
         }
-        
+
         if (!match) {
             const preMatch = baseToken.match(/^([?!#]+)/);
             if (preMatch) {
@@ -70,7 +73,7 @@ export function emoticonExpression(text) {
         if (match) {
             Object.assign(result, match[1]);
             if (match[1].Eyebrows !== undefined) hasTextmojiEyebrows = true;
-            
+
             const count = slashRunLength(token);
             if (count) {
                 const levels = { 2: 'Low', 3: 'Medium', 4: 'High', 5: 'VeryHigh', 6: 'Extreme' };
@@ -107,7 +110,7 @@ export function emoticonExpression(text) {
             result.Eyebrows = lastPunctuation.Eyebrows;
         }
     }
-    
+
     return result;
 }
 

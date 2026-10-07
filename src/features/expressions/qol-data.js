@@ -30,7 +30,7 @@ export const faces = [
     [/^(?:>[.,~_]>|<[.,~_]<)$/, { Eyes: 'Dazed', Eyebrows: 'Harsh' }],
     // Horny / Closed
     [/^(?:==|=\[_\]=)$/, { Eyes: 'Horny' }],
-    [/^(?:=~=|=.=|=,=)$/, { Eyes: 'Horny', Mouth: 'Frown' }],
+    [/^(?:=~=|=\.=|=,=)$/, { Eyes: 'Horny', Mouth: 'Frown' }],
     [/^(?:=[_^-]=)$/, { Eyes: 'Closed', Mouth: 'Frown' }],
     [/^-_-$/, { Eyes: 'Dazed', Eyebrows: 'Harsh', Mouth: 'Frown' }],
     // Ahegao
