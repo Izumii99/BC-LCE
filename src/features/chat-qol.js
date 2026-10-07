@@ -265,7 +265,10 @@ export function installChatQol() {
                 if (afkMatch) {
                     let type = afkMatch[1].toLowerCase();
                     if (type === 'back') {
-                        if (typeof CharacterSetFacialExpression === 'function') CharacterSetFacialExpression(globalThis.Player, 'Emoticon', null, null);
+                        if (typeof CharacterSetFacialExpression === 'function') {
+                            CharacterSetFacialExpression(globalThis.Player, 'Emoticon', null, null);
+                            CharacterSetFacialExpression(globalThis.Player, 'Eyes', null, null);
+                        }
                     } else {
                         if (typeof CharacterSetFacialExpression === 'function') CharacterSetFacialExpression(globalThis.Player, 'Emoticon', type.charAt(0).toUpperCase() + type.slice(1), null);
                     }
@@ -273,7 +276,23 @@ export function installChatQol() {
             }
             
             const face = outgoingFaces.get(data) ?? emoticonExpression(text);
-            if (text.trim().startsWith('(') && /\b(afk|brb|back)\b/i.test(text)) delete face.Emoticon; // Prevent temporary overwrite
+            
+            // Sleep (zzz) logic (permanent)
+            if (/\bzzz+\b/i.test(text)) {
+                if (typeof CharacterSetFacialExpression === 'function') {
+                    CharacterSetFacialExpression(globalThis.Player, 'Emoticon', 'Sleep', null);
+                    CharacterSetFacialExpression(globalThis.Player, 'Eyes', 'Closed', null);
+                }
+            }
+            
+            // Global floating marks (fallback)
+            if (!/https?:\/\//i.test(text) && !face.Emoticon) {
+                if (text.includes("?")) face.Emoticon = 'Confusion';
+                else if (text.includes("!")) face.Emoticon = 'Exclamation';
+                else if (text.includes("#")) face.Emoticon = 'Annoyed';
+            }
+            
+            if (/\b(afk|brb|back|zzz+)\b/i.test(text)) delete face.Emoticon; // Prevent temporary overwrite
             
             outgoingFaces.delete(data);
             if (Object.keys(face).length) {

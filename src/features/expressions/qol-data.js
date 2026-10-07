@@ -43,12 +43,7 @@ export const faces = [
     [/^(?:=3=|>3<|>3>|<3<)$/, { Mouth: 'Pout' }],
     // Angry
     [/^(?:>:<|>;<|>x<|>[:;xX=]|[:;xX=]<)$/i, { Eyes: 'Angry', Mouth: 'Angry', Eyebrows: 'Angry' }],
-    // Floating Marks
-    [/^\?{1,2}$/, { Emoticon: 'Confusion' }],
-    [/^!$/, { Emoticon: 'Exclamation' }],
-    [/^#$/, { Emoticon: 'Annoyed' }],
     // Sleep and Hearts
-    [/^z{3,}$/i, { Eyes: 'Closed', Emoticon: 'Sleep' }],
     [/^<3+$/i, { Emoticon: 'Hearts' }],
     // Standalone slash/backslash blush faces
     [/^(?:[<>])?[\\/]{2,}(?:[<>])?$/, { Blush: 'Medium' }],
