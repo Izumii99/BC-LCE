@@ -40,6 +40,44 @@ test('textmoji handle mixed faces without matching URLs or ordinary words', () =
     assert.deepEqual(emoticonExpression('t//t'), {});
 });
 
+test('textmoji ignores ordinary punctuation but respects explicit expressive punctuation', () => {
+    // Normal sentences should not trigger expressions (token-based triggers)
+    assert.deepEqual(emoticonExpression('How are you?'), {});
+    assert.deepEqual(emoticonExpression('hello!'), {});
+    assert.deepEqual(emoticonExpression('Happy birthday!!!'), {});
+    assert.deepEqual(emoticonExpression('C#'), {});
+    assert.deepEqual(emoticonExpression('#general'), {});
+    assert.deepEqual(emoticonExpression('wow!!'), {});
+    assert.deepEqual(emoticonExpression('hello!! nice??'), {});
+    assert.deepEqual(emoticonExpression('https://x.com'), {});
+
+    // Explicit standalone triggers
+    assert.equal(emoticonExpression('!!').Emoticon, 'Exclamation');
+    assert.equal(emoticonExpression('!!').Eyebrows, 'Harsh');
+    assert.equal(emoticonExpression('!!!').Eyebrows, 'Angry');
+    assert.equal(emoticonExpression('??').Emoticon, 'Confusion');
+    assert.equal(emoticonExpression('??').Eyebrows, 'OneRaised');
+    assert.equal(emoticonExpression('?!').Eyebrows, 'Angry');
+    assert.equal(emoticonExpression('?').Emoticon, 'Confusion', 'Single ? is now supported');
+
+    // Composition with existing emoticons
+    const w = emoticonExpression('>w<!!');
+    assert.equal(w.Emoticon, 'Exclamation');
+    assert.equal(w.Eyebrows, 'Harsh', 'Additive marks should add eyebrows if attached to textmoji');
+
+    const shy = emoticonExpression('>///<!!');
+    assert.equal(shy.Emoticon, 'Exclamation');
+    assert.equal(shy.Eyebrows, 'Lowered', 'Existing eyebrows are not overwritten by additive punctuation');
+
+    const sleep = emoticonExpression('zzz what??');
+    assert.equal(sleep.Emoticon, 'Sleep');
+    assert.equal(sleep.Eyebrows, undefined, 'Ordinary words like what?? do not trigger expressions in explicit mode');
+
+    assert.equal(emoticonExpression('<3').Emoticon, 'Hearts');
+    assert.equal(emoticonExpression('zzz~').Emoticon, 'Sleep');
+    assert.equal(emoticonExpression('zzz...').Emoticon, 'Sleep');
+});
+
 test('Echo bridge recognizes canonical names, filters uninvolved players and non-mouth kisses', () => {
     assert.equal(echoExpressionEvent(packet('舔手'), 1), 'Lick');
     assert.equal(echoExpressionEvent(packet('抱入怀中', 'ItemTorso'), 1), 'Cuddle');
