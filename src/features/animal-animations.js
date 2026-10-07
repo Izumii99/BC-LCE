@@ -1,10 +1,19 @@
 import { getFeature, setFeature } from '../core/feature-settings.js';
+import { createSocketBinding } from '../core/lifecycle.js';
+import { createHook } from '../core/hooks.js';
+import modApi from '../modsdk.js';
+
+const hook = createHook('animal-animations');
 
 const SLOTS = {
     Ears: 'HairAccessory2',
     Tails: 'TailStraps',
     Wings: 'Wings'
 };
+
+const HIDDEN_MSG_PREFIX = 'LCEAnimalAnim_';
+
+const renderers = new Map(); // id -> { timer }
 
 export function saveAnimalPose(type, stateNum) {
     const player = globalThis.Player;
@@ -35,11 +44,63 @@ export function clearAnimalAnim(type) {
 }
 
 export function testAnimalAnim(type) {
-    playAnimation(type);
+    if (globalThis.CurrentScreen !== 'ChatRoom') return false;
+    triggerAnimation(type);
     return true;
 }
 
-function playAnimation(type) {
+function refreshCharacter(char) {
+    if (typeof CharacterRefresh === 'function') CharacterRefresh(char, false, false);
+}
+
+// Perform local animation only
+function startRender(char, type, state1, state2, delay, cycles) {
+    const id = char.MemberNumber;
+    if (!id) return;
+    
+    const slot = SLOTS[type];
+    
+    if (renderers.has(id + type)) {
+        clearTimeout(renderers.get(id + type).timer);
+        renderers.delete(id + type);
+    }
+    
+    const states = [state2, state1];
+    let i = 0;
+    
+    function step() {
+        if (i >= cycles * 2 || globalThis.CurrentScreen !== 'ChatRoom') {
+            refreshCharacter(char);
+            renderers.delete(id + type);
+            return;
+        }
+        
+        const state = states[i % 2];
+        const currentItem = char.Appearance.find(item => item.Asset.Group.Name === slot);
+        
+        // Stop if the character took off the item
+        if (!currentItem || (currentItem.Asset.Name !== state1.Name && currentItem.Asset.Name !== state2.Name)) {
+            refreshCharacter(char);
+            renderers.delete(id + type);
+            return;
+        }
+        
+        const item = globalThis.InventoryWear(char, state.Name, slot, state.Color, undefined, undefined, undefined, false);
+        if (item && state.Property) {
+            item.Property = structuredClone(state.Property);
+        }
+        
+        refreshCharacter(char);
+        
+        i++;
+        renderers.set(id + type, { timer: setTimeout(step, delay) });
+    }
+    
+    step();
+}
+
+// Send the one-packet network trigger
+function triggerAnimation(type) {
     const player = globalThis.Player;
     if (!player || globalThis.CurrentScreen !== 'ChatRoom') return;
     
@@ -53,23 +114,36 @@ function playAnimation(type) {
         return;
     }
     
-    const cycles = getFeature(`animal${type}Cycles`) || 2;
-    const delay = getFeature(`animal${type}Delay`) || 250;
-    const states = [state2, state1];
+    const cycles = Math.max(1, Math.min(10, getFeature(`animal${type}Cycles`) || 2));
+    const delay = Math.max(100, Math.min(2000, getFeature(`animal${type}Delay`) || 250));
     
-    for (let i = 0; i < cycles * 2; i++) {
-        setTimeout(() => {
-            const state = states[i % 2];
-            const item = globalThis.InventoryWear(player, state.Name, slot, state.Color, undefined, undefined, undefined, false);
-            if (item && state.Property) {
-                item.Property = structuredClone(state.Property);
-            }
-            globalThis.CharacterRefresh(player, false);
-            if (typeof globalThis.ChatRoomCharacterItemUpdate === 'function') {
-                globalThis.ChatRoomCharacterItemUpdate(player, slot);
-            }
-        }, i * delay);
+    // Animate locally for ourselves
+    startRender(player, type, state1, state2, delay, cycles);
+    
+    // Broadcast hidden message
+    if (typeof ServerSend === 'function') {
+        ServerSend('ChatRoomChat', { 
+            Type: 'Hidden', 
+            Content: HIDDEN_MSG_PREFIX + type, 
+            Dictionary: [{ 
+                type: type,
+                state1: state1,
+                state2: state2,
+                delay: delay,
+                cycles: cycles
+            }] 
+        });
     }
+}
+
+// Chat intercept for *wag*, *flap*, *wiggle*
+function getAnimTypeFromMsg(msg) {
+    if (!msg || typeof msg !== 'string') return null;
+    const lower = msg.toLowerCase().trim();
+    if (lower === '*wag*') return 'Tails';
+    if (lower === '*flap*') return 'Wings';
+    if (lower === '*wiggle*') return 'Ears';
+    return null;
 }
 
 let lastTriggers = { Ears: Date.now(), Tails: Date.now(), Wings: Date.now() };
@@ -83,13 +157,27 @@ function checkTriggers() {
         
         const intervalMs = (getFeature(`animal${type}Interval`) || 30) * 1000;
         if (now - lastTriggers[type] > intervalMs) {
-            // Randomize slightly so they don't all trigger at the exact same millisecond
             if (Math.random() < 0.2) { 
                 lastTriggers[type] = now;
-                playAnimation(type);
+                triggerAnimation(type);
             }
         }
     }
+}
+
+export function onAnimalMessage(data) {
+    if (data?.Type !== 'Hidden' || !data.Content?.startsWith(HIDDEN_MSG_PREFIX)) return;
+    
+    const id = data.Sender;
+    if (!Number.isSafeInteger(id) || id === globalThis.Player?.MemberNumber) return;
+    
+    const dict = Array.isArray(data.Dictionary) ? data.Dictionary[0] : data.Dictionary;
+    if (!dict || !dict.type || !dict.state1 || !dict.state2) return;
+    
+    const char = (globalThis.ChatRoomCharacter ?? []).find(c => c.MemberNumber === id);
+    if (!char) return;
+    
+    startRender(char, dict.type, dict.state1, dict.state2, dict.delay || 250, dict.cycles || 2);
 }
 
 let installed = false;
@@ -97,5 +185,31 @@ export function installAnimalAnimations() {
     if (installed) return;
     installed = true;
     
+    // Receive network anims
+    const binding = createSocketBinding({ ChatRoomMessage: onAnimalMessage });
+    const bind = () => binding.bind(typeof ServerSocket === 'undefined' ? null : ServerSocket);
+    (function wait(n = 240) {
+        if (typeof ServerSocket === 'undefined' || !ServerSocket) {
+            if (n > 0) setTimeout(() => wait(n - 1), 500);
+            return;
+        }
+        bind();
+        try { modApi.hookFunction('ServerInit', 10, (args, next) => { const r = next(args); bind(); return r; }); }
+        catch { /* ignore */ }
+    })();
+
+    // Intercept manual chat triggers
+    hook('ServerSend', 10, (args, next) => {
+        const [kind, data] = args;
+        if (kind === 'ChatRoomChat' && ['Chat', 'Whisper', 'Emote'].includes(data?.Type)) {
+            const type = getAnimTypeFromMsg(data.Content);
+            if (type && getFeature(`animal${type}`)) {
+                triggerAnimation(type);
+                lastTriggers[type] = Date.now(); // reset auto interval
+            }
+        }
+        return next(args);
+    });
+
     setInterval(checkTriggers, 1000);
 }
