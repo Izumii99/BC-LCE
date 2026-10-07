@@ -287,7 +287,12 @@ export function installChatQol() {
             
             // Global floating marks (fallback)
             if (!/https?:\/\//i.test(text) && !face.Emoticon) {
-                if (text.includes("?")) face.Emoticon = 'Confusion';
+                if (text.includes("?")) {
+                    face.Emoticon = 'Confusion';
+                    if (text.match(/\?{2,}/)) {
+                        face.Eyebrows = face.Eyebrows || 'Raised';
+                    }
+                }
                 else if (text.includes("!")) face.Emoticon = 'Exclamation';
                 else if (text.includes("#")) face.Emoticon = 'Annoyed';
             }
