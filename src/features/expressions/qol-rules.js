@@ -128,18 +128,28 @@ export function emoticonDuration(text) {
     return Math.min(Math.max(duration, DEFAULT_EMOTICON_DURATION), MAX_SLASH_EMOTICON_DURATION);
 }
 
-function echoActivity(data) {
-    if (data?.Type !== 'Activity') return null;
+export function echoActivity(data) {
+    if (data?.Type !== 'Activity' && data?.Type !== 'Emote' && data?.Type !== 'Action') return null;
     const dict = Array.isArray(data.Dictionary) ? data.Dictionary : [];
     const content = typeof data.Content === 'string' ? data.Content : '';
     const nameEntry = dict.find(d => typeof d.ActivityName === 'string');
     const labelEntry = dict.find(d => d.Tag === 'ActivityName' && typeof d.Text === 'string');
-    const name = nameEntry?.ActivityName || labelEntry?.Text?.replace(/^Activity/, '')
+    let name = nameEntry?.ActivityName || labelEntry?.Text?.replace(/^Activity/, '')
         || content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
-    const custom = knownEchoNames.has(name) || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
+
+    // Custom Echo actions carry their wording in the translated label or in
+    // Dictionary text entries; read all of it like chat-qol's WCE bridge did.
+    const texts = dict.map(d => d.Text).filter(t => typeof t === 'string');
+    if (typeof ActivityDictionaryText === 'function' && content) texts.push(ActivityDictionaryText(content));
+    const known = knownEchoNames.has(name);
+    name = [name, ...texts].filter(Boolean).join(' ');
+
+    const isActivity = data?.Type === 'Activity';
+    const custom = !isActivity || known || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
         || /Luzi_/i.test(nameEntry?.ActivityName || labelEntry?.Text || '');
-    if (!custom) return null;
-    return { name, group: /^Chat(?:Other|Self)-([^-]+)-/.exec(content)?.[1] };
+    if (isActivity && !custom) return null;
+    
+    return { name, group: /^Chat(?:Other|Self)-([^-]+)-/.exec(content)?.[1], custom };
 }
 
 export function echoExpressionEvent(data, memberNumber) {
@@ -160,6 +170,6 @@ export function echoSound(data) {
     if (/Whip|鞭打/i.test(activity.name)) return 'WhipCrack';
     if (/拍打|打屁股|轻拍|轻弹|扇耳光|Spank|Slap|Flick|Bap/i.test(activity.name)) return 'SpankSkin';
     if (/Pinch|掐|拧/i.test(activity.name)) return 'LeatherStretchingShort';
-    if (/(?:^|_)Hit(?:$|_)/i.test(activity.name)) return 'SmackCrop';
+    if (/(?<![a-z])hit(?:s|ting)?(?![a-z])|打/i.test(activity.name)) return 'SmackCrop';
     return null;
 }
