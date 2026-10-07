@@ -44,10 +44,7 @@ export function clearAnimalAnim(type, draft) {
     return true;
 }
 
-export function testAnimalAnim(type) {
-    triggerAnimation(type, true); // true = force local only, no server send
-    return true;
-}
+
 
 function refreshCharacter(char) {
     if (typeof CharacterRefresh === 'function') CharacterRefresh(char, false, false);
@@ -124,8 +121,11 @@ function triggerAnimation(type, localOnly = false) {
         return;
     }
     
-    const cycles = Math.max(1, Math.min(40, getFeature(`animal${type}Cycles`) || 18));
-    const delay = Math.max(10, Math.min(2000, getFeature(`animal${type}Delay`) || 250));
+    const rawCycles = parseInt(getFeature(`animal${type}Cycles`), 10);
+    const cycles = Math.max(1, Math.min(40, isNaN(rawCycles) ? 18 : rawCycles));
+    
+    const rawDelay = parseInt(getFeature(`animal${type}Delay`), 10);
+    const delay = Math.max(10, Math.min(2000, isNaN(rawDelay) ? 250 : rawDelay));
     
     console.log(`[LCE Debug] Starting render. Cycles: ${cycles}, Delay: ${delay}`);
     // Animate locally for ourselves
