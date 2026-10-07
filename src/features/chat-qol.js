@@ -268,6 +268,9 @@ export function installChatQol() {
             const original = data.Dictionary?.find(d => typeof d.Original === 'string')?.Original;
             const text = stored?.text ?? original ?? data.Content;
             const face = stored?.face ?? emoticonExpression(text);
+            
+
+            
             const duration = stored?.duration ?? emoticonDuration(text);
             if (Object.keys(face).length) {
                 if ('Eyes' in face && !('Eyes2' in face)) face.Eyes2 = face.Eyes;

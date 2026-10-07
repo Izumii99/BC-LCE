@@ -5,7 +5,8 @@ export const faces = [
     [/^=[\\/]{2,}=$/, { Eyes: 'Horny', Mouth: 'Pout', Blush: 'Medium' }],
     [/^(?:o|0)[\\/]{2,}(?:o|0)$/i, { Eyes: 'Surprised', Mouth: 'HalfOpen', Eyebrows: 'Raised', Blush: 'Medium' }],
     // Classic cat/cute faces
-    [/^>[._~,]?<$/, { Eyes: 'Daydream', Mouth: 'Smirk' }],
+    [/^>~<$/, { Eyes: 'Daydream', Mouth: 'Smirk' }],
+    [/^>[._,]?<$/, { Eyes: 'Daydream' }],
     // Cat faces with W
     [/^(?:>w<)$/i, { Eyes: 'Daydream', Mouth: 'Happy' }],
     [/^(?:=w=|>w>|<w<)$/i, { Eyes: 'Horny', Mouth: 'Happy' }],
@@ -29,8 +30,9 @@ export const faces = [
     [/^(?:>[.,~_]>|<[.,~_]<)$/, { Eyes: 'Dazed', Eyebrows: 'Harsh' }],
     // Horny / Closed
     [/^(?:==|=\[_\]=)$/, { Eyes: 'Horny' }],
-    [/^=~=$/, { Eyes: 'Horny', Mouth: 'Frown' }],
-    [/^(?:=[_^.-]=)$/, { Eyes: 'Closed', Mouth: 'Frown' }],
+    [/^(?:=~=|=\.=|=,=)$/, { Eyes: 'Horny', Mouth: 'Frown' }],
+    [/^(?:=[_^-]=)$/, { Eyes: 'Closed', Mouth: 'Frown' }],
+    [/^-_-$/, { Eyes: 'Dazed', Eyebrows: 'Harsh', Mouth: 'Frown' }],
     // Ahegao
     [/^(?:;p|;d|;\))$/i, { Eyes: 'Closed', Eyes2: null, Mouth: 'Ahegao' }],
     [/^:p$/i, { Mouth: 'Ahegao' }],
@@ -43,12 +45,11 @@ export const faces = [
     [/^(?:=3=|>3<|>3>|<3<)$/, { Mouth: 'Pout' }],
     // Angry
     [/^(?:>:<|>;<|>x<|>[:;xX=]|[:;xX=]<)$/i, { Eyes: 'Angry', Mouth: 'Angry', Eyebrows: 'Angry' }],
-    // Floating Marks
-    [/^\?$/, { Emoticon: 'Confusion' }],
-    [/^!$/, { Emoticon: 'Exclamation' }],
-    [/^#$/, { Emoticon: 'Annoyed' }],
     // Standalone slash/backslash blush faces
     [/^(?:[<>])?[\\/]{2,}(?:[<>])?$/, { Blush: 'Medium' }],
+    // Hearts and Sleep
+    [/^<3+$/i, { Emoticon: 'Hearts' }],
+    [/^z{3,}[.~]*$/i, { Eyes: 'Closed', Emoticon: 'Sleep' }]
 ];
 
 export const knownEchoNames = new Set([
