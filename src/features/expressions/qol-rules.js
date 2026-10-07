@@ -10,7 +10,7 @@ const SLASH_RUN = /[/\\]{2,}/;
 const slashRunLength = token => token.match(SLASH_RUN)?.[0].length ?? 0;
 
 function getPunctuationEffect(str) {
-    if (str.match(/\?{2,}/) || str.includes('?!') || str.includes('!?')) {
+    if (str.includes('?')) {
         return {
             Emoticon: 'Confusion',
             Eyebrows: (str.includes('?!') || str.includes('!?')) ? 'Angry' : 'OneRaised'

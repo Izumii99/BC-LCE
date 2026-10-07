@@ -58,7 +58,7 @@ test('textmoji ignores ordinary punctuation but respects explicit expressive pun
     assert.equal(emoticonExpression('??').Emoticon, 'Confusion');
     assert.equal(emoticonExpression('??').Eyebrows, 'OneRaised');
     assert.equal(emoticonExpression('?!').Eyebrows, 'Angry');
-    assert.equal(emoticonExpression('?').Emoticon, undefined, 'Single ? is ignored');
+    assert.equal(emoticonExpression('?').Emoticon, 'Confusion', 'Single ? is now supported');
 
     // Composition with existing emoticons
     const w = emoticonExpression('>w<!!');
