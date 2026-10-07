@@ -69,7 +69,7 @@ function startRender(char, type, state1, state2, delay, cycles) {
     let i = 0;
     
     function step() {
-        if (i >= cycles * 2) {
+        if (i >= cycles) {
             refreshCharacter(char);
             renderers.delete(id + type);
             return;
@@ -124,8 +124,8 @@ function triggerAnimation(type, localOnly = false) {
         return;
     }
     
-    const cycles = Math.max(1, Math.min(10, getFeature(`animal${type}Cycles`) || 2));
-    const delay = Math.max(100, Math.min(2000, getFeature(`animal${type}Delay`) || 250));
+    const cycles = Math.max(1, Math.min(40, getFeature(`animal${type}Cycles`) || 18));
+    const delay = Math.max(10, Math.min(2000, getFeature(`animal${type}Delay`) || 250));
     
     console.log(`[LCE Debug] Starting render. Cycles: ${cycles}, Delay: ${delay}`);
     // Animate locally for ourselves

@@ -460,7 +460,5 @@
   "s_friendNotifyDuration": "信息显示时间",
   "sd_friendNotifyDuration": "信息可设置显示时间，0代表不移除，气泡固定5秒移除",
   "unit_seconds": "秒",
-  "settings_tab_immersion_ears": "Ears",
-  "settings_tab_immersion_tails": "Tails",
-  "settings_tab_immersion_wings": "Wings"
+  "settings_tab_immersion_animal": "Animals"
 }

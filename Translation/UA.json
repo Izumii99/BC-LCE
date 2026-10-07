@@ -460,7 +460,5 @@
   "s_friendNotifyDuration": "Час показу повідомлення",
   "sd_friendNotifyDuration": "Час показу повідомлення можна налаштувати; 0 означає не видаляти, а спливаючі вікна завжди видаляються через 5 секунд.",
   "unit_seconds": "с",
-  "settings_tab_immersion_ears": "Ears",
-  "settings_tab_immersion_tails": "Tails",
-  "settings_tab_immersion_wings": "Wings"
+  "settings_tab_immersion_animal": "Animals"
 }
