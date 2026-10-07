@@ -1,4 +1,5 @@
 import { createThemeActions } from '../settings/theme-actions.js';
+import { saveAnimalPose, clearAnimalAnim } from '../features/animal-animations.js';
 import { applyAnimationEngineSetting } from '../game/setting-effects.js';
 import { grantWardrobe } from '../game/setting-effects.js';
 // ════════════════════════════════════════════════════════════════════════════
@@ -30,7 +31,7 @@ import { grantWardrobe } from '../game/setting-effects.js';
 
 // 設定頁分類（順序即設定頁清單順序）
 export const CATEGORIES = [
-    'chat', 'theme', 'ui', 'immersion', 'wardrobe', 'performance', 'cheats', 'misc', 'storage',
+    'chat', 'theme', 'ui', 'immersion', 'wardrobe', 'performance', 'cheats', 'misc', 'animal', 'storage'
 ];
 
 // Explicit panel groups keep display order independent of stored setting keys.
@@ -472,6 +473,31 @@ export const DEFAULT_FEATURE_SETTINGS = {
         disabled: (s) => !s.antiGarble || ['off', 'full'].includes(s.antiGarbleWhisperLevel), sideEffects: logChange('antiGarbleWhisperBabyTalk'),
     },
 
+    // ───────────────────────── animal 動物動畫 ─────────────────────────
+    animalEars: { label: 's_animalEars', desc: 'sd_animalEars', type: 'checkbox', value: false, category: 'animal', disabled: () => false },
+    animalEarsInterval: { label: 's_animalEarsInterval', desc: 'sd_animalEarsInterval', type: 'bar', value: 30, min: 10, max: 999, step: 1, category: 'animal', disabled: s => !s.animalEars },
+    animalEarsCycles: { label: 's_animalEarsCycles', desc: 'sd_animalEarsCycles', type: 'bar', value: 18, min: 1, max: 40, step: 1, category: 'animal', disabled: s => !s.animalEars },
+    animalEarsDelay: { label: 's_animalEarsDelay', desc: 'sd_animalEarsDelay', type: 'bar', value: 150, min: 10, max: 2000, step: 10, category: 'animal', disabled: s => !s.animalEars },
+    animalEarsSave1: { label: 's_animalEarsSave1', desc: 'sd_animalEarsSave1', type: 'action', category: 'animal', actionLabel: 's_btn_save_pose', actionDoneLabel: 's_msg_anim_saved', disabled: () => false, run: (draft) => saveAnimalPose('Ears', 1, draft) },
+    animalEarsSave2: { label: 's_animalEarsSave2', desc: 'sd_animalEarsSave2', type: 'action', category: 'animal', actionLabel: 's_btn_save_pose', actionDoneLabel: 's_msg_anim_saved', disabled: () => false, run: (draft) => saveAnimalPose('Ears', 2, draft) },
+    animalEarsClear: { label: 's_animalEarsClear', desc: 'sd_animalEarsClear', type: 'action', category: 'animal', actionLabel: 's_btn_clear_anim', actionDoneLabel: 's_msg_anim_cleared', disabled: () => false, run: (draft) => clearAnimalAnim('Ears', draft) },
+
+    animalTails: { label: 's_animalTails', desc: 'sd_animalTails', type: 'checkbox', value: false, category: 'animal', disabled: () => false, pageBreakBefore: true },
+    animalTailsInterval: { label: 's_animalTailsInterval', desc: 'sd_animalTailsInterval', type: 'bar', value: 30, min: 10, max: 999, step: 1, category: 'animal', disabled: s => !s.animalTails },
+    animalTailsCycles: { label: 's_animalTailsCycles', desc: 'sd_animalTailsCycles', type: 'bar', value: 18, min: 1, max: 40, step: 1, category: 'animal', disabled: s => !s.animalTails },
+    animalTailsDelay: { label: 's_animalTailsDelay', desc: 'sd_animalTailsDelay', type: 'bar', value: 200, min: 10, max: 2000, step: 10, category: 'animal', disabled: s => !s.animalTails },
+    animalTailsSave1: { label: 's_animalTailsSave1', desc: 'sd_animalTailsSave1', type: 'action', category: 'animal', actionLabel: 's_btn_save_pose', actionDoneLabel: 's_msg_anim_saved', disabled: () => false, run: (draft) => saveAnimalPose('Tails', 1, draft) },
+    animalTailsSave2: { label: 's_animalTailsSave2', desc: 'sd_animalTailsSave2', type: 'action', category: 'animal', actionLabel: 's_btn_save_pose', actionDoneLabel: 's_msg_anim_saved', disabled: () => false, run: (draft) => saveAnimalPose('Tails', 2, draft) },
+    animalTailsClear: { label: 's_animalTailsClear', desc: 'sd_animalTailsClear', type: 'action', category: 'animal', actionLabel: 's_btn_clear_anim', actionDoneLabel: 's_msg_anim_cleared', disabled: () => false, run: (draft) => clearAnimalAnim('Tails', draft) },
+
+    animalWings: { label: 's_animalWings', desc: 'sd_animalWings', type: 'checkbox', value: false, category: 'animal', disabled: () => false, pageBreakBefore: true },
+    animalWingsInterval: { label: 's_animalWingsInterval', desc: 'sd_animalWingsInterval', type: 'bar', value: 30, min: 10, max: 999, step: 1, category: 'animal', disabled: s => !s.animalWings },
+    animalWingsCycles: { label: 's_animalWingsCycles', desc: 'sd_animalWingsCycles', type: 'bar', value: 6, min: 1, max: 40, step: 1, category: 'animal', disabled: s => !s.animalWings },
+    animalWingsDelay: { label: 's_animalWingsDelay', desc: 'sd_animalWingsDelay', type: 'bar', value: 500, min: 10, max: 2000, step: 10, category: 'animal', disabled: s => !s.animalWings },
+    animalWingsSave1: { label: 's_animalWingsSave1', desc: 'sd_animalWingsSave1', type: 'action', category: 'animal', actionLabel: 's_btn_save_pose', actionDoneLabel: 's_msg_anim_saved', disabled: () => false, run: (draft) => saveAnimalPose('Wings', 1, draft) },
+    animalWingsSave2: { label: 's_animalWingsSave2', desc: 'sd_animalWingsSave2', type: 'action', category: 'animal', actionLabel: 's_btn_save_pose', actionDoneLabel: 's_msg_anim_saved', disabled: () => false, run: (draft) => saveAnimalPose('Wings', 2, draft) },
+    animalWingsClear: { label: 's_animalWingsClear', desc: 'sd_animalWingsClear', type: 'action', category: 'animal', actionLabel: 's_btn_clear_anim', actionDoneLabel: 's_msg_anim_cleared', disabled: () => false, run: (draft) => clearAnimalAnim('Wings', draft) },
+
     // ───────────────────────── wardrobe 衣櫃 ─────────────────────────
     privateWardrobe: {
         label: 's_privateWardrobe', desc: 'sd_privateWardrobe',
@@ -626,6 +652,14 @@ export const DEFAULT_FEATURE_SETTINGS = {
     // global: true —— 分類是 hidden，但內容純粹是主題色。主題已改全域共用，
     // 快照若留在各帳號，會變成「在 A 帳號存的主題到 B 帳號讀不到」。
     themeSlots: { type: 'hidden', value: [null, null, null], category: 'hidden', global: true, disabled: () => false },
+    
+    // 動物動畫的狀態儲存 (Ears, Tails, Wings)
+    animalEarsState1: { type: 'object', value: null, category: 'hidden', disabled: () => false },
+    animalEarsState2: { type: 'object', value: null, category: 'hidden', disabled: () => false },
+    animalTailsState1: { type: 'object', value: null, category: 'hidden', disabled: () => false },
+    animalTailsState2: { type: 'object', value: null, category: 'hidden', disabled: () => false },
+    animalWingsState1: { type: 'object', value: null, category: 'hidden', disabled: () => false },
+    animalWingsState2: { type: 'object', value: null, category: 'hidden', disabled: () => false },
 };
 
 /**

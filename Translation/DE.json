@@ -459,5 +459,7 @@
   "sd_petsuitAlternate": "Legt fest, wie die Arme deines Haustieranzugs schwingen. Wenn aktiviert, sehen Spieler mit LCE deine Arme abwechselnd schwingen; bei Deaktivierung oder ohne LCE sehen sie nur das normale Schwingen.",
   "s_friendNotifyDuration": "Anzeigedauer der Nachricht",
   "sd_friendNotifyDuration": "Die Anzeigedauer der Nachricht kann eingestellt werden; 0 bedeutet keine Entfernung, Sprechblasen werden immer nach 5 Sekunden entfernt.",
-  "unit_seconds": "Sek."
+  "unit_seconds": "Sek.",
+  "cat_animal": "Animals",
+  "settings_reset_animal": "Reset Animals"
 }

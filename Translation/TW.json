@@ -459,5 +459,7 @@
   "sd_petsuitAlternate": "設定自己的寵物服手臂擺動方式。啟用時，安裝了 LCE 的玩家會看到你手臂交替擺動，停用或沒安裝 LCE 只會看到普通擺動。",
   "s_friendNotifyDuration": "信息顯示時間",
   "sd_friendNotifyDuration": "信息可設置顯示時間，0代表不移除，氣泡固定5秒移除",
-  "unit_seconds": "秒"
+  "unit_seconds": "秒",
+  "cat_animal": "Animals",
+  "settings_reset_animal": "Reset Animals"
 }

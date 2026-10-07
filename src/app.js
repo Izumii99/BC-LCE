@@ -42,6 +42,7 @@ import { installCheats } from './features/safety/cheats.js';
 import { installMisc } from './features/misc.js';
 import { installEchoMouthPull } from './features/echo-mouth-pull.js';
 import { installChatQol, installPetsuitSync } from './features/chat-qol.js';
+import { installAnimalAnimations } from './features/animal-animations.js';
 import { FaceCache } from './features/expressions/face-cache.js';
 import { installRegionSwitch } from './features/region-switch.js';
 import { installHiddenArousal } from './features/expressions/hidden-arousal.js';
@@ -138,6 +139,7 @@ if (LCE_ALREADY_LOADED) {
                     ['Echo 嘴部牽引', installEchoMouthPull],
                     ['聊天互動', installChatQol],
                     ['寵物服同步', installPetsuitSync],
+                    ['動物動畫', installAnimalAnimations],
                     ['區域切換', installRegionSwitch],
                     ['隱藏興奮條', installHiddenArousal],
                     ['直式版面', installVertical],
