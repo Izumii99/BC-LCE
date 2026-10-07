@@ -49,6 +49,9 @@ export const faces = [
     [/^#$/, { Emoticon: 'Annoyed' }],
     // Standalone slash/backslash blush faces
     [/^(?:[<>])?[\\/]{2,}(?:[<>])?$/, { Blush: 'Medium' }],
+    // Hearts and Sleep
+    [/^<3+$/i, { Emoticon: 'Hearts' }],
+    [/^z{3,}$/i, { Eyes: 'Closed', Emoticon: 'Sleep' }],
 ];
 
 export const knownEchoNames = new Set([
