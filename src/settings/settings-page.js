@@ -88,7 +88,7 @@ function computeSections(category) {
 const SECTION_LABELS = {
     ui: ['settings_tab_ui', 'settings_tab_ui_colors'],
     theme: ['settings_tab_theme_basic', 'settings_tab_theme_advanced', 'settings_tab_theme_saved'],
-    immersion: ['settings_tab_immersion_expressions', 'settings_tab_immersion_chat', 'settings_tab_immersion_other'],
+    immersion: ['settings_tab_immersion_expressions', 'settings_tab_immersion_chat', 'settings_tab_immersion_other', 'settings_tab_immersion_ears', 'settings_tab_immersion_tails', 'settings_tab_immersion_wings'],
 };
 
 function visibleSettings() {

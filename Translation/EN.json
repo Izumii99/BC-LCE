@@ -516,5 +516,8 @@
   "sd_petsuitAlternate": "Sets how your own pet suit arms swing. When enabled, players with LCE will see your arms swing alternately; when disabled or when LCE is not installed, they will only see the normal swing.",
   "s_friendNotifyDuration": "Message display time",
   "sd_friendNotifyDuration": "Message display time can be configured; 0 means do not remove, while bubbles are always removed after 5 seconds.",
-  "unit_seconds": "sec"
+  "unit_seconds": "sec",
+  "settings_tab_immersion_ears": "Ears",
+  "settings_tab_immersion_tails": "Tails",
+  "settings_tab_immersion_wings": "Wings"
 }

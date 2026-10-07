@@ -459,5 +459,8 @@
   "sd_petsuitAlternate": "Définit le mode de balancement des bras de votre tenue d’animal. Activé, les joueurs avec LCE voient vos bras balancer en alternance ; désactivé ou sans LCE, ils ne voient que le balancement normal.",
   "s_friendNotifyDuration": "Durée d’affichage du message",
   "sd_friendNotifyDuration": "La durée d’affichage du message est configurable ; 0 signifie ne pas supprimer, tandis que les bulles sont toujours supprimées après 5 secondes.",
-  "unit_seconds": "s"
+  "unit_seconds": "s",
+  "settings_tab_immersion_ears": "Ears",
+  "settings_tab_immersion_tails": "Tails",
+  "settings_tab_immersion_wings": "Wings"
 }
