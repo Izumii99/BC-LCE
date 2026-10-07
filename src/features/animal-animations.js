@@ -15,7 +15,7 @@ const HIDDEN_MSG_PREFIX = 'LCEAnimalAnim_';
 
 const renderers = new Map(); // id -> { timer }
 
-export function saveAnimalPose(type, stateNum) {
+export function saveAnimalPose(type, stateNum, draft) {
     const player = globalThis.Player;
     if (!player) return false;
     
@@ -23,7 +23,7 @@ export function saveAnimalPose(type, stateNum) {
     const item = player.Appearance.find(i => i.Asset.Group.Name === slot);
     
     if (!item) {
-        setFeature(`animal${type}State${stateNum}`, null);
+        draft[`animal${type}State${stateNum}`] = null;
         return true;
     }
     
@@ -34,13 +34,13 @@ export function saveAnimalPose(type, stateNum) {
     };
     
     console.log(`[LCE Debug] saveAnimalPose type=${type}, stateNum=${stateNum}`, state);
-    setFeature(`animal${type}State${stateNum}`, state);
+    draft[`animal${type}State${stateNum}`] = state;
     return true;
 }
 
-export function clearAnimalAnim(type) {
-    setFeature(`animal${type}State1`, null);
-    setFeature(`animal${type}State2`, null);
+export function clearAnimalAnim(type, draft) {
+    draft[`animal${type}State1`] = null;
+    draft[`animal${type}State2`] = null;
     return true;
 }
 
