@@ -269,26 +269,7 @@ export function installChatQol() {
             const text = stored?.text ?? original ?? data.Content;
             const face = stored?.face ?? emoticonExpression(text);
             
-            // Global floating marks (fallback)
-            if (!/https?:\/\//i.test(text) && !face.Emoticon) {
-                if (text.match(/\?{2,}/) || text.includes("?!") || text.includes("!?")) {
-                    face.Emoticon = 'Confusion';
-                    if (text.includes("?!") || text.includes("!?")) {
-                        face.Eyebrows = face.Eyebrows || 'Angry';
-                    } else {
-                        face.Eyebrows = face.Eyebrows || 'OneRaised';
-                    }
-                }
-                else if (text.includes("!")) {
-                    face.Emoticon = 'Exclamation';
-                    if (text.match(/!{3,}/)) {
-                        face.Eyebrows = face.Eyebrows || 'Angry';
-                    } else if (text.match(/!{2}/)) {
-                        face.Eyebrows = face.Eyebrows || 'Harsh';
-                    }
-                }
-                else if (text.includes("#")) face.Emoticon = 'Annoyed';
-            }
+
             
             const duration = stored?.duration ?? emoticonDuration(text);
             if (Object.keys(face).length) {

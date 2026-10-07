@@ -64,11 +64,20 @@ export function emoticonExpression(text) {
                 result.Emoticon = 'Tear';
             }
 
-            // Additive floating marks
+            // Additive floating marks and expressive punctuation
             const allMarks = token.replace(baseToken, '');
-            if (allMarks.includes('?')) result.Emoticon = 'Confusion';
-            else if (allMarks.includes('!')) result.Emoticon = 'Exclamation';
-            else if (allMarks.includes('#')) result.Emoticon = 'Annoyed';
+            if (allMarks.match(/\?{2,}/) || allMarks.includes('?!') || allMarks.includes('!?')) {
+                result.Emoticon = 'Confusion';
+                result.Eyebrows = result.Eyebrows || ((allMarks.includes('?!') || allMarks.includes('!?')) ? 'Angry' : 'OneRaised');
+            } else if (allMarks.includes('?')) {
+                // We ignore single attached '?' because it's too common in normal chatting
+            } else if (allMarks.includes('!')) {
+                result.Emoticon = 'Exclamation';
+                if (allMarks.match(/!{3,}/)) result.Eyebrows = result.Eyebrows || 'Angry';
+                else if (allMarks.match(/!{2}/)) result.Eyebrows = result.Eyebrows || 'Harsh';
+            } else if (allMarks.includes('#')) {
+                result.Emoticon = 'Annoyed';
+            }
         }
     }
     return result;
