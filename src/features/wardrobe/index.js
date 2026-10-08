@@ -115,6 +115,27 @@ export function installWardrobe() {
         return next([wardrobe]);
     });
 
+    // ── 相容性修補：保留 BCAR 等模組加在服裝上的額外屬性 (Resize, Rotate, Layer 等) ──
+    hook('CharacterAppearanceStringify', 10, (args, next) => {
+        const [Appearance] = args;
+        const C = next(args);
+        // 將原版丟棄的額外屬性補回
+        for (let i = 0; i < Appearance.length; i++) {
+            const sourceItem = Appearance[i];
+            const destItem = C[i];
+            if (!sourceItem || !destItem) continue;
+            for (const key of Object.keys(sourceItem)) {
+                // 排除內建標準欄位、Asset 物件、函數等不能序列化的東西
+                if (key !== 'Asset' && key !== 'Model' && key !== 'Name' && key !== 'Group' && key !== 'Color' && key !== 'Property' && key !== 'Craft') {
+                    if (typeof sourceItem[key] !== 'function') {
+                        destItem[key] = sourceItem[key];
+                    }
+                }
+            }
+        }
+        return C;
+    });
+
     // ── 角色預覽衣櫃：把 Appearance 的衣櫃導向 Wardrobe 畫面 ──
     hook('CharacterAppearanceWardrobeLoad', 20, (args, next) => {
         if (hasNativeWardrobe()) return next(args);
