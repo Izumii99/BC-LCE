@@ -150,14 +150,12 @@ export function echoActivity(data) {
     const custom = !isActivity || untaggedTexts.length > 0 || known || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
         || /Luzi_/i.test(nameEntry?.ActivityName || labelEntry?.Text || '');
 
-    if (isActivity && !custom) return null;
-    
     return { name, group: /^Chat(?:Other|Self)-([^-]+)-/.exec(content)?.[1], custom };
 }
 
 export function echoExpressionEvent(data, memberNumber) {
     const activity = echoActivity(data);
-    if (!activity) return null;
+    if (!activity || (data?.Type === 'Activity' && !activity.custom)) return null;
     const event = mappings.find(([, pattern]) => pattern.test(activity.name))?.[0];
     if (!event) return null;
     if (['LongKiss', 'KissOnLips'].includes(event) && activity.group !== 'ItemMouth') return null;

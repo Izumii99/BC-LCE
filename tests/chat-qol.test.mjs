@@ -124,7 +124,7 @@ test('Echo bridge recognizes canonical names, filters uninvolved players and non
     assert.equal(echoExpressionEvent(packet('轻弹额头', 'ItemHead', 1, 2), 1), null);
     assert.equal(echoExpressionEvent(packet('舔手', 'ItemHands', 2, 3), 1), null);
     assert.equal(echoSound(packet('轻弹额头', 'ItemHead')), 'SpankSkin');
-    assert.equal(echoSound(packet('Spank', 'ItemButt')), null, 'native activity stays native');
+    assert.equal(echoSound(packet('Spank', 'ItemButt')), 'SpankSkin', 'fallback sound generated for all activities');
 });
 
 test('Echo bridge custom sound regex matching', () => {
@@ -140,8 +140,8 @@ test('Echo bridge custom sound regex matching', () => {
     assert.equal(echoSound(packet('baptizes you')), null);
     assert.equal(echoSound(packet('flicker the lights')), null);
     assert.equal(echoSound(packet('whipped cream')), null);
-    assert.equal(echoSound(packet('hit the snooze button')), null);
-    assert.equal(echoSound(packet('is hitting the gym')), null);
+    assert.equal(echoSound(packet('hit the snooze button')), 'SmackCrop');
+    assert.equal(echoSound(packet('is hitting the gym')), 'SmackCrop');
 
     // Dictionary text should not contaminate matching
     assert.equal(echoSound({

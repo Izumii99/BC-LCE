@@ -94,8 +94,15 @@ function triggerAnimation(type, localOnly = false) {
     
     if (currentItem.Asset.Name !== state1.Name && currentItem.Asset.Name !== state2.Name) return;
     
-    const cycles = Math.max(1, Math.min(40, getFeature(`animal${type}Cycles`) || 18));
-    const delay = Math.max(10, Math.min(2000, getFeature(`animal${type}Delay`) || 250));
+    let cycles = Math.max(1, Math.min(40, getFeature(`animal${type}Cycles`) || 18));
+    let delay = Math.max(10, Math.min(2000, getFeature(`animal${type}Delay`) || 250));
+    
+    // Randomize cycles and delay (+/- 33%) for a more natural, less rigid feel
+    const cyclesVary = Math.round(cycles * 0.33);
+    cycles = Math.max(1, cycles - cyclesVary + Math.floor(Math.random() * (cyclesVary * 2 + 1)));
+    
+    const delayVary = Math.round(delay * 0.33);
+    delay = Math.max(10, delay - delayVary + Math.floor(Math.random() * (delayVary * 2 + 1)));
     
     // Animate locally for ourselves
     startRender(player, type, state1, state2, delay, cycles);
