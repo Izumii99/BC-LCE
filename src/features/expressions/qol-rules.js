@@ -139,8 +139,8 @@ export function echoActivity(data) {
     
     const isActivity = data?.Type === 'Activity';
     if (!name) {
-        if (!isActivity) return null;
-        name = content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
+        if (!isActivity) name = content;
+        else name = content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
     }
 
     const texts = !isActivity ? dict.map(d => d.Text).filter(t => typeof t === 'string') : [];
