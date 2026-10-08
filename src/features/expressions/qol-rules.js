@@ -143,11 +143,11 @@ export function echoActivity(data) {
         else name = content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
     }
 
-    const texts = !isActivity ? dict.map(d => d.Text).filter(t => typeof t === 'string') : [];
+    const untaggedTexts = dict.filter(d => typeof d.Text === 'string' && !d.Tag).map(d => d.Text);
     const known = knownEchoNames.has(name);
-    name = [name, ...texts].filter(Boolean).join(' ');
+    name = [name, ...untaggedTexts].filter(Boolean).join(' ');
 
-    const custom = !isActivity || known || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
+    const custom = !isActivity || untaggedTexts.length > 0 || known || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
         || /Luzi_/i.test(nameEntry?.ActivityName || labelEntry?.Text || '');
 
     if (isActivity && !custom) return null;
