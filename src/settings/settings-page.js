@@ -39,9 +39,6 @@ const NOTIFY_DURATION_X = 1400, NOTIFY_DURATION_W = 150, NOTIFY_DURATION_UNIT_X 
 let notifyDurationInput = null;
 let notifyDurationInputKey = null;
 
-let barInput = null;
-let barInputKey = null;
-
 // Share option rectangles between drawing and hit testing. Labels are drawn
 // separately because BC's checkbox renderer assumes a 100px label offset.
 function slotOptions(layout, options) {
@@ -211,8 +208,6 @@ function exit() {
     closeTrustedDomainManager();
     saveFeatureSettings();
     stopBarDrag();
-    removeNotifyDurationInput();
-    removeBarInput();
     if (typeof PreferenceSubscreenExtensionsClear === 'function') PreferenceSubscreenExtensionsClear();
 }
 
@@ -344,7 +339,7 @@ function click() {
         if (isStorageManagerOpen()) { closeStorageManager(); }
         else if (isTrustedDomainManagerOpen()) { closeTrustedDomainManager(); }
         else if (currentCategory === null) { exit(); }
-        else { removeBarInput(); removeNotifyDurationInput(); currentCategory = null; currentSetting = ''; }
+        else { currentCategory = null; currentSetting = ''; }
         return;
     }
 
@@ -555,85 +550,6 @@ function editNotifyDuration(key, y) {
     input.focus();
     input.select();
 }
-
-function removeBarInput(save = true) {
-    if (!barInput) return;
-    if (save && barInputKey) commitBarInput();
-    barInput.remove();
-    barInput = null;
-    barInputKey = null;
-}
-function positionBarInput() {
-    if (!barInput) return;
-    const canvas = window.MainCanvas;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const sx = rect.width / (canvas.width || 2000);
-    const sy = rect.height / (canvas.height || 1000);
-    const cx = barInput.dataset.cx ? Number(barInput.dataset.cx) : 0;
-    const cw = barInput.dataset.cw ? Number(barInput.dataset.cw) : 0;
-    const y = barInput.dataset.y ? Number(barInput.dataset.y) : 0;
-    Object.assign(barInput.style, {
-        left: `${rect.left + (cx + cw + SOUND_GAP) * sx}px`,
-        top: `${rect.top + (y + 11) * sy}px`,
-        width: `${BAR_VAL_W * sx}px`,
-        height: `${ITEM_H * sy}px`,
-        fontSize: `${Math.max(12, 22 * sy)}px`,
-    });
-}
-function commitBarInput() {
-    if (!barInput || !barInputKey) return;
-    const raw = String(barInput.value ?? '').trim();
-    const n = Number(raw);
-    const def = settingsSchema.find(s => s.key === barInputKey);
-    if (!raw || isNaN(n) || !def) {
-        barInput.value = String(clampBar(def, fSettings[barInputKey]));
-        return;
-    }
-    const clamped = clampBar(def, n);
-    setFeature(barInputKey, clamped);
-    barInput.value = String(clamped);
-}
-function editBar(key, y, cx, cw) {
-    if (barInput && barInputKey === key) {
-        barInput.focus();
-        barInput.select();
-        return;
-    }
-    removeBarInput();
-    const def = settingsSchema.find(s => s.key === key);
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.inputMode = 'numeric';
-    input.maxLength = 5;
-    input.value = String(clampBar(def, fSettings[key]));
-    input.dataset.y = String(y);
-    input.dataset.cx = String(cx);
-    input.dataset.cw = String(cw);
-    input.setAttribute('aria-label', key);
-    Object.assign(input.style, {
-        position: 'fixed', zIndex: '10001', boxSizing: 'border-box',
-        textAlign: 'center', border: '2px solid #7214ff', borderRadius: '4px',
-        background: '#fff', color: '#000', padding: '2px 4px', outline: 'none',
-        fontFamily: 'Arial, sans-serif', fontWeight: '700',
-    });
-    input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); commitBarInput(); input.blur(); }
-        else if (e.key === 'Escape') { e.preventDefault(); removeBarInput(false); }
-        else if (!/[0-9\.\-]/.test(e.key) && !['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(e.key) && !(e.ctrlKey || e.metaKey)) e.preventDefault();
-    });
-    input.addEventListener('input', () => {
-        const clean = input.value.replace(/[^\d\.\-]/g, '').slice(0, 5);
-        input.value = clean;
-    });
-    input.addEventListener('blur', () => { commitBarInput(); setTimeout(() => removeBarInput(false), 0); });
-    document.body.appendChild(input);
-    barInput = input;
-    barInputKey = key;
-    positionBarInput();
-    input.focus();
-    input.select();
-}
 function drawNotifyDuration(key, y) {
     const dk = durationKeyForNotify(key);
     const v = Math.max(0, Math.min(999, Number(fSettings[dk]) || 0));
@@ -675,15 +591,8 @@ function drawBarControl(key, def, layout, disabled) {
     const hx = controlX + Math.max(6, Math.min(controlW - 6, controlW * ratio));
     DrawRect(hx - handleW / 2, y + 10, handleW, 44, disabled ? '#c8c8c0' : (dragging ? '#3575b5' : 'Black'));
 
-    const valX = controlX + controlW + SOUND_GAP;
-    if (!barInput || barInputKey !== key) {
-        DrawButton(valX, y, BAR_VAL_W, ITEM_H, String(v), disabled ? '#ebebe4' : 'White');
-    } else {
-        barInput.dataset.cx = String(controlX);
-        barInput.dataset.cw = String(controlW);
-        barInput.dataset.y = String(y);
-        positionBarInput();
-    }
+    centered(() => DrawTextFit(String(v), controlX + controlW + SOUND_GAP + BAR_VAL_W / 2, y + 33,
+        BAR_VAL_W, disabled ? 'Gray' : 'Black'));
 }
 
 /** 依目前 SEL_OFFSET~SEL_OFFSET+SEL_WIDTH 內的滑鼠位置算出 bar 的值（不檢查是否在列內）。 */
@@ -694,11 +603,6 @@ function barValueFromMouseX(def, layout) {
 
 /** 點擊 bar：點到哪就跳到哪一格（依 step 對齊）。整列 64 高都算，不必精準點在軌道上。 */
 function handleBarClick(key, def, layout) {
-    const valX = layout.controlX + layout.controlW + SOUND_GAP;
-    if (MouseIn(valX, layout.y, BAR_VAL_W, ITEM_H)) {
-        editBar(key, layout.y, layout.controlX, layout.controlW);
-        return;
-    }
     if (!MouseIn(layout.controlX, layout.y, layout.controlW, ITEM_H)) return;
     const next = barValueFromMouseX(def, layout);
     if (next !== fSettings[key]) { setFeature(key, next); }

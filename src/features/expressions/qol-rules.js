@@ -143,7 +143,10 @@ export function echoActivity(data) {
         name = content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
     }
 
+    const texts = !isActivity ? dict.map(d => d.Text).filter(t => typeof t === 'string') : [];
     const known = knownEchoNames.has(name);
+    name = [name, ...texts].filter(Boolean).join(' ');
+
     const custom = !isActivity || known || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
         || /Luzi_/i.test(nameEntry?.ActivityName || labelEntry?.Text || '');
 
