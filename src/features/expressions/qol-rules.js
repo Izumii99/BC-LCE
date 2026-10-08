@@ -143,15 +143,10 @@ export function echoActivity(data) {
         name = content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
     }
 
-    const texts = dict.map(d => d.Text).filter(t => typeof t === 'string');
-    if (isActivity && typeof ActivityDictionaryText === 'function' && content) {
-        texts.push(ActivityDictionaryText(content));
-    }
     const known = knownEchoNames.has(name);
-    name = [name, ...texts].filter(Boolean).join(' ');
-
     const custom = !isActivity || known || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
         || /Luzi_/i.test(nameEntry?.ActivityName || labelEntry?.Text || '');
+
     if (isActivity && !custom) return null;
     
     return { name, group: /^Chat(?:Other|Self)-([^-]+)-/.exec(content)?.[1], custom };
@@ -172,9 +167,9 @@ export function echoExpressionEvent(data, memberNumber) {
 export function echoSound(data) {
     const activity = echoActivity(data);
     if (!activity) return null;
-    if (/(?:\bWhip\b|鞭打)/i.test(activity.name)) return 'WhipCrack';
-    if (/(?:\b(?:Spank|Slap|Flick|Bap)\b|拍打|打屁股|轻拍|轻弹|扇耳光)/i.test(activity.name)) return 'SpankSkin';
-    if (/(?:\bPinch\b|掐|拧)/i.test(activity.name)) return 'LeatherStretchingShort';
-    if (/\bhit(?:s|ting)?\b/i.test(activity.name)) return 'SmackCrop';
+    if (/(?<![a-z])(?:whip|鞭打)(?![a-z])/i.test(activity.name)) return 'WhipCrack';
+    if (/(?<![a-z])(?:spank|slap|flick|bap)(?:s|ped|ping)?(?![a-z])/i.test(activity.name) || /(?:拍打|打屁股|轻拍|轻弹|扇耳光)/.test(activity.name)) return 'SpankSkin';
+    if (/(?<![a-z])(?:pinch|掐|拧)(?![a-z])/i.test(activity.name)) return 'LeatherStretchingShort';
+    if (/(?<![a-z])hit(?:s|ting)?(?![a-z])/i.test(activity.name)) return 'SmackCrop';
     return null;
 }

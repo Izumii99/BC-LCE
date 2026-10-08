@@ -127,6 +127,51 @@ test('Echo bridge recognizes canonical names, filters uninvolved players and non
     assert.equal(echoSound(packet('Spank', 'ItemButt')), null, 'native activity stays native');
 });
 
+test('Echo bridge custom sound regex matching', () => {
+    // Should match Luzi_* exact identifiers
+    assert.equal(echoSound(packet('Luzi_Slap')), 'SpankSkin');
+    assert.equal(echoSound(packet('Luzi_Hit')), 'SmackCrop');
+    assert.equal(echoSound(packet('Luzi_Whip')), 'WhipCrack');
+    assert.equal(echoSound(packet('Luzi_Pinch')), 'LeatherStretchingShort');
+    assert.equal(echoSound(packet('Luzi_Bap')), 'SpankSkin');
+    assert.equal(echoSound(packet('Luzi_Flick')), 'SpankSkin');
+
+    // Negatives
+    assert.equal(echoSound(packet('baptizes you')), null);
+    assert.equal(echoSound(packet('flicker the lights')), null);
+    assert.equal(echoSound(packet('whipped cream')), null);
+    assert.equal(echoSound(packet('hit the snooze button')), null);
+    assert.equal(echoSound(packet('is hitting the gym')), null);
+
+    // Dictionary text should not contaminate matching
+    assert.equal(echoSound({
+        Type: 'Activity', Content: 'ChatOther-ItemTorso-Luzi_Hug', Sender: 2,
+        Dictionary: [{ TargetCharacter: 1 }, { Tag: 'SourceCharacter', Text: 'Slap' }]
+    }), null);
+});
+
+test('Animal animation triggers', async () => {
+    const rt = runtime({ globals: { window: { location: { href: 'http://localhost' } } } });
+    const { getAnimTypeFromMsg } = await rt.load('src/features/animal-animations.js');
+
+    // Exact forms should trigger
+    assert.equal(getAnimTypeFromMsg('*wag*'), 'Tails');
+    assert.equal(getAnimTypeFromMsg('*wags*'), 'Tails');
+    assert.equal(getAnimTypeFromMsg('*flap*'), 'Wings');
+    assert.equal(getAnimTypeFromMsg('*flaps*'), 'Wings');
+    assert.equal(getAnimTypeFromMsg('*wiggle*'), 'Ears');
+    assert.equal(getAnimTypeFromMsg('*twitch*'), 'Ears');
+
+    // Sentences containing the word should not trigger
+    assert.equal(getAnimTypeFromMsg('*please wag*'), null);
+    assert.equal(getAnimTypeFromMsg("*doesn't wag*"), null);
+    assert.equal(getAnimTypeFromMsg('*he wags his tail*'), null);
+
+    // Non-emotes should not trigger
+    assert.equal(getAnimTypeFromMsg('wag'), null);
+    assert.equal(getAnimTypeFromMsg('wags'), null);
+});
+
 async function fixture({ responsive = false } = {}) {
     const events = [], restored = [], cancelled = [], buttons = [], settled = [], timers = [];
     let tick, ready = true, responsiveConsumer;

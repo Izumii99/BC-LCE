@@ -33,8 +33,10 @@ function startRender(char, type, state1, state2, delay, cycles) {
         if (!currentItem) return;
         originalState = {
             Name: currentItem.Asset.Name,
-            Color: currentItem.Color,
-            Property: currentItem.Property ? structuredClone(currentItem.Property) : undefined
+            Color: Array.isArray(currentItem.Color) ? structuredClone(currentItem.Color) : currentItem.Color,
+            Property: currentItem.Property ? structuredClone(currentItem.Property) : undefined,
+            Craft: currentItem.Craft ? structuredClone(currentItem.Craft) : undefined,
+            Difficulty: currentItem.Difficulty
         };
     }
     
@@ -52,8 +54,10 @@ function startRender(char, type, state1, state2, delay, cycles) {
 
         if (i >= cycles) {
             const item = globalThis.InventoryWear(char, originalState.Name, slot, originalState.Color, undefined, undefined, undefined, false);
-            if (item && originalState.Property) {
-                item.Property = structuredClone(originalState.Property);
+            if (item) {
+                if (originalState.Property) item.Property = structuredClone(originalState.Property);
+                if (originalState.Craft) item.Craft = structuredClone(originalState.Craft);
+                if (originalState.Difficulty !== undefined) item.Difficulty = originalState.Difficulty;
             }
             refreshCharacter(char);
             renderers.delete(id + type);
@@ -116,13 +120,13 @@ function triggerAnimation(type, localOnly = false) {
 }
 
 // Chat intercept for *wag*, *flap*, *wiggle*
-function getAnimTypeFromMsg(msg) {
+export function getAnimTypeFromMsg(msg) {
     if (!msg || typeof msg !== 'string') return null;
     if (!msg.startsWith('*') || !msg.endsWith('*')) return null;
     const content = msg.slice(1, -1).toLowerCase().trim();
-    if (/\b(?:wag|wags)\b/.test(content)) return 'Tails';
-    if (/\b(?:flap|flaps)\b/.test(content)) return 'Wings';
-    if (/\b(?:wiggle|wiggles|twitch|twitches)\b/.test(content)) return 'Ears';
+    if (/^(?:wag|wags)$/.test(content)) return 'Tails';
+    if (/^(?:flap|flaps)$/.test(content)) return 'Wings';
+    if (/^(?:wiggle|wiggles|twitch|twitches)$/.test(content)) return 'Ears';
     return null;
 }
 
@@ -164,10 +168,13 @@ export function onAnimalMessage(data) {
     
     const buildState = s => {
         if (!s || typeof s !== 'object' || typeof s.Name !== 'string') return null;
+        let color = s.Color;
+        if (!['string', 'undefined'].includes(typeof color) && !Array.isArray(color)) color = 'Default';
+        if (Array.isArray(color)) color = color.filter(c => typeof c === 'string');
         return {
             Name: s.Name,
-            Color: s.Color,
-            Property: s.Property && typeof s.Property === 'object' && s.Property.Type ? { Type: s.Property.Type } : undefined
+            Color: color,
+            Property: s.Property && typeof s.Property === 'object' && typeof s.Property.Type === 'string' && s.Property.Type.length < 50 ? { Type: s.Property.Type } : undefined
         };
     };
 
