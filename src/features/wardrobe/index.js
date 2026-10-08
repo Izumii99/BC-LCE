@@ -136,6 +136,25 @@ export function installWardrobe() {
         return C;
     });
 
+    hook('CharacterAppearanceRestore', 10, (args, next) => {
+        const [C, Bundle] = args;
+        const ret = next(args); // Native function clears and rebuilds C.Appearance
+        if (!Bundle || !C?.Appearance) return ret;
+        // 把存檔 Bundle 裡的額外屬性，塞回到重建好的 C.Appearance
+        for (let i = 0; i < Bundle.length; i++) {
+            const savedItem = Bundle[i];
+            const builtItem = C.Appearance.find(a => a.Asset.Name === savedItem.Name && a.Asset.Group.Name === savedItem.Group);
+            if (!savedItem || !builtItem) continue;
+            for (const key of Object.keys(savedItem)) {
+                if (key !== 'Name' && key !== 'Group' && key !== 'Color' && key !== 'Property' && key !== 'Craft') {
+                    builtItem[key] = savedItem[key];
+                }
+            }
+        }
+        CharacterRefresh(C);
+        return ret;
+    });
+
     // ── 角色預覽衣櫃：把 Appearance 的衣櫃導向 Wardrobe 畫面 ──
     hook('CharacterAppearanceWardrobeLoad', 20, (args, next) => {
         if (hasNativeWardrobe()) return next(args);
