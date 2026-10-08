@@ -143,19 +143,25 @@ export function echoActivity(data) {
         else name = content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
     }
 
-    const untaggedTexts = dict.filter(d => typeof d.Text === 'string' && !d.Tag).map(d => d.Text);
-    const known = knownEchoNames.has(name);
-    name = [name, ...untaggedTexts].filter(Boolean).join(' ');
+    const markerTag = `MISSING TEXT IN "ActivityDictionary.csv": ${content}`;
+    const markerEntry = isActivity
+        ? dict.find(d => d?.Tag === markerTag && typeof d.Text === 'string')
+        : null;
 
-    const custom = !isActivity || untaggedTexts.length > 0 || known || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
+    const known = knownEchoNames.has(name);
+    name = [name, markerEntry?.Text].filter(Boolean).join(' ');
+
+    const custom = !isActivity || !!markerEntry || known || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
         || /Luzi_/i.test(nameEntry?.ActivityName || labelEntry?.Text || '');
+
+    if (isActivity && !custom) return null;
 
     return { name, group: /^Chat(?:Other|Self)-([^-]+)-/.exec(content)?.[1], custom };
 }
 
 export function echoExpressionEvent(data, memberNumber) {
     const activity = echoActivity(data);
-    if (!activity || (data?.Type === 'Activity' && !activity.custom)) return null;
+    if (!activity) return null;
     const event = mappings.find(([, pattern]) => pattern.test(activity.name))?.[0];
     if (!event) return null;
     if (['LongKiss', 'KissOnLips'].includes(event) && activity.group !== 'ItemMouth') return null;

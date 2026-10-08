@@ -124,7 +124,7 @@ test('Echo bridge recognizes canonical names, filters uninvolved players and non
     assert.equal(echoExpressionEvent(packet('轻弹额头', 'ItemHead', 1, 2), 1), null);
     assert.equal(echoExpressionEvent(packet('舔手', 'ItemHands', 2, 3), 1), null);
     assert.equal(echoSound(packet('轻弹额头', 'ItemHead')), 'SpankSkin');
-    assert.equal(echoSound(packet('Spank', 'ItemButt')), 'SpankSkin', 'fallback sound generated for all activities');
+    assert.equal(echoSound(packet('Spank', 'ItemButt')), null, 'native activity stays native');
 });
 
 test('Echo bridge custom sound regex matching', () => {
@@ -140,13 +140,41 @@ test('Echo bridge custom sound regex matching', () => {
     assert.equal(echoSound(packet('baptizes you')), null);
     assert.equal(echoSound(packet('flicker the lights')), null);
     assert.equal(echoSound(packet('whipped cream')), null);
-    assert.equal(echoSound(packet('hit the snooze button')), 'SmackCrop');
-    assert.equal(echoSound(packet('is hitting the gym')), 'SmackCrop');
+    
+    // Free-text Emote/Action is accepted (best-effort matching)
+    assert.equal(echoSound({ Type: 'Emote', Content: 'hit the snooze button' }), 'SmackCrop');
+    assert.equal(echoSound({ Type: 'Emote', Content: 'is hitting the gym' }), 'SmackCrop');
 
     // Dictionary text should not contaminate matching
     assert.equal(echoSound({
         Type: 'Activity', Content: 'ChatOther-ItemTorso-Luzi_Hug', Sender: 2,
         Dictionary: [{ TargetCharacter: 1 }, { Tag: 'SourceCharacter', Text: 'Slap' }]
+    }), null);
+
+    // Echo Activity Extension custom packets
+    const echoPacket = (name, content, text) => ({
+        Type: 'Activity', Content: content, Sender: 2,
+        Dictionary: [
+            { TargetCharacter: 1 },
+            { Tag: `MISSING TEXT IN "ActivityDictionary.csv": ${content}`, Text: text }
+        ],
+    });
+
+    // Built-in Echo activity (not in knownEchoNames)
+    assert.equal(echoSound(echoPacket('舔液体', 'ChatOther-ItemMouth-舔液体', 'licks')), null);
+    assert.equal(echoExpressionEvent(echoPacket('舔液体', 'ChatOther-ItemMouth-舔液体', 'licks'), 1), 'Lick');
+    
+    // User-created hash-name cases
+    assert.equal(echoSound(echoPacket('笨蛋笨Luzi_k3x9a', 'ChatOther-ItemMouth-笨蛋笨Luzi_k3x9a', '...slaps...')), 'SpankSkin');
+    assert.equal(echoExpressionEvent(echoPacket('笨蛋笨Luzi_k3x9a', 'ChatOther-ItemMouth-笨蛋笨Luzi_k3x9a', '...slaps...'), 1), 'Spank');
+    
+    assert.equal(echoSound(echoPacket('笨蛋笨Luzi_q7m2z', 'ChatOther-ItemMouth-笨蛋笨Luzi_q7m2z', '...licks...')), null);
+    assert.equal(echoExpressionEvent(echoPacket('笨蛋笨Luzi_q7m2z', 'ChatOther-ItemMouth-笨蛋笨Luzi_q7m2z', '...licks...'), 1), 'Lick');
+    
+    // Malformed marker tag for a different Content
+    assert.equal(echoSound({
+        Type: 'Activity', Content: 'ChatOther-ItemMouth-Fake', Sender: 2,
+        Dictionary: [{ Tag: `MISSING TEXT IN "ActivityDictionary.csv": OtherContent`, Text: 'slap' }],
     }), null);
 });
 
