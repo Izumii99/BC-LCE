@@ -180,9 +180,9 @@ export function echoSound(data) {
     // Separate camelCase names (e.g. 'CustomSlap' -> 'Custom Slap') so boundary checks work
     const testName = activity.name.replace(/([a-z])([A-Z])/g, '$1 $2');
     
-    if (/(?<![a-z])(?:whip|鞭打)(?![a-z])/i.test(testName)) return 'WhipCrack';
-    if (/(?<![a-z])(?:spank|slap|flick|bap)(?:s|ped|ping)?(?![a-z])/i.test(testName) || /(?:拍打|打屁股|轻拍|轻弹|扇耳光)/.test(testName)) return 'SpankSkin';
-    if (/(?<![a-z])(?:pinch|掐|拧)(?![a-z])/i.test(testName)) return 'LeatherStretchingShort';
-    if (/(?<![a-z])hit(?:s|ting)?(?![a-z])/i.test(testName)) return 'SmackCrop';
+    if (/(?:^|[^a-z])(?:whip|鞭打)(?![a-z])/i.test(testName)) return 'WhipCrack';
+    if (/(?:^|[^a-z])(?:spank|slap|flick|bap)(?:s|ped|ping)?(?![a-z])/i.test(testName) || /(?:拍打|打屁股|轻拍|轻弹|扇耳光)/.test(testName)) return 'SpankSkin';
+    if (/(?:^|[^a-z])(?:pinch|掐|拧)(?![a-z])/i.test(testName)) return 'LeatherStretchingShort';
+    if (/(?:^|[^a-z])hit(?:s|ting)?(?![a-z])/i.test(testName)) return 'SmackCrop';
     return null;
 }

@@ -16,7 +16,7 @@ function refreshCharacter(char) {
     if (typeof CharacterRefresh === 'function') CharacterRefresh(char, false, false);
 }
 
-function applyState(char, slot, state) {
+function applyState(char, slot, state, managedRootKeys, managedPropertyKeys) {
     let item = char.Appearance.find(i => i.Asset.Group.Name === slot);
     if (!item || item.Asset.Name !== state.Name) {
         item = globalThis.InventoryWear(char, state.Name, slot, state.Color, undefined, undefined, undefined, false);
@@ -25,10 +25,23 @@ function applyState(char, slot, state) {
         item.Color = Array.isArray(state.Color) ? structuredClone(state.Color) : state.Color;
     }
     
+    if (managedRootKeys) {
+        for (const key of managedRootKeys) {
+            if (['Name', 'Color', 'Asset'].includes(key)) continue;
+            if (!(key in state)) delete item[key];
+        }
+    }
+    
+    if (managedPropertyKeys && item.Property) {
+        for (const key of managedPropertyKeys) {
+            if (!state.Property || !(key in state.Property)) delete item.Property[key];
+        }
+    }
+    
     for (const key of Object.keys(state)) {
         if (['Name', 'Color'].includes(key)) continue;
         if (key === 'Property' && item.Property) {
-            item.Property = Object.assign({}, item.Property, structuredClone(state[key]));
+            item.Property = Object.assign(item.Property, structuredClone(state[key]));
         } else {
             item[key] = structuredClone(state[key]);
         }
@@ -57,6 +70,13 @@ function startRender(char, type, state1, state2, delay, cycles) {
         }
     }
     
+    const managedRootKeys = new Set([...Object.keys(originalState), ...Object.keys(state1), ...Object.keys(state2)]);
+    const managedPropertyKeys = new Set([
+        ...Object.keys(originalState.Property || {}),
+        ...Object.keys(state1.Property || {}),
+        ...Object.keys(state2.Property || {})
+    ]);
+    
     const states = [state2, state1];
     let i = 0;
     
@@ -75,14 +95,14 @@ function startRender(char, type, state1, state2, delay, cycles) {
         }
 
         if (i >= cycles * 2) {
-            applyState(char, slot, originalState);
+            applyState(char, slot, originalState, managedRootKeys, managedPropertyKeys);
             refreshCharacter(char);
             renderers.delete(id + type);
             return;
         }
         
         const state = states[i % 2];
-        applyState(char, slot, state);
+        applyState(char, slot, state, managedRootKeys, managedPropertyKeys);
         
         refreshCharacter(char);
         
@@ -110,14 +130,14 @@ function triggerAnimation(type, localOnly = false) {
     
     const cycleFeature = getFeature(`animal${type}Cycles`);
     let cycles = Math.max(1, Math.min(40, (cycleFeature != null ? Math.ceil(cycleFeature / 2) : (type === 'Wings' ? 3 : 9))));
-    let delay = Math.max(10, Math.min(2000, getFeature(`animal${type}Delay`) || 250));
+    let delay = Math.max(100, Math.min(2000, getFeature(`animal${type}Delay`) || 250));
     
     // Randomize cycles (+/- 1) and delay (+/- 20ms) for a more natural, less rigid feel
     const cyclesVary = 1;
     cycles = Math.max(1, Math.min(40, cycles - cyclesVary + Math.floor(Math.random() * (cyclesVary * 2 + 1))));
     
     const delayVary = 20;
-    delay = Math.max(10, Math.min(2000, delay - delayVary + Math.floor(Math.random() * (delayVary * 2 + 1))));
+    delay = Math.max(100, Math.min(2000, delay - delayVary + Math.floor(Math.random() * (delayVary * 2 + 1))));
     
     // Animate locally for ourselves
     startRender(player, type, state1, state2, delay, cycles);
@@ -185,7 +205,7 @@ export function onAnimalMessage(data) {
     const char = (globalThis.ChatRoomCharacter ?? []).find(c => c.MemberNumber === id);
     if (!char) return;
     
-    const delay = Number.isFinite(dict.delay) ? Math.max(10, Math.min(2000, dict.delay)) : 250;
+    const delay = Number.isFinite(dict.delay) ? Math.max(100, Math.min(2000, dict.delay)) : 250;
     const cycles = Number.isFinite(dict.cycles) ? Math.max(1, Math.min(40, dict.cycles)) : 2;
     
     const buildState = s => {
