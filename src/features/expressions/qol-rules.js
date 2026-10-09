@@ -46,7 +46,7 @@ export function emoticonExpression(text) {
         let strippedMarks = '';
 
         if (!match) {
-            const markMatch = baseToken.match(/([?!#~;'"]+)$/);
+            const markMatch = baseToken.match(/([?!#~;'",.]+)$/);
             if (markMatch) {
                 strippedMarks = markMatch[1];
                 baseToken = baseToken.slice(0, -strippedMarks.length);
