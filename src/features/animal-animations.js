@@ -250,19 +250,6 @@ export function installAnimalAnimations() {
         catch { /* ignore */ }
     })();
 
-    // Intercept manual chat triggers
-    hook('ServerSend', 10, (args, next) => {
-        const [kind, data] = args;
-        if (kind === 'ChatRoomChat' && ['Chat', 'Emote', 'Action'].includes(data?.Type)) {
-            const type = getAnimTypeFromMsg(data.Content);
-            if (type && getFeature(`animal${type}`)) {
-                triggerAnimation(type);
-                lastTriggers[type] = Date.now(); // reset auto interval
-            }
-        }
-        return next(args);
-    });
-
     if (!autoTriggerInterval) {
         autoTriggerInterval = setInterval(checkTriggers, 1000);
     }
