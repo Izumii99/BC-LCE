@@ -47,7 +47,6 @@ export const WCE_OVERLAPS = Object.freeze({
     augmentChat: 'augmentChat',
     richOnlineProfile: 'richOnlineProfile',
     extendedWardrobe: 'extendedWardrobe',
-    privateWardrobe: 'privateWardrobe',
     confirmWardrobeSave: 'confirmWardrobeSave',
     customContentDomainCheck: 'customContentDomainCheck',
     relogin: 'relogin',

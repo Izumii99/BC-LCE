@@ -46,7 +46,7 @@ export function emoticonExpression(text) {
         let strippedMarks = '';
 
         if (!match) {
-            const markMatch = baseToken.match(/([?!#~;'"]+)$/);
+            const markMatch = baseToken.match(/([?!#~;'",.]+)$/);
             if (markMatch) {
                 strippedMarks = markMatch[1];
                 baseToken = baseToken.slice(0, -strippedMarks.length);
@@ -128,18 +128,37 @@ export function emoticonDuration(text) {
     return Math.min(Math.max(duration, DEFAULT_EMOTICON_DURATION), MAX_SLASH_EMOTICON_DURATION);
 }
 
-function echoActivity(data) {
-    if (data?.Type !== 'Activity') return null;
+export function echoActivity(data) {
+    if (data?.Type !== 'Activity' && data?.Type !== 'Emote' && data?.Type !== 'Action') return null;
     const dict = Array.isArray(data.Dictionary) ? data.Dictionary : [];
     const content = typeof data.Content === 'string' ? data.Content : '';
+    
     const nameEntry = dict.find(d => typeof d.ActivityName === 'string');
     const labelEntry = dict.find(d => d.Tag === 'ActivityName' && typeof d.Text === 'string');
-    const name = nameEntry?.ActivityName || labelEntry?.Text?.replace(/^Activity/, '')
-        || content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
-    const custom = knownEchoNames.has(name) || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
+    let name = nameEntry?.ActivityName || labelEntry?.Text?.replace(/^Activity/, '');
+    
+    const isActivity = data?.Type === 'Activity';
+    if (!name) {
+        if (!isActivity) name = content;
+        else name = content.replace(/^Chat(?:Other|Self)-[^-]+-/, '');
+    }
+
+    const markerTag = `MISSING TEXT IN "ActivityDictionary.csv": ${content}`;
+    const markerEntry = isActivity
+        ? dict.find(d => d?.Tag === markerTag && typeof d.Text === 'string')
+        : null;
+
+    const known = knownEchoNames.has(name);
+    name = [name, markerEntry?.Text].filter(Boolean).join(' ');
+
+    // Legacy fallbacks: older versions and specific mods use known names or the Luzi_ prefix 
+    // without the missing-text marker. Retained for backwards compatibility.
+    const custom = !isActivity || !!markerEntry || known || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
         || /Luzi_/i.test(nameEntry?.ActivityName || labelEntry?.Text || '');
-    if (!custom) return null;
-    return { name, group: /^Chat(?:Other|Self)-([^-]+)-/.exec(content)?.[1] };
+
+    if (isActivity && !custom) return null;
+
+    return { name, group: /^Chat(?:Other|Self)-([^-]+)-/.exec(content)?.[1], custom };
 }
 
 export function echoExpressionEvent(data, memberNumber) {
@@ -157,9 +176,13 @@ export function echoExpressionEvent(data, memberNumber) {
 export function echoSound(data) {
     const activity = echoActivity(data);
     if (!activity) return null;
-    if (/Whip|鞭打/i.test(activity.name)) return 'WhipCrack';
-    if (/拍打|打屁股|轻拍|轻弹|扇耳光|Spank|Slap|Flick|Bap/i.test(activity.name)) return 'SpankSkin';
-    if (/Pinch|掐|拧/i.test(activity.name)) return 'LeatherStretchingShort';
-    if (/(?:^|_)Hit(?:$|_)/i.test(activity.name)) return 'SmackCrop';
+    
+    // Separate camelCase names (e.g. 'CustomSlap' -> 'Custom Slap') so boundary checks work
+    const testName = activity.name.replace(/([a-z])([A-Z])/g, '$1 $2');
+    
+    if (/(?:^|[^a-z])(?:whip|鞭打)(?![a-z])/i.test(testName)) return 'WhipCrack';
+    if (/(?:^|[^a-z])(?:spank|slap|flick|bap)(?:s|ped|ping)?(?![a-z])/i.test(testName) || /(?:拍打|打屁股|轻拍|轻弹|扇耳光)/.test(testName)) return 'SpankSkin';
+    if (/(?:^|[^a-z])(?:pinch|掐|拧)(?![a-z])/i.test(testName)) return 'LeatherStretchingShort';
+    if (/(?:^|[^a-z])hit(?:s|ting)?(?![a-z])/i.test(testName)) return 'SmackCrop';
     return null;
 }

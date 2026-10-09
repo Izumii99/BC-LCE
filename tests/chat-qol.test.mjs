@@ -127,6 +127,91 @@ test('Echo bridge recognizes canonical names, filters uninvolved players and non
     assert.equal(echoSound(packet('Spank', 'ItemButt')), null, 'native activity stays native');
 });
 
+test('Echo bridge custom sound regex matching', () => {
+    // Should match Luzi_* exact identifiers
+    assert.equal(echoSound(packet('Luzi_Slap')), 'SpankSkin');
+    assert.equal(echoSound(packet('Luzi_Hit')), 'SmackCrop');
+    assert.equal(echoSound(packet('Luzi_Whip')), 'WhipCrack');
+    assert.equal(echoSound(packet('Luzi_Pinch')), 'LeatherStretchingShort');
+    assert.equal(echoSound(packet('Luzi_Bap')), 'SpankSkin');
+    assert.equal(echoSound(packet('Luzi_Flick')), 'SpankSkin');
+
+    // Negatives
+    assert.equal(echoSound(packet('baptizes you')), null);
+    assert.equal(echoSound(packet('flicker the lights')), null);
+    assert.equal(echoSound(packet('whipped cream')), null);
+    
+    // Free-text Emote/Action is accepted (best-effort matching)
+    assert.equal(echoSound({ Type: 'Emote', Content: 'hit the snooze button' }), 'SmackCrop');
+    assert.equal(echoSound({ Type: 'Emote', Content: 'is hitting the gym' }), 'SmackCrop');
+
+    // Dictionary text should not contaminate matching
+    assert.equal(echoSound({
+        Type: 'Activity', Content: 'ChatOther-ItemTorso-Luzi_Hug', Sender: 2,
+        Dictionary: [{ TargetCharacter: 1 }, { Tag: 'SourceCharacter', Text: 'Slap' }]
+    }), null);
+
+    // Echo Activity Extension custom packets
+    const echoPacket = (name, content, text) => ({
+        Type: 'Activity', Content: content, Sender: 2,
+        Dictionary: [
+            { TargetCharacter: 1 },
+            { Tag: `MISSING TEXT IN "ActivityDictionary.csv": ${content}`, Text: text }
+        ],
+    });
+
+    // Built-in Echo activity (not in knownEchoNames)
+    assert.equal(echoSound(echoPacket('舔液体', 'ChatOther-ItemMouth-舔液体', 'licks')), null);
+    assert.equal(echoExpressionEvent(echoPacket('舔液体', 'ChatOther-ItemMouth-舔液体', 'licks'), 1), 'Lick');
+    
+    // User-created hash-name cases (pure marker path, no Luzi_ fallback)
+    assert.equal(echoSound(echoPacket('笨蛋笨Custom_k3x9a', 'ChatOther-ItemMouth-笨蛋笨Custom_k3x9a', '...slaps...')), 'SpankSkin');
+    assert.equal(echoExpressionEvent(echoPacket('笨蛋笨Custom_k3x9a', 'ChatOther-ItemMouth-笨蛋笨Custom_k3x9a', '...slaps...'), 1), 'Spank');
+    
+    assert.equal(echoSound(echoPacket('笨蛋笨Custom_q7m2z', 'ChatOther-ItemMouth-笨蛋笨Custom_q7m2z', '...licks...')), null);
+    assert.equal(echoExpressionEvent(echoPacket('笨蛋笨Custom_q7m2z', 'ChatOther-ItemMouth-笨蛋笨Custom_q7m2z', '...licks...'), 1), 'Lick');
+    
+    // Legacy fallback cases without a marker (testing backwards compatibility)
+    const legacyPacket = (content, text) => ({
+        Type: 'Activity', Content: content, Sender: 2,
+        Dictionary: [
+            { TargetCharacter: 1 },
+            { Tag: 'ActivityName', Text: text }
+        ],
+    });
+    
+    assert.equal(echoSound(legacyPacket('ChatOther-ItemMouth-Luzi_TestSlap', '...slaps...')), 'SpankSkin');
+    assert.equal(echoExpressionEvent(legacyPacket('ChatOther-ItemMouth-Luzi_TestKiss', '...kisses...'), 1), 'KissOnLips');
+
+    // Malformed marker tag for a different Content
+    assert.equal(echoSound({
+        Type: 'Activity', Content: 'ChatOther-ItemMouth-Fake', Sender: 2,
+        Dictionary: [{ Tag: `MISSING TEXT IN "ActivityDictionary.csv": OtherContent`, Text: 'slap' }],
+    }), null);
+});
+
+test('Animal animation triggers', async () => {
+    const rt = runtime({ globals: { window: { location: { href: 'http://localhost' } } } });
+    const { getAnimTypeFromMsg } = await rt.load('src/features/animal-animations.js');
+
+    // Exact forms should trigger
+    assert.equal(getAnimTypeFromMsg('*wag*'), 'Tails');
+    assert.equal(getAnimTypeFromMsg('*wags*'), 'Tails');
+    assert.equal(getAnimTypeFromMsg('*flap*'), 'Wings');
+    assert.equal(getAnimTypeFromMsg('*flaps*'), 'Wings');
+    assert.equal(getAnimTypeFromMsg('*wiggle*'), 'Ears');
+    assert.equal(getAnimTypeFromMsg('*twitch*'), 'Ears');
+
+    // Sentences containing the word should not trigger
+    assert.equal(getAnimTypeFromMsg('*please wag*'), null);
+    assert.equal(getAnimTypeFromMsg("*doesn't wag*"), null);
+    assert.equal(getAnimTypeFromMsg('*he wags his tail*'), null);
+
+    // Non-emotes should not trigger
+    assert.equal(getAnimTypeFromMsg('wag'), null);
+    assert.equal(getAnimTypeFromMsg('wags'), null);
+});
+
 async function fixture({ responsive = false } = {}) {
     const events = [], restored = [], cancelled = [], buttons = [], settled = [], timers = [];
     let tick, ready = true, responsiveConsumer;

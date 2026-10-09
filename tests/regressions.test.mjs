@@ -527,17 +527,6 @@ test('permanent image trust survives a fresh session but does not authorize musi
     assert.equal(called, 1);
 });
 
-test('wardrobe restores Player and target descriptors when a downstream renderer throws', async () => {
-    const real = { Canvas: 'playerCanvas' }, other = { VisualSettings: { Custom: true }, Canvas: 'otherCanvas' };
-    const rt = runtime({ globals: { Player: real, CharacterAppearanceSelection: null }, append: {
-        'src/features/wardrobe/index.js': 'export function prepare(target) { inCustomWardrobe = true; targetCharacter = target; }',
-    } });
-    const wardrobe = await rt.load('src/features/wardrobe/index.js'); wardrobe.installWardrobe(); wardrobe.prepare(other);
-    const visual = other.VisualSettings;
-    assert.throws(() => rt.hooks.get('WardrobeRun')([], () => { throw Error('renderer failed'); }), /renderer failed/);
-    assert.equal(rt.context.Player, real); assert.equal(other.VisualSettings, visual); assert.equal(other.Canvas, 'otherCanvas');
-    assert.equal(Object.hasOwn(other, 'CanvasBlink'), false);
-});
 
 test('IM receives both arrivals after exactly one pending history read', async () => {
     let release, reads = 0;

@@ -15,7 +15,7 @@ export const CANVAS_H = 1000;
 
 // 資源基底 URL（用於載入背景圖）
 export const BASE_URL = (() => {
-    const href = window.location.href;
+    const href = globalThis.window?.location?.href || 'http://localhost/';
     return href.includes('/') ? href.slice(0, href.lastIndexOf('/') + 1) : href + '/';
 })();
 
