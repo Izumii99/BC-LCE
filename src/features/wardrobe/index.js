@@ -22,10 +22,7 @@ const EXPANDED_WARDROBE_SIZE = 96;
 const WARDROBE_KEY = 'FBCWardrobe';      // 與 WCE 相同（勿改，否則資料不互通）
 
 let extendedLoaded = false;
-let inCustomWardrobe = false;
-let targetCharacter = null;
-let appearanceBackup = null;
-let excludeBodyparts = false;
+
 let nativeSaveConfirmationDepth = 0;
 
 // R132 owns the target character, return screen, previews and body checkbox.
@@ -89,9 +86,6 @@ export async function loadExtendedWardrobe(wardrobe, init = false) {
     return wardrobe;
 }
 
-// ───────────────────────── 角色預覽衣櫃 ─────────────────────────
-const targetIsPlayer = () =>
-    (inCustomWardrobe && targetCharacter?.IsPlayer()) || CharacterAppearanceSelection?.IsPlayer();
 
 let installed = false;
 
@@ -115,149 +109,7 @@ export function installWardrobe() {
         return next([wardrobe]);
     });
 
-    // ── 相容性修補：保留 BCAR 等模組加在服裝上的額外屬性 (Resize, Rotate, Layer 等) ──
-    hook('CharacterAppearanceStringify', 10, (args, next) => {
-        const [Appearance] = args;
-        const C = next(args);
-        // 將原版丟棄的額外屬性補回
-        for (let i = 0; i < Appearance.length; i++) {
-            const sourceItem = Appearance[i];
-            const destItem = C[i];
-            if (!sourceItem || !destItem) continue;
-            for (const key of Object.keys(sourceItem)) {
-                // 排除內建標準欄位、Asset 物件、函數等不能序列化的東西
-                if (key !== 'Asset' && key !== 'Model' && key !== 'Name' && key !== 'Group' && key !== 'Color' && key !== 'Property' && key !== 'Craft') {
-                    if (typeof sourceItem[key] !== 'function') {
-                        destItem[key] = sourceItem[key];
-                    }
-                }
-            }
-        }
-        return C;
-    });
 
-    hook('CharacterAppearanceRestore', 10, (args, next) => {
-        const [C, Bundle] = args;
-        const ret = next(args); // Native function clears and rebuilds C.Appearance
-        if (!Bundle || !C?.Appearance) return ret;
-        // 把存檔 Bundle 裡的額外屬性，塞回到重建好的 C.Appearance
-        for (let i = 0; i < Bundle.length; i++) {
-            const savedItem = Bundle[i];
-            const builtItem = C.Appearance.find(a => a.Asset.Name === savedItem.Name && a.Asset.Group.Name === savedItem.Group);
-            if (!savedItem || !builtItem) continue;
-            for (const key of Object.keys(savedItem)) {
-                if (key !== 'Name' && key !== 'Group' && key !== 'Color' && key !== 'Property' && key !== 'Craft') {
-                    builtItem[key] = savedItem[key];
-                }
-            }
-        }
-        CharacterRefresh(C);
-        return ret;
-    });
-
-    // ── 角色預覽衣櫃：把 Appearance 的衣櫃導向 Wardrobe 畫面 ──
-    hook('CharacterAppearanceWardrobeLoad', 20, (args, next) => {
-        if (hasNativeWardrobe()) return next(args);
-        const [C] = args;
-        if (shouldLceHandle('privateWardrobe') && CurrentScreen === 'Appearance') {
-            inCustomWardrobe = true;
-            targetCharacter = isCharacter(C) ? C : CharacterGetCurrent();
-            CommonSetScreen('Character', 'Wardrobe');
-            return null;
-        }
-        return next(args);
-    });
-
-    hook('WardrobeLoad', 10, (args, next) => {
-        if (!hasNativeWardrobe()) appearanceBackup = CharacterAppearanceBackup;
-        return next(args);
-    });
-    hook('AppearanceLoad', 10, (args, next) => {
-        const ret = next(args);
-        if (!hasNativeWardrobe() && inCustomWardrobe) CharacterAppearanceBackup = appearanceBackup;
-        return ret;
-    });
-
-    // 「載入時不含身體部位」的勾選框
-    hook('AppearanceRun', 10, (args, next) => {
-        if (hasNativeWardrobe()) return next(args);
-        if (CharacterAppearanceMode === 'Wardrobe' && targetIsPlayer()) {
-            DrawCheckbox(1300, 350, 64, 64, '', excludeBodyparts, false, 'white');
-            DrawTextFit(T('wardrobe_no_body'), 1374, 380, 630, 'white');
-        }
-        return next(args);
-    });
-    hook('AppearanceClick', 5, (args, next) => {
-        if (hasNativeWardrobe()) return next(args);
-        if (CharacterAppearanceMode === 'Wardrobe' && MouseIn(1300, 350, 64, 64) && targetIsPlayer()) {
-            excludeBodyparts = !excludeBodyparts;
-            return null;
-        }
-        return next(args);
-    });
-
-    // 繪製衣櫃時暫時把 Player 換成目標角色，讓預覽畫的是對方
-    hook('WardrobeRun', 10, (args, next) => {
-        if (hasNativeWardrobe()) return next(args);
-        const playerBackup = Player;
-        const target = inCustomWardrobe ? targetCharacter : null;
-        const keys = ['VisualSettings', 'Canvas', 'CanvasBlink'];
-        const saved = target && keys.map(key => [key, Object.getOwnPropertyDescriptor(target, key)]);
-        let ret;
-        try {
-            if (target) {
-                Player = target;
-                target.VisualSettings = { ...target.VisualSettings, ForceFullHeight: false };
-                target.Canvas = (CharacterAppearanceSelection ?? playerBackup).Canvas;
-                target.CanvasBlink = (CharacterAppearanceSelection ?? playerBackup).CanvasBlink;
-            }
-            ret = next(args);
-        } finally {
-            Player = playerBackup;
-            if (saved) for (const [key, descriptor] of saved) {
-                if (descriptor) Object.defineProperty(target, key, descriptor); else delete target[key];
-            }
-        }
-        DrawText(`${T('wardrobe_page')}: ${((WardrobeOffset / 12) | 0) + 1}/${WardrobeSize / 12}`, 300, 35, 'White');
-        DrawCheckbox(10, 74, 64, 64, '', excludeBodyparts, false, 'white');
-        DrawTextFit(T('wardrobe_exclude_body'), 84, 106, 300, 'white');
-        return ret;
-    });
-
-    hook('WardrobeClick', 5, (args, next) => {
-        if (hasNativeWardrobe()) return next(args);
-        if (MouseIn(10, 74, 64, 64)) { excludeBodyparts = !excludeBodyparts; return null; }
-        const ret = next(args);
-        // 翻到還沒載入的頁時補載入角色預覽
-        if (shouldLceHandle('privateWardrobe') && WardrobeOffset >= WardrobeCharacter.length
-            && (MouseIn(415, 25, 60, 60) || MouseIn(1000, 25, 60, 60))) {
-            WardrobeLoadCharacters(false);
-        }
-        return ret;
-    });
-
-    hook('WardrobeExit', 20, (args, next) => {
-        if (hasNativeWardrobe()) return next(args);
-        if (!inCustomWardrobe) return next(args);
-        CommonSetScreen('Character', 'Appearance');
-        inCustomWardrobe = false;
-        return null;
-    });
-
-    hook('WardrobeFastLoad', 20, (args, next) => {
-        if (hasNativeWardrobe()) return next(args);
-        let [C] = args;
-        const base = C?.Appearance?.filter(a => a.Asset.Group.IsDefault && !a.Asset.Group.Clothing) ?? [];
-        if (inCustomWardrobe && isCharacter(C) && C.IsPlayer() && targetCharacter) {
-            args[0] = targetCharacter; C = targetCharacter; args[2] = false;
-        }
-        const ret = next(args);
-        if (excludeBodyparts && C) {
-            C.Appearance = [...base, ...C.Appearance.filter(a => !a.Asset.Group.IsDefault || a.Asset.Group.Clothing)];
-            CharacterLoadCanvas(C);
-        }
-        return ret;
-    });
 
     // The DOM save action already confirms. Keep protection for direct callers
     // without asking twice or letting our cancellation fall through to rename.
@@ -272,7 +124,6 @@ export function installWardrobe() {
     // ── 覆蓋確認 ──
     hook('WardrobeFastSave', 20, (args, next) => {
         const [C] = args;
-        if (!hasNativeWardrobe() && inCustomWardrobe && isCharacter(C) && C.IsPlayer() && targetCharacter) args[0] = targetCharacter;
         // 該格已有內容（以 Pronouns 判斷存過檔）才問，空格不會被打擾
         if (!nativeSaveConfirmationDepth && shouldLceHandle('confirmWardrobeSave') && Player.Wardrobe?.length > args[1]
             && Player.Wardrobe[args[1]]?.some(a => a.Group === 'Pronouns')) {
@@ -281,15 +132,7 @@ export function installWardrobe() {
         return next(args);
     });
 
-    // 在自訂衣櫃裡仍視為在聊天室（否則 BC 會誤判而中斷）
-    hook('ServerPlayerIsInChatRoom', 10, (args, next) =>
-        (inCustomWardrobe && CharacterAppearanceReturnScreen?.[1] === 'ChatRoom') || next(args));
 
-    document.addEventListener('keydown', (e) => {
-        if (hasNativeWardrobe()) return;
-        if (!shouldLceHandle('privateWardrobe')) return;
-        if (e.key === 'Escape' && inCustomWardrobe) { WardrobeExit(); e.stopPropagation(); e.preventDefault(); }
-    }, true);
 
     // 拓展衣櫃：啟動時套用一次，並在設定被切換時即時套用。
     // （不能只在 install 時判斷一次 —— 這個設定預設是關的，那樣使用者打開後永遠不會生效）

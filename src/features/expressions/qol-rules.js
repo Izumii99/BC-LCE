@@ -151,6 +151,8 @@ export function echoActivity(data) {
     const known = knownEchoNames.has(name);
     name = [name, markerEntry?.Text].filter(Boolean).join(' ');
 
+    // Legacy fallbacks: older versions and specific mods use known names or the Luzi_ prefix 
+    // without the missing-text marker. Retained for backwards compatibility.
     const custom = !isActivity || !!markerEntry || known || /Luzi_/i.test(content) || dict.some(d => /Luzi_/i.test(d.Tag || ''))
         || /Luzi_/i.test(nameEntry?.ActivityName || labelEntry?.Text || '');
 

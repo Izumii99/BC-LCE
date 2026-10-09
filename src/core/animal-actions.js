@@ -17,9 +17,17 @@ export function saveAnimalPose(type, stateNum, draft) {
     
     const state = {
         Name: item.Asset.Name,
-        Color: item.Color, // Can be array or string
-        Property: item.Property && typeof item.Property === 'object' && item.Property.Type ? { Type: item.Property.Type } : undefined
+        Color: Array.isArray(item.Color) ? structuredClone(item.Color) : item.Color,
+        Property: item.Property ? structuredClone(item.Property) : undefined,
+        Craft: item.Craft ? structuredClone(item.Craft) : undefined,
+        Difficulty: item.Difficulty
     };
+    for (const key of Object.keys(item)) {
+        if (['Asset', 'Model', 'ModelLoad', 'Name', 'Color', 'Property', 'Craft', 'Difficulty'].includes(key)) continue;
+        if (typeof item[key] !== 'function') {
+            state[key] = structuredClone(item[key]);
+        }
+    }
     
     draft[`animal${type}State${stateNum}`] = state;
     return true;

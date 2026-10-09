@@ -20,32 +20,7 @@ async function wardrobeRuntime() {
     return { rt, player, wardrobeState, screens };
 }
 
-test('R132 wardrobe entry initializes actual native target and return screen', async () => {
-    const { rt, player, wardrobeState, screens } = await wardrobeRuntime();
-    for (const target of [player, { MemberNumber: 2, IsPlayer: () => false }]) {
-        rt.hooks.get('CharacterAppearanceWardrobeLoad')([target], args => rt.context.CharacterAppearanceWardrobeLoad(...args));
-        assert.equal(wardrobeState.selectedCharacter, target);
-        assert.deepEqual(wardrobeState.returnScreen, ['Character', 'Appearance']);
-    }
-    assert.deepEqual(screens, [['Character', 'Wardrobe'], ['Character', 'Wardrobe']]);
-});
 
-test('R132 DOM controls, body options, previews and exit remain owned by BC', async () => {
-    const { rt, player, wardrobeState } = await wardrobeRuntime();
-    for (const name of ['AppearanceRun', 'AppearanceClick', 'WardrobeRun', 'WardrobeClick', 'WardrobeExit', 'WardrobeLoad']) {
-        let calls = 0;
-        assert.equal(rt.hooks.get(name)([], () => { calls++; return 'native'; }), 'native');
-        assert.equal(calls, 1); assert.equal(rt.context.Player, player);
-    }
-    const preview = { MemberNumber: -1, IsPlayer: () => false };
-    const options = { ExcludeBodyparts: true, BodyCharacter: player, ExpressionSource: player };
-    const args = [preview, 25, false, options];
-    rt.hooks.get('WardrobeFastLoad')(args, values => {
-        assert.equal(values, args); assert.equal(values[3], options);
-    });
-    assert.equal(wardrobeState.excludeBodyparts, true);
-    rt.document.dispatchEvent({ type: 'keydown', key: 'Escape', preventDefault() { throw Error('native Escape intercepted'); } });
-});
 
 test('native save confirms once; direct overwrite still confirms, including after exceptions', async () => {
     const { rt, player } = await wardrobeRuntime();

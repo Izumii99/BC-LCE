@@ -16,6 +16,25 @@ function refreshCharacter(char) {
     if (typeof CharacterRefresh === 'function') CharacterRefresh(char, false, false);
 }
 
+function applyState(char, slot, state) {
+    let item = char.Appearance.find(i => i.Asset.Group.Name === slot);
+    if (!item || item.Asset.Name !== state.Name) {
+        item = globalThis.InventoryWear(char, state.Name, slot, state.Color, undefined, undefined, undefined, false);
+        if (!item) return;
+    } else {
+        item.Color = Array.isArray(state.Color) ? structuredClone(state.Color) : state.Color;
+    }
+    
+    for (const key of Object.keys(state)) {
+        if (['Name', 'Color'].includes(key)) continue;
+        if (key === 'Property' && item.Property) {
+            item.Property = Object.assign({}, item.Property, structuredClone(state[key]));
+        } else {
+            item[key] = structuredClone(state[key]);
+        }
+    }
+}
+
 // Perform local animation only
 function startRender(char, type, state1, state2, delay, cycles) {
     const id = char.MemberNumber;
@@ -31,19 +50,22 @@ function startRender(char, type, state1, state2, delay, cycles) {
     } else {
         const currentItem = char.Appearance.find(item => item.Asset.Group.Name === slot);
         if (!currentItem) return;
-        originalState = {
-            Name: currentItem.Asset.Name,
-            Color: Array.isArray(currentItem.Color) ? structuredClone(currentItem.Color) : currentItem.Color,
-            Property: currentItem.Property ? structuredClone(currentItem.Property) : undefined,
-            Craft: currentItem.Craft ? structuredClone(currentItem.Craft) : undefined,
-            Difficulty: currentItem.Difficulty
-        };
+        originalState = { Name: currentItem.Asset.Name, Color: Array.isArray(currentItem.Color) ? structuredClone(currentItem.Color) : currentItem.Color };
+        for (const key of Object.keys(currentItem)) {
+            if (['Asset', 'Model', 'ModelLoad', 'Name', 'Color'].includes(key) || typeof currentItem[key] === 'function') continue;
+            originalState[key] = structuredClone(currentItem[key]);
+        }
     }
     
     const states = [state2, state1];
     let i = 0;
     
     function step() {
+        if (globalThis.CurrentScreen !== 'ChatRoom') {
+            renderers.delete(id + type);
+            return;
+        }
+
         const currentItemNow = char.Appearance.find(item => item.Asset.Group.Name === slot);
         
         // Stop if the character took off the item or swapped to something unexpected
@@ -52,23 +74,15 @@ function startRender(char, type, state1, state2, delay, cycles) {
             return;
         }
 
-        if (i >= cycles) {
-            const item = globalThis.InventoryWear(char, originalState.Name, slot, originalState.Color, undefined, undefined, undefined, false);
-            if (item) {
-                if (originalState.Property) item.Property = structuredClone(originalState.Property);
-                if (originalState.Craft) item.Craft = structuredClone(originalState.Craft);
-                if (originalState.Difficulty !== undefined) item.Difficulty = originalState.Difficulty;
-            }
+        if (i >= cycles * 2) {
+            applyState(char, slot, originalState);
             refreshCharacter(char);
             renderers.delete(id + type);
             return;
         }
         
         const state = states[i % 2];
-        const item = globalThis.InventoryWear(char, state.Name, slot, state.Color, undefined, undefined, undefined, false);
-        if (item && state.Property) {
-            item.Property = structuredClone(state.Property);
-        }
+        applyState(char, slot, state);
         
         refreshCharacter(char);
         
@@ -94,15 +108,16 @@ function triggerAnimation(type, localOnly = false) {
     
     if (currentItem.Asset.Name !== state1.Name && currentItem.Asset.Name !== state2.Name) return;
     
-    let cycles = Math.max(1, Math.min(40, getFeature(`animal${type}Cycles`) || 18));
+    const cycleFeature = getFeature(`animal${type}Cycles`);
+    let cycles = Math.max(1, Math.min(40, (cycleFeature != null ? Math.ceil(cycleFeature / 2) : (type === 'Wings' ? 3 : 9))));
     let delay = Math.max(10, Math.min(2000, getFeature(`animal${type}Delay`) || 250));
     
-    // Randomize cycles and delay (+/- 33%) for a more natural, less rigid feel
-    const cyclesVary = Math.round(cycles * 0.33);
-    cycles = Math.max(1, cycles - cyclesVary + Math.floor(Math.random() * (cyclesVary * 2 + 1)));
+    // Randomize cycles (+/- 1) and delay (+/- 20ms) for a more natural, less rigid feel
+    const cyclesVary = 1;
+    cycles = Math.max(1, Math.min(40, cycles - cyclesVary + Math.floor(Math.random() * (cyclesVary * 2 + 1))));
     
-    const delayVary = Math.round(delay * 0.33);
-    delay = Math.max(10, delay - delayVary + Math.floor(Math.random() * (delayVary * 2 + 1)));
+    const delayVary = 20;
+    delay = Math.max(10, Math.min(2000, delay - delayVary + Math.floor(Math.random() * (delayVary * 2 + 1))));
     
     // Animate locally for ourselves
     startRender(player, type, state1, state2, delay, cycles);
@@ -178,11 +193,15 @@ export function onAnimalMessage(data) {
         let color = s.Color;
         if (!['string', 'undefined'].includes(typeof color) && !Array.isArray(color)) color = 'Default';
         if (Array.isArray(color)) color = color.filter(c => typeof c === 'string');
-        return {
+        const state = {
             Name: s.Name,
-            Color: color,
-            Property: s.Property && typeof s.Property === 'object' && typeof s.Property.Type === 'string' && s.Property.Type.length < 50 ? { Type: s.Property.Type } : undefined
+            Color: color
         };
+        for (const key of Object.keys(s)) {
+            if (['Name', 'Color', 'Asset', 'Model', 'ModelLoad'].includes(key) || typeof s[key] === 'function') continue;
+            state[key] = structuredClone(s[key]);
+        }
+        return state;
     };
 
     const state1 = buildState(dict.state1);

@@ -164,13 +164,25 @@ test('Echo bridge custom sound regex matching', () => {
     assert.equal(echoSound(echoPacket('舔液体', 'ChatOther-ItemMouth-舔液体', 'licks')), null);
     assert.equal(echoExpressionEvent(echoPacket('舔液体', 'ChatOther-ItemMouth-舔液体', 'licks'), 1), 'Lick');
     
-    // User-created hash-name cases
-    assert.equal(echoSound(echoPacket('笨蛋笨Luzi_k3x9a', 'ChatOther-ItemMouth-笨蛋笨Luzi_k3x9a', '...slaps...')), 'SpankSkin');
-    assert.equal(echoExpressionEvent(echoPacket('笨蛋笨Luzi_k3x9a', 'ChatOther-ItemMouth-笨蛋笨Luzi_k3x9a', '...slaps...'), 1), 'Spank');
+    // User-created hash-name cases (pure marker path, no Luzi_ fallback)
+    assert.equal(echoSound(echoPacket('笨蛋笨Custom_k3x9a', 'ChatOther-ItemMouth-笨蛋笨Custom_k3x9a', '...slaps...')), 'SpankSkin');
+    assert.equal(echoExpressionEvent(echoPacket('笨蛋笨Custom_k3x9a', 'ChatOther-ItemMouth-笨蛋笨Custom_k3x9a', '...slaps...'), 1), 'Spank');
     
-    assert.equal(echoSound(echoPacket('笨蛋笨Luzi_q7m2z', 'ChatOther-ItemMouth-笨蛋笨Luzi_q7m2z', '...licks...')), null);
-    assert.equal(echoExpressionEvent(echoPacket('笨蛋笨Luzi_q7m2z', 'ChatOther-ItemMouth-笨蛋笨Luzi_q7m2z', '...licks...'), 1), 'Lick');
+    assert.equal(echoSound(echoPacket('笨蛋笨Custom_q7m2z', 'ChatOther-ItemMouth-笨蛋笨Custom_q7m2z', '...licks...')), null);
+    assert.equal(echoExpressionEvent(echoPacket('笨蛋笨Custom_q7m2z', 'ChatOther-ItemMouth-笨蛋笨Custom_q7m2z', '...licks...'), 1), 'Lick');
     
+    // Legacy fallback cases without a marker (testing backwards compatibility)
+    const legacyPacket = (content, text) => ({
+        Type: 'Activity', Content: content, Sender: 2,
+        Dictionary: [
+            { TargetCharacter: 1 },
+            { Tag: 'ActivityName', Text: text }
+        ],
+    });
+    
+    assert.equal(echoSound(legacyPacket('ChatOther-ItemMouth-Luzi_TestSlap', '...slaps...')), 'SpankSkin');
+    assert.equal(echoExpressionEvent(legacyPacket('ChatOther-ItemMouth-Luzi_TestKiss', '...kisses...'), 1), 'KissOnLips');
+
     // Malformed marker tag for a different Content
     assert.equal(echoSound({
         Type: 'Activity', Content: 'ChatOther-ItemMouth-Fake', Sender: 2,
