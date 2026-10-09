@@ -25,14 +25,11 @@ let extendedLoaded = false;
 
 let nativeSaveConfirmationDepth = 0;
 
-// R132 owns the target character, return screen, previews and body checkbox.
-const hasNativeWardrobe = () => typeof WardrobeOpenCharacter === 'function'
-    && typeof Wardrobe === 'object' && Wardrobe !== null;
+
 
 const hook = createHook('wardrobe');
 
 const isWardrobe = (w) => Array.isArray(w) && w.every(o => o === null || Array.isArray(o));
-const isCharacter = (c) => !!c && typeof c === 'object' && typeof c.MemberNumber !== 'undefined';
 
 /** 舊格式 Property.Type → TypeRecord（同 WCE，避免舊存檔載入後外觀跑掉）。 */
 function sanitizeBundles(list) {

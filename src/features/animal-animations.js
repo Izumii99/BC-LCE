@@ -82,7 +82,12 @@ function startRender(char, type, state1, state2, delay, cycles) {
     
     function step() {
         if (globalThis.CurrentScreen !== 'ChatRoom') {
-            renderers.delete(id + type);
+            const r = renderers.get(id + type);
+            if (r) {
+                applyState(char, slot, originalState, managedRootKeys, managedPropertyKeys);
+                refreshCharacter(char);
+                renderers.delete(id + type);
+            }
             return;
         }
 
@@ -107,7 +112,10 @@ function startRender(char, type, state1, state2, delay, cycles) {
         refreshCharacter(char);
         
         i++;
-        renderers.set(id + type, { timer: setTimeout(step, delay), originalState });
+        renderers.set(id + type, { 
+            timer: setTimeout(step, delay), 
+            originalState, char, slot, managedRootKeys, managedPropertyKeys 
+        });
     }
     
     step();
@@ -120,7 +128,7 @@ function triggerAnimation(type, localOnly = false) {
     
     const state1 = getFeature(`animal${type}State1`);
     const state2 = getFeature(`animal${type}State2`);
-    if (!state1 || !state2) return;
+    if (!state1 || typeof state1 !== 'object' || typeof state1.Name !== 'string' || !state2 || typeof state2 !== 'object' || typeof state2.Name !== 'string') return;
     
     const slot = SLOTS[type];
     const currentItem = player.Appearance.find(i => i.Asset.Group.Name === slot);
@@ -129,7 +137,7 @@ function triggerAnimation(type, localOnly = false) {
     if (currentItem.Asset.Name !== state1.Name && currentItem.Asset.Name !== state2.Name) return;
     
     const cycleFeature = getFeature(`animal${type}Cycles`);
-    let cycles = Math.max(1, Math.min(40, (cycleFeature != null ? Math.ceil(cycleFeature / 2) : (type === 'Wings' ? 3 : 9))));
+    let cycles = Math.max(1, Math.min(40, (cycleFeature != null ? cycleFeature : (type === 'Wings' ? 3 : 9))));
     let delay = Math.max(100, Math.min(2000, getFeature(`animal${type}Delay`) || 250));
     
     // Randomize cycles (+/- 1) and delay (+/- 20ms) for a more natural, less rigid feel
@@ -202,6 +210,10 @@ export function onAnimalMessage(data) {
     if (!dict || !dict.type || !dict.state1 || !dict.state2) return;
     if (!Object.keys(SLOTS).includes(dict.type)) return;
     
+    if (renderers.has(id + dict.type)) return;
+    if (renderers.size > 20) return;
+    if (!getFeature(`animal${dict.type}`)) return;
+    
     const char = (globalThis.ChatRoomCharacter ?? []).find(c => c.MemberNumber === id);
     if (!char) return;
     
@@ -210,16 +222,23 @@ export function onAnimalMessage(data) {
     
     const buildState = s => {
         if (!s || typeof s !== 'object' || typeof s.Name !== 'string') return null;
+        if (!globalThis.AssetGet('Female3DCG', SLOTS[dict.type], s.Name)) return null;
         let color = s.Color;
         if (!['string', 'undefined'].includes(typeof color) && !Array.isArray(color)) color = 'Default';
         if (Array.isArray(color)) color = color.filter(c => typeof c === 'string');
-        const state = {
-            Name: s.Name,
-            Color: color
-        };
+        const state = { Name: s.Name, Color: color };
+        
+        const ALLOWED_KEYS = ['Property', 'Craft', 'Difficulty', 'Extended'];
         for (const key of Object.keys(s)) {
-            if (['Name', 'Color', 'Asset', 'Model', 'ModelLoad'].includes(key) || typeof s[key] === 'function') continue;
-            state[key] = structuredClone(s[key]);
+            if (!ALLOWED_KEYS.includes(key)) continue;
+            try {
+                const val = structuredClone(s[key]);
+                // Reject malicious keys just in case structuredClone let them through if they were somehow simple objects
+                if (val && typeof val === 'object' && ('__proto__' in val || 'constructor' in val)) continue;
+                // Rough size limit
+                if (JSON.stringify(val).length > 2000) continue;
+                state[key] = val;
+            } catch { /* ignore clone errors */ }
         }
         return state;
     };
@@ -249,6 +268,17 @@ export function installAnimalAnimations() {
         try { modApi.hookFunction('ServerInit', 10, (args, next) => { const r = next(args); bind(); return r; }); }
         catch { /* ignore */ }
     })();
+
+    hook('ChatRoomLeave', 10, (args, next) => {
+        for (const [key, r] of renderers.entries()) {
+            clearTimeout(r.timer);
+            if (r.char && r.slot && r.originalState) {
+                applyState(r.char, r.slot, r.originalState, r.managedRootKeys, r.managedPropertyKeys);
+            }
+        }
+        renderers.clear();
+        return next(args);
+    });
 
     if (!autoTriggerInterval) {
         autoTriggerInterval = setInterval(checkTriggers, 1000);

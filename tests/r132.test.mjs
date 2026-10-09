@@ -15,7 +15,7 @@ async function wardrobeRuntime() {
     } });
     vm.runInContext(nativeSource, rt.context);
     const settings = await rt.load('src/core/feature-settings.js');
-    settings.setFeature('privateWardrobe', true); settings.setFeature('confirmWardrobeSave', true);
+    settings.setFeature('confirmWardrobeSave', true);
     const mod = await rt.load('src/features/wardrobe/index.js'); mod.installWardrobe();
     return { rt, player, wardrobeState, screens };
 }
