@@ -14,7 +14,9 @@ export const faces = [
     [/^(?:>v<)$/i, { Eyes: 'Daydream', Mouth: 'Smile' }],
     [/^(?:=v=|>v>|<v<)$/i, { Eyes: 'Horny', Mouth: 'Smirk' }],
     // Normal cat face
-    [/^(?::3|;3|:>)$/, { Mouth: 'Happy' }],
+    [/^(?::3|:>)$/, { Mouth: 'Happy' }],
+    // Winking cat face
+    [/^(?:;3|;>)$/, { Eyes: 'Closed', Eyes2: null, Mouth: 'Happy' }],
     // Happy / Smile
     [/^(?:\^_\^|\^\^|\^~\^)$/, { Eyes: 'ShylyHappy', Mouth: 'Smile' }],
     [/^xd$/i, { Eyes: 'Daydream', Mouth: 'Laughing' }],
