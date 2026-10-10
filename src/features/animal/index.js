@@ -106,7 +106,14 @@ function startRender(char, type, state1, state2, delay, cycles) {
             r.lastFrameSent = pushFrame(char, slot);
 
             frame++;
-            r.timer = setTimeout(step, delay);
+            // 當本人有多個部位同時播放時，動態調配間隔以確保整體發送率不超過 10 封包/秒（BC 伺服器上限為 14 封包/1.2 秒）
+            let nextDelay = delay;
+            if (char === globalThis.Player) {
+                let activeCount = 0;
+                for (const item of renderers.values()) if (item.char === globalThis.Player) activeCount++;
+                if (activeCount > 1) nextDelay = Math.max(delay, activeCount * 100);
+            }
+            r.timer = setTimeout(step, nextDelay);
         } catch (e) {
             console.warn('[LCE] animal animation failed', e);
             finish();

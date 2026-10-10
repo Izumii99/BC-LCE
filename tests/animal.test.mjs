@@ -568,3 +568,23 @@ test('external sync on a different character does not interrupt Player animation
     assert.equal(timers.length, 1, 'Player animation continues');
 });
 
+test('concurrent animations on Player dynamically scale frame delay to stay within 10 packets/s', async () => {
+    const scheduledDelays = [];
+    const player = { MemberNumber: 1, Appearance: [makeItem('Other'), { Asset: { Name: 'TailOrig', Group: { Name: 'TailStraps' } } }] };
+    const { rt, mod, timers } = await animalRuntime({
+        player,
+        globals: {
+            setTimeout: (fn, delay) => { scheduledDelays.push(delay); timers.push(fn); return fn; }
+        }
+    });
+    rt.settings.setFeature('animalTails', true);
+    rt.settings.updateSettings({
+        animalEarsState1: { Name: 'A' }, animalEarsState2: { Name: 'B' }, animalEarsDelay: 100,
+        animalTailsState1: { Name: 'A' }, animalTailsState2: { Name: 'B' }, animalTailsDelay: 100,
+    });
+    mod.triggerAnimation('Ears');
+    mod.triggerAnimation('Tails');
+    assert.ok(scheduledDelays.some(d => d >= 200), 'delay scaled to protect rate limit when multiple parts run');
+});
+
+
