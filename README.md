@@ -125,15 +125,15 @@ src/
   modsdk.js          內建 bcModSdk（打包進 bundle，不用 @require）
 
   core/              共用基礎：常數、設定 schema 與儲存、i18n、hook 管理、生命週期、
-                     WCE 共存判斷、公開 API、主題 API、動物動畫的共用邏輯（animal-actions.js）與七語言文字觸發詞（animal-triggers.js）
+                     WCE 共存判斷、公開 API、主題 API
   commands/          指令系統（commander.js）
   features/          各功能模組，各自提供 installXxx()：
                      chat / social / messenger / theme / expressions / wardrobe /
-                     safety / performance / vertical / animal-animations /
+                     safety / performance / vertical / animal（動物動畫：播放、姿勢邏輯、七語言觸發詞、設定頁預覽）/
                      echo-mouth-pull / petsuit-render / region-switch / misc …
   game/              對 BC 函式的薄封裝（聊天動作、房間搜尋與導覽、語言）
   loginpage/         橫式登入頁（背景、帳號輪播、設定浮層、BC 原生隱藏 + FUSAM 透傳）
-  settings/          遊戲內設定頁（含動物預覽 animal-preview.js、容量管理、色彩選擇器）
+  settings/          遊戲內設定頁（容量管理、色彩選擇器、信任來源管理）
   storage/           帳號、憑證、重連憑證、桌布與 IndexedDB 資料庫
   ui/                聊天訊息渲染、通知與轉場
   assets/            圖示

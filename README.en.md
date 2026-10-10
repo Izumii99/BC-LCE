@@ -129,19 +129,19 @@ src/
   modsdk.js          Bundled bcModSdk (included in the bundle, no @require)
 
   core/              Shared foundations: constants, settings schema and storage, i18n, hook
-                     management, lifecycle, WCE coexistence checks, public API, theme API,
-                     shared animal-animation logic (animal-actions.js) and 7-language text triggers (animal-triggers.js)
+                     management, lifecycle, WCE coexistence checks, public API, theme API
   commands/          Command system (commander.js)
   features/          Feature modules, each providing installXxx():
                      chat / social / messenger / theme / expressions / wardrobe /
-                     safety / performance / vertical / animal-animations /
+                     safety / performance / vertical / animal (animation playback, pose logic,
+                     7-language triggers, settings preview) /
                      echo-mouth-pull / petsuit-render / region-switch / misc …
   game/              Thin wrappers around BC functions (chat actions, room search and
                      navigation, language)
   loginpage/         Horizontal login page (background, account carousel, settings overlay,
                      hiding BC's native login + FUSAM pass-through)
-  settings/          In-game settings pages (including the animal preview animal-preview.js,
-                     storage manager and colour pickers)
+  settings/          In-game settings pages (storage manager, colour pickers,
+                     trusted-origin manager)
   storage/           Accounts, credentials, reconnect credentials, wallpaper and the
                      IndexedDB databases
   ui/                Chat message rendering, notifications and transitions

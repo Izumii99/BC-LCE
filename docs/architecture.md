@@ -20,6 +20,7 @@ src/
 │  ├─ chat/              通知、標記與增量監聽
 │  └─ transition.js      動畫完成與取消
 └─ features/
+   ├─ animal/            動物動畫：播放、姿勢邏輯、七語言觸發詞與設定頁預覽
    ├─ chat/              聊天功能
    ├─ social/            好友、Profile、歡迎與徽章
    ├─ messenger/         IM 入口、編解碼與歷史
@@ -38,6 +39,7 @@ src/
 
 - `loginpage/`：橫式登入、帳號、背景及登入設定。
 - `features/`：聊天、社交、主題、沉浸、衣櫃、效能與安全功能。
+- `features/animal/`：耳朵／尾巴／翅膀動畫。`index.js` 負責觸發與逐格播放，`actions.js` 是不依賴其他模組的純姿勢邏輯，`triggers.js` 是七語言文字觸發詞（見 [animal-trigger-words](./animal-trigger-words.md)），`preview.js` 是設定頁預覽。設定項目的 schema 仍在 `core/settings-schema.js`，由它引用 `actions.js` 的存檔動作。
 - `features/performance/`：聊天容量、貼圖快取、幀率與 FPS 三個子模組，各自管理 hooks 與狀態。
 - `features/vertical/`：直式聊天與房間介面。
 - `settings/`：遊戲內設定、容量及信任來源管理。
@@ -52,7 +54,7 @@ src/
 
 ## 驗證
 
-執行 `npm test`（目前 96 項）與 `npm run build`。測試以 Node VM 載入實際模組，模擬 BC、DOM、socket 和 IndexedDB，涵蓋設定交易、非同步競態、信任來源、hook 還原與卸載；不能取代實際 BC 和其他插件並存時的介面驗收。Pages 工作流程會先測試再建置。
+執行 `npm test`（目前 136 項）與 `npm run build`。測試以 Node VM 載入實際模組，模擬 BC、DOM、socket 和 IndexedDB，涵蓋設定交易、非同步競態、信任來源、hook 還原與卸載；不能取代實際 BC 和其他插件並存時的介面驗收。Pages 工作流程會先測試再建置。
 
 詳細問題與實施狀態見 [程式碼檢視報告](./code-review-2026-09-05.md)。互動圖已更新為目前的責任分組與主要事件流程，不代表完整 import 關係。未完工作以 [未完工作與驗收](./unfinished-work.md) 為準。
 

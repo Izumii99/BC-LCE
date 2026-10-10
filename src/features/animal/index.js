@@ -1,10 +1,10 @@
-import { getFeature } from '../core/feature-settings.js';
-import { SETTING_CHANGED_EVENT } from '../core/constants.js';
-import { createSocketBinding } from '../core/lifecycle.js';
-import { createHook } from '../core/hooks.js';
-import modApi from '../modsdk.js';
-import { getAnimTypeFromMsg } from '../core/animal-triggers.js';
-import { SLOTS, ANIMAL_TYPES, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, applyAnimalState as applyState, animalItemSignature, collectManagedKeys, poseAt } from '../core/animal-actions.js';
+import { getFeature } from '../../core/feature-settings.js';
+import { SETTING_CHANGED_EVENT } from '../../core/constants.js';
+import { createSocketBinding } from '../../core/lifecycle.js';
+import { createHook } from '../../core/hooks.js';
+import modApi from '../../modsdk.js';
+import { getAnimTypeFromMsg } from './triggers.js';
+import { SLOTS, ANIMAL_TYPES, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, applyAnimalState as applyState, animalItemSignature, collectManagedKeys, poseAt } from './actions.js';
 
 const hook = createHook('animal-animations');
 
@@ -147,9 +147,6 @@ function triggerAnimation(type, { auto = false } = {}) {
     startRender(player, type, state1, state2, delay, cycles);
 }
 
-// 聊天文字觸發（*wiggle*、*搖尾巴*、*bat des ailes* …）：詞表與比對在 core/animal-triggers.js
-export { getAnimTypeFromMsg };
-
 let lastTriggers = { Ears: Date.now(), Tails: Date.now(), Wings: Date.now() };
 
 function checkTriggers() {
@@ -238,7 +235,7 @@ export function installAnimalAnimations() {
         return next(args);
     });
 
-    // 聊天文字觸發（七種語言的詞，見 animal-triggers.js）：照常送出訊息，送出後播放
+    // 聊天文字觸發（七種語言的詞，見 triggers.js）：照常送出訊息，送出後播放
     hook('ChatRoomSendChat', 5, (args, next) => {
         let type = null;
         try {

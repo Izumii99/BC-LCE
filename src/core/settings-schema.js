@@ -1,5 +1,5 @@
 import { createThemeActions } from '../settings/theme-actions.js';
-import { saveAnimalPose, clearAnimalAnim, MAX_CYCLES, MIN_DELAY, MAX_DELAY } from './animal-actions.js';
+import { saveAnimalPose, clearAnimalAnim, MAX_CYCLES, MIN_DELAY, MAX_DELAY } from '../features/animal/actions.js';
 import { applyAnimationEngineSetting } from '../game/setting-effects.js';
 import { grantWardrobe } from '../game/setting-effects.js';
 // ════════════════════════════════════════════════════════════════════════════

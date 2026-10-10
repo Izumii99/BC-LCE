@@ -43,7 +43,7 @@ import { installCheats } from './features/safety/cheats.js';
 import { installMisc } from './features/misc.js';
 import { installEchoMouthPull } from './features/echo-mouth-pull.js';
 import { installChatQol, installPetsuitSync } from './features/chat-qol.js';
-import { installAnimalAnimations } from './features/animal-animations.js';
+import { installAnimalAnimations } from './features/animal/index.js';
 import { FaceCache } from './features/expressions/face-cache.js';
 import { installRegionSwitch } from './features/region-switch.js';
 import { installHiddenArousal } from './features/expressions/hidden-arousal.js';

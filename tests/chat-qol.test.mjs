@@ -192,7 +192,7 @@ test('Echo bridge custom sound regex matching', () => {
 
 test('Animal animation triggers', async () => {
     const rt = runtime({ globals: { window: { location: { href: 'http://localhost' } } } });
-    const { getAnimTypeFromMsg } = await rt.load('src/features/animal-animations.js');
+    const { getAnimTypeFromMsg } = await rt.load('src/features/animal/triggers.js');
 
     // Exact forms should trigger
     assert.equal(getAnimTypeFromMsg('*wag*'), 'Tails');

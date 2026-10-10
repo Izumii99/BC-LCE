@@ -30,6 +30,12 @@
 - [x] JS chunk 內容 hash 與部署舊資產保留策略：目前 `app.js` 維持固定入口，圖片／影片輸出採 content hash；後續若改 loader 才需再調整入口策略。
 - [x] vendored SDK 的來源與同步方式：架構／自動化文件已記錄，後續只在來源版本更新時同步。
 - [x] loader 單一來源：已移除 `public/`，正式版 loader 只保留根目錄的 `loader.user.js`，由 `vite.config.js` 的 `emit-loader` 在建置時輸出到 `dist/`；本機版 `loader.local.user.js` 與 `login-preview.html` 不再部署。
+- [ ] 【不急迫】結構盤點（2026-10-10）後尚未處理的建議，皆為整理性質、不影響功能：
+  - `features/chat-qol.js` 名稱與內容不符：實際是寵物服動畫同步與表情 QoL（匯出 `onPetsuitMessage`、`togglePetsuitAnimation` 等），且 `petsuit-render.js` 只被它使用。建議合併成 `features/petsuit/`，並重新命名。
+  - `features/trusted-domains.js` 是被 `app.js`、`misc.js`、`chat/chat-augments.js`、`settings/trusted-domain-manager.js` 共用的服務，建議與其管理介面規劃在一起（`features/trusted-domains/`）。
+  - `core/` 仍反向依賴外層：`settings-schema.js` → `settings/theme-actions.js`、`game/setting-effects.js`、`features/animal/actions.js`；`settings-values.js` → `game/language.js`；`state.js` → `loginpage/state.js`；`theme-api.js` → `features/theme/`。根本做法是讓各功能自己提供 schema 片段再由 core 組合，工程較大，另案處理。
+  - `ui/chat/markup.js` 只有 `features/chat/index.js` 使用，`ui/transition.js` 只有 `features/vertical/chatsearch.js` 使用；目前保留在 `ui/` 當共用層，若之後仍無第二個使用者再搬回各功能。
+  - `echo-mouth-pull.js`、`behaviors.js`、`misc.js`、`region-switch.js` 仍是 `features/` 根目錄的獨立檔案，數量不多，暫不另立資料夾。
 - [ ] 【不急迫】`src/core/i18n-engine.js` 的 `loadScript()` 會 `fetch` 遠端 JS 後用 `new Function(code)` 執行。目前七語字庫走 `.json` 分支（`_loadJsonLang`，只解析資料、不執行），這條路徑沒有使用者影響。待辦只有兩種擇一：確認沒有任何呼叫者後移除 `loadScript`，或保留但限制只能載入自家網域（例如 `awdrrawd.github.io`）。不影響目前功能，有空再處理。
 - [ ] 僅在實測或事件流程分析證明有責任混雜時，才整理其他大模組；不以行數或檔案數作為目標。
 

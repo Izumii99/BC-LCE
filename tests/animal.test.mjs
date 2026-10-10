@@ -11,7 +11,7 @@ async function animalRuntime({ player: playerOverride, sent, updates } = {}) {
     const refreshes = [];
     const remote = { MemberNumber: 7, Appearance: [makeItem('Orig', { Property: { Keep: 1 } })] };
     const player = playerOverride ?? { MemberNumber: 1, Appearance: [] };
-    const rt = runtime({ append: { 'src/features/animal-animations.js': 'export { triggerAnimation };' }, globals: {
+    const rt = runtime({ append: { 'src/features/animal/index.js': 'export { triggerAnimation };' }, globals: {
         Player: player, CurrentScreen: 'ChatRoom', ServerSend: (...a) => sent?.push(a), ChatRoomData: {}, ChatRoomCharacterItemUpdate: (c, g) => updates?.push([c.MemberNumber, g]), ChatRoomCharacter: [player, remote],
         setTimeout: fn => { timers.push(fn); return fn; },
         clearTimeout: fn => { const i = timers.indexOf(fn); if (i >= 0) timers.splice(i, 1); },
@@ -26,7 +26,7 @@ async function animalRuntime({ player: playerOverride, sent, updates } = {}) {
     const settings = await rt.load('src/core/feature-settings.js');
     settings.setFeature('animalEars', true);
     rt.settings = settings;
-    const mod = await rt.load('src/features/animal-animations.js');
+    const mod = await rt.load('src/features/animal/index.js');
     const run = () => { while (timers.length) timers.shift()(); };
     return { rt, mod, remote, player, timers, refreshes, run };
 }
@@ -60,7 +60,7 @@ test('remote animation keeps ordinary object properties and appearance extension
 
 test('own dangerous keys are rejected recursively without rejecting normal objects', async () => {
     const { rt } = await animalRuntime();
-    const { sanitizeAnimalState } = await rt.load('src/core/animal-actions.js');
+    const { sanitizeAnimalState } = await rt.load('src/features/animal/actions.js');
     const evil = JSON.parse('{"Name":"A","Property":{"x":{"__proto__":{"polluted":1}}}}');
     assert.equal('Property' in sanitizeAnimalState(evil), false);
     const evilTop = JSON.parse('{"Name":"A","Property":{"constructor":{"a":1}}}');
@@ -74,7 +74,7 @@ test('own dangerous keys are rejected recursively without rejecting normal objec
 test('cycles are capped at 20 in settings, sender clamp and receiver', async () => {
     const { rt, mod, remote, timers, refreshes, run } = await animalRuntime();
     const schema = await rt.load('src/core/settings-schema.js');
-    const actions = await rt.load('src/core/animal-actions.js');
+    const actions = await rt.load('src/features/animal/actions.js');
     for (const t of ['Ears', 'Tails', 'Wings']) assert.equal(schema.DEFAULT_FEATURE_SETTINGS[`animal${t}Cycles`].max, 20);
     assert.equal(actions.clampCycles(40), 20);
     assert.equal(actions.clampCycles(21 + 1), 20);
@@ -107,7 +107,7 @@ test('leaving the screen freezes on A when the animation still owns the slot', a
 
 test('uncloneable third-party fields do not break saving a pose', async () => {
     const { rt, player } = await animalRuntime();
-    const { saveAnimalPose } = await rt.load('src/core/animal-actions.js');
+    const { saveAnimalPose } = await rt.load('src/features/animal/actions.js');
     player.Appearance = [makeItem('A', { Property: { a: 1 }, Rotate: 3 })];
     player.Appearance[0].Layer = { fn() {} };         // structuredClone throws on functions
     const draft = {};
@@ -230,7 +230,7 @@ async function previewRuntime({ states = {}, settings = {} } = {}) {
     feature.initGlobalFeatures();
     rt.settings = feature;
     feature.updateSettings({ animalEarsState1: { Name: 'A' }, animalEarsState2: { Name: 'B' }, animalEarsCycles: 2, animalEarsDelay: 100, ...states, ...settings });
-    const { createAnimalPreview } = await rt.load('src/settings/animal-preview.js');
+    const { createAnimalPreview } = await rt.load('src/features/animal/preview.js');
     const ctl = createAnimalPreview(() => time);
     return { rt, ctl, player, preview, calls, tick: ms => { time = ms; ctl.update(); } };
 }
@@ -313,7 +313,7 @@ test('animal / preview strings exist in all 7 languages and are translated (not 
 });
 
 test('animal part list is one source: tab order matches it, and re-saving a pose is picked up by the preview', async () => {
-    const actions = await runtime().load('src/core/animal-actions.js');
+    const actions = await runtime().load('src/features/animal/actions.js');
     assert.deepEqual([...actions.ANIMAL_TYPES], ['Ears', 'Tails', 'Wings']);
     assert.deepEqual(['Ears', 'Tails', 'Wings'].map(actions.fallbackCycles), [9, 9, 3]);
     const fs = await import('node:fs');
@@ -376,7 +376,7 @@ test('final sync also notices a change that is only in appearance extension fiel
 
 test('item signature follows every whitelisted field', async () => {
     const { rt } = await animalRuntime();
-    const { animalItemSignature, ANIMAL_STATE_KEYS } = await rt.load('src/core/animal-actions.js');
+    const { animalItemSignature, ANIMAL_STATE_KEYS } = await rt.load('src/features/animal/actions.js');
     const base = makeItem('A');
     for (const key of ANIMAL_STATE_KEYS) {
         assert.notEqual(animalItemSignature({ ...base, [key]: key === 'Difficulty' ? 2 : { x: 1 } }), animalItemSignature(base), key);
@@ -387,7 +387,7 @@ test('item signature follows every whitelisted field', async () => {
 
 test('every trigger word in all 7 languages maps to its own part, with no cross-part collisions', async () => {
     const rt = runtime();
-    const { ANIMAL_TRIGGER_WORDS, ANIMAL_TRIGGER_LANGS, getAnimTypeFromMsg } = await rt.load('src/core/animal-triggers.js');
+    const { ANIMAL_TRIGGER_WORDS, ANIMAL_TRIGGER_LANGS, getAnimTypeFromMsg } = await rt.load('src/features/animal/triggers.js');
     for (const type of ['Ears', 'Tails', 'Wings']) {
         for (const lang of ANIMAL_TRIGGER_LANGS) {
             const words = ANIMAL_TRIGGER_WORDS[type][lang];
@@ -399,7 +399,7 @@ test('every trigger word in all 7 languages maps to its own part, with no cross-
 
 test('trigger matching ignores case, accents, extra spaces and accepts full-width asterisks', async () => {
     const rt = runtime();
-    const { getAnimTypeFromMsg } = await rt.load('src/core/animal-triggers.js');
+    const { getAnimTypeFromMsg } = await rt.load('src/features/animal/triggers.js');
     assert.equal(getAnimTypeFromMsg('*WIGGLE*'), 'Ears');
     assert.equal(getAnimTypeFromMsg('*  wags   tail  *'), 'Tails');
     assert.equal(getAnimTypeFromMsg('*bat des AILES*'), 'Wings');
@@ -413,7 +413,7 @@ test('trigger matching ignores case, accents, extra spaces and accepts full-widt
 
 test('trigger text must be the whole message and exactly a keyword', async () => {
     const rt = runtime();
-    const { getAnimTypeFromMsg } = await rt.load('src/core/animal-triggers.js');
+    const { getAnimTypeFromMsg } = await rt.load('src/features/animal/triggers.js');
     for (const bad of ['搖尾巴', '*搖尾巴*啊', '我 *搖尾巴*', '*慢慢搖尾巴*', '*remue la queue de son chat*', '**', '*', '', '*wag*wag*']) {
         assert.equal(getAnimTypeFromMsg(bad), null, bad);
     }

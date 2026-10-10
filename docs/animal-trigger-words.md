@@ -2,7 +2,7 @@
 
 在聊天室輸入 `*詞*` 並送出即可觸發（說明見 [README](../README.md#動物動畫耳朵尾巴翅膀)）。**七種語言的詞全部有效，與你的介面語言無關**：房間裡的人用哪種語言，都可以用自己的語言觸發。
 
-Type `*word*` in a chatroom and send it. **All seven languages work regardless of your UI language.** The source of truth is [`src/core/animal-triggers.js`](../src/core/animal-triggers.js); keep this page in sync with it.
+Type `*word*` in a chatroom and send it. **All seven languages work regardless of your UI language.** The source of truth is [`src/features/animal/triggers.js`](../src/features/animal/triggers.js); keep this page in sync with it.
 
 ## 規則 / Rules
 
@@ -47,4 +47,4 @@ Type `*word*` in a chatroom and send it. **All seven languages work regardless o
 | Українська | `*махає крилами*`、`*змахує крилами*`、`*тріпоче крилами*` |
 | Deutsch | `*flattert mit den flügeln*`、`*schlägt mit den flügeln*`、`*wackelt mit den flügeln*`、`*bewegt die flügel*` |
 
-> 俄、烏、法、德語的詞由非母語者整理，若有不自然的說法，歡迎直接修改 `animal-triggers.js` 與本頁。
+> 俄、烏、法、德語的詞由非母語者整理，若有不自然的說法，歡迎直接修改 `src/features/animal/triggers.js` 與本頁。
