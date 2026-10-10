@@ -55,7 +55,7 @@ const D = [
   ],
   [
     "登入與儲存",
-    "登入狀態由 loginpage 擁有；帳號、憑證、重連用密碼快取與桌布各有儲存責任，core/storage.js 只保留相容轉匯出。",
+    "登入狀態由 loginpage 擁有；帳號、憑證、重連用密碼快取與桌布各有儲存責任，相容轉匯出檔 core/storage.js 已移除。",
     [
       [
         "UI",
@@ -80,7 +80,7 @@ const D = [
       [
         "相容",
         "共用狀態與相容入口",
-        "core/state.js,core/i18n-registry.js,core/storage.js"
+        "core/state.js,core/i18n-registry.js"
       ],
       [
         "外掛",
@@ -241,22 +241,27 @@ const D = [
   ],
   [
     "動物動畫",
-    "觸發 → 驗證（白名單、型別、深度與大小）→ A/B 播放（先 B 後 A，停在 A）→ 結束後必要時補送一次物件更新。重複觸發以最新一筆為準；部位被脫下或換掉即提早結束。設定頁預覽用獨立角色副本，不送封包。",
+    "觸發（文字或自動）→ 驗證（白名單、型別、深度與大小）→ A/B 播放（先 B 後 A，停在 A），本人每一格都送物件更新，沒裝 LCE 的人也看得到。重複觸發以最新一筆為準；部位被脫下或換掉即提早結束。設定頁預覽用獨立角色副本，不送封包。",
     [
       [
         "播放",
-        "觸發、接收、重播與定格",
-        "features/animal-animations.js"
+        "觸發、逐格播放與定格；相容舊版隱藏封包",
+        "features/animal/index.js"
       ],
       [
         "共用",
         "姿勢驗證、套用、簽章與幀序",
-        "core/animal-actions.js"
+        "features/animal/actions.js"
+      ],
+      [
+        "觸發詞",
+        "七種語言的文字觸發詞與比對",
+        "features/animal/triggers.js"
       ],
       [
         "預覽",
         "設定頁獨立角色預覽",
-        "settings/animal-preview.js"
+        "features/animal/preview.js"
       ],
       [
         "設定",

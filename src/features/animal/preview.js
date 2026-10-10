@@ -6,8 +6,8 @@
 // 以經過時間決定畫面（而非 setTimeout），由設定頁每幀呼叫 draw() 驅動。
 // ════════════════════════════════════════════════════════════════════════════
 
-import { getFeature } from '../core/feature-settings.js';
-import { SLOTS, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, safeClone, applyAnimalState, collectManagedKeys, poseAt } from '../core/animal-actions.js';
+import { getFeature } from '../../core/feature-settings.js';
+import { SLOTS, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, safeClone, applyAnimalState, collectManagedKeys, poseAt } from './actions.js';
 
 const PREVIEW_NAME = 'LCE_AnimalPreview';
 
@@ -25,7 +25,7 @@ function savedStates(type) {
 
 /**
  * 指定部位（Ears / Tails / Wings）的播放設定；A、B 姿勢沒有都存好時回傳 null。
- * 預覽等同「主動觸發」（*wag* 等），不要求本人有穿；只有定時自動觸發才需要配戴（見 animal-animations）。
+ * 預覽等同「主動觸發」（*wag* 等），不要求本人有穿；只有定時自動觸發才需要配戴（見 index.js）。
  * 一次只測一個部位（設定頁目前停留的分頁），避免多個部位同時動而混淆。
  */
 export function getTrack(type) {

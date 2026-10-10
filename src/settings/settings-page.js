@@ -11,8 +11,8 @@ import { langFlag, openLanguageDropdown, openFontPicker, promptInput, openColorP
 import { currentGameLanguage } from '../game/language.js';
 import { openStorageManager, closeStorageManager, closeStorageManagerLayer, isStorageManagerOpen, positionStorageManager } from './storage-manager.js';
 import { PANEL_X, PANEL_Y, PANEL_W, PANEL_H, PANEL_TAB_H, PANEL_ROWS, ANIMAL_PANEL_W, ANIMAL_SIDE_X, ANIMAL_SIDE_W, ANIMAL_CHAR_H, ANIMAL_CHAR_ZOOM, ANIMAL_BTN_H } from './layout.js';
-import { createAnimalPreview } from './animal-preview.js';
-import { ANIMAL_TYPES } from '../core/animal-actions.js';
+import { createAnimalPreview } from '../features/animal/preview.js';
+import { ANIMAL_TYPES } from '../features/animal/actions.js';
 import { closeTrustedDomainManager, isTrustedDomainManagerOpen, openTrustedDomainManager, positionTrustedDomainManager } from './trusted-domain-manager.js';
 import iconUrl from '../assets/lce-icon.svg';
 import { openSettingDropdown, closeSettingDropdown, isSettingDropdownOpen } from './setting-dropdown.js';

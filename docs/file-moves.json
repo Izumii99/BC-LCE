@@ -40,5 +40,9 @@
   "src/features/styles/selection.css": "src/features/theme/styles/selection.css",
   "src/ui/chat-pipeline.js": "src/ui/chat/pipeline.js",
   "src/ui/chat-notification.js": "src/ui/chat/notification.js",
-  "src/ui/chat-markup.js": "src/ui/chat/markup.js"
+  "src/ui/chat-markup.js": "src/ui/chat/markup.js",
+  "src/features/animal-animations.js": "src/features/animal/index.js",
+  "src/core/animal-actions.js": "src/features/animal/actions.js",
+  "src/core/animal-triggers.js": "src/features/animal/triggers.js",
+  "src/settings/animal-preview.js": "src/features/animal/preview.js"
 }

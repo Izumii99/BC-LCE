@@ -44,17 +44,33 @@ The settings page has three tabs along the top, one each for ears, tail and wing
 1. In the game, set the item to the look you want (colour, properties, rotation, resize, layers, …), return to the LCE settings page and press "Save Resting Pose" to store it as **A**.
 2. Change the item to a second look and press "Save Wiggling / Wagging / Flapping Pose" to store it as **B**.
 
-Playback goes B → A → B → A … for the configured number of cycles and **always ends on A** (the resting pose), so the sender and every receiver end in the same state. The right-hand side of the settings page has a preview: it runs on a separate copy of your character, never changes your own appearance and never sends any packets. A button also takes you straight to BC's native wardrobe to adjust the item.
+Playback goes B → A → B → A … for the configured number of cycles and **always ends on A** (the resting pose), so everyone ends in the same state. The right-hand side of the settings page has a preview: it runs on a separate copy of your character, never changes your own appearance and never sends any packets. A button also takes you straight to BC's native wardrobe to adjust the item.
 
-- **Manual trigger:** type `*wag*` (tail), `*flap*` (wings), or `*wiggle*` / `*twitch*` (ears) in a chatroom. Manual triggers work even if you are not currently wearing the item.
+- **Manual (text) trigger:** type one of the following in a chatroom and send it to play the matching animation. **Seven languages are supported** (English, Traditional Chinese, Simplified Chinese, Russian, French, Ukrainian, German), and the words work regardless of your UI language, so anyone can trigger in their own language.
+
+  | Part | English | 繁體中文 | 简体中文 |
+  |---|---|---|---|
+  | Ears | `*wiggle*`, `*twitch*` | `*搖耳朵*`, `*抖耳朵*` | `*摇耳朵*`, `*抖耳朵*` |
+  | Tail | `*wag*` | `*搖尾巴*`, `*擺尾巴*` | `*摇尾巴*`, `*摆尾巴*` |
+  | Wings | `*flap*` | `*拍翅膀*`, `*搧翅膀*` | `*拍翅膀*`, `*扇翅膀*` |
+
+  The Russian, French, Ukrainian and German words, plus every word for each language, are listed in [Animal animation trigger words](docs/animal-trigger-words.md), for example `*шевелит ушами*`, `*remue la queue*`, `*махає крилами*` and `*wackelt mit den ohren*`.
+
+  - The whole message must be exactly `*keyword*`: `*wag*` works, but `*wag slowly*` or `I *wag*` do not. Case, accents (`é`, `ö`, `ё`…) and repeated spaces do not matter, and both the normal `*` and the full-width `＊` that CJK input methods produce are accepted. English also accepts the third-person forms (`*wiggles*`, `*wags*`, `*flaps*`) and a part name (`*wag tail*`).
+  - The message is sent as usual, so people in the room see the text; the animation starts right after it is sent.
+  - This is chat text, not a `/` command, and it is not listed in the `/lce` command overview.
+  - The part's switch must be on (Animal tab in settings) and both the resting pose A and the animated pose B must be saved; if either is missing, nothing happens.
+  - A manual trigger does not require you to be wearing the item (if you are not, the A/B pose item is put on); only the automatic trigger needs it to be worn.
+  - Triggering again during playback restarts from the beginning with the latest request.
 - **Automatic trigger:** fires at random based on the trigger interval, and only if the part is currently worn; an item you took off is never put back.
-- **Sync model:** triggering sends a single hidden packet. Receivers (who need LCE with the matching setting enabled) play the animation locally, so there are no per-frame packets. When it finishes, one item update is sent only if your final state differs from the state before playback, so people without LCE also see the final A.
-- **Repeated triggers:** triggering again during playback always restarts from the beginning with the latest request.
+- **Sync model:** the setting only decides whether *you* animate; it never affects whether you see other people's animations. Every frame of your own animation is sent as an item update packet (like BCAR), so everyone in the room sees it, **with no LCE and no setting required on their side**. The animation ends on A, and the server-side state is A as well. Because frames are sent one by one, a shorter delay or more cycles means more packets.
 - **Early stop:** if the part is removed or replaced with another item during playback, the animation stops immediately and does not overwrite that change.
 - Default cycles are 9 for ears and tail and 3 for wings, with a maximum of 20; the per-frame delay is limited to 100–2000 ms.
 - Pose data received from other players is validated against an allow-list, types, depth and size limits, and dangerous keys are filtered out.
 
 ### Commands
+
+(The ear / tail / wing triggers (`*wiggle*`, `*wag*`, `*flap*` and their translations in seven languages) are chat-text triggers, not `/` commands; see "Animal animations" above.)
 
 `/lce` (command overview), `/lcesetting` (open settings), `/profiles <keyword>`, `/versions [name]`, `/w`, `/beep`, `/cum`, `/lcegotoroom`, `/exportlooks`, `/importlooks`, `/lcedebug`, `/lceThemetest`. Some general-purpose commands are filtered at registration time depending on whether WCE is active.
 
@@ -93,6 +109,7 @@ Most documents are written in Traditional Chinese.
 - [Automatic reconnect and ChatLog protection](docs/automatic-reconnect.md)
 - [Shared profile database](docs/profile-database.md)
 - [Vertical layout API](docs/vertical-api.md) (English)
+- [Animal animation trigger words (7 languages)](docs/animal-trigger-words.md)
 - [WCE / LCE coexistence check](docs/wce-compatibility.md)
 - [R132Beta3 compatibility fixes](docs/r132-compatibility.md)
 - [Automated checks (CI)](docs/automation.md)
@@ -112,19 +129,19 @@ src/
   modsdk.js          Bundled bcModSdk (included in the bundle, no @require)
 
   core/              Shared foundations: constants, settings schema and storage, i18n, hook
-                     management, lifecycle, WCE coexistence checks, public API, theme API,
-                     shared animal-animation logic (animal-actions.js)
+                     management, lifecycle, WCE coexistence checks, public API, theme API
   commands/          Command system (commander.js)
   features/          Feature modules, each providing installXxx():
                      chat / social / messenger / theme / expressions / wardrobe /
-                     safety / performance / vertical / animal-animations /
+                     safety / performance / vertical / animal (animation playback, pose logic,
+                     7-language triggers, settings preview) /
                      echo-mouth-pull / petsuit-render / region-switch / misc …
   game/              Thin wrappers around BC functions (chat actions, room search and
                      navigation, language)
   loginpage/         Horizontal login page (background, account carousel, settings overlay,
                      hiding BC's native login + FUSAM pass-through)
-  settings/          In-game settings pages (including the animal preview animal-preview.js,
-                     storage manager and colour pickers)
+  settings/          In-game settings pages (storage manager, colour pickers,
+                     trusted-origin manager)
   storage/           Accounts, credentials, reconnect credentials, wallpaper and the
                      IndexedDB databases
   ui/                Chat message rendering, notifications and transitions
