@@ -19,9 +19,25 @@ function privateNetworkAccessPlugin() {
   };
 }
 
+// 正式版 loader 放在專案根目錄（唯一來源），建置時原樣輸出到 dist/loader.user.js，
+// 讓 https://awdrrawd.github.io/BC-LCE/loader.user.js 繼續可用。
+// loader.local.user.js 只給本機開發，不部署。
+function emitLoaderPlugin() {
+  return {
+    name: 'emit-loader',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'loader.user.js',
+        source: readFileSync(new URL('./loader.user.js', import.meta.url)),
+      });
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [privateNetworkAccessPlugin()],
+  plugins: [privateNetworkAccessPlugin(), emitLoaderPlugin()],
   base: './',
   // JS chunk 維持相對路徑：localhost/main.js 載 localhost/app.js，
   // jsDelivr/main.js 載 jsDelivr/app.js。只有大型圖片／影片改由 Pages 提供。

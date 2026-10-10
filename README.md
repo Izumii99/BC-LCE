@@ -125,7 +125,7 @@ Translation/         七語 JSON 字表（TW / CN / EN / DE / FR / RU / UA）
 tests/               Node VM modules 測試
 scripts/             素材驗證與 bundle 大小報告
 docs/                設計說明與維護紀錄
-loader.user.js       正式版載入器（讀 GitHub Pages 自動生成的 assets/main.js）
+loader.user.js       正式版載入器（建置時由 vite.config.js 輸出到 dist/，經 GitHub Pages 提供；讀自動生成的 assets/main.js）
 loader.local.user.js 本地開發載入器（讀 http://localhost:5174/assets/main.js）
 ```
 
