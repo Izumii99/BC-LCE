@@ -156,9 +156,28 @@ export function clearAnimalAnim(type, draft) {
 }
 
 // ───────────────────────── 套用姿勢（正式播放與設定頁預覽共用） ─────────────────────────
-const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
 export const findSlotItem = (char, slot) => char.Appearance.find(item => item.Asset.Group.Name === slot);
+
+/**
+ * 物件的比較簽章：名稱、顏色加上所有白名單欄位。
+ * 直接用 ANIMAL_STATE_KEYS 組出來，之後新增白名單欄位時簽章會自動跟上，不會漏比。
+ */
+export function animalItemSignature(item) {
+    if (!item) return '';
+    try { return JSON.stringify([item.Asset.Name, item.Color, ...ANIMAL_STATE_KEYS.map(key => item[key])]); }
+    catch { return ''; }
+}
+
+/** 把「這次播放會動到的 Property 欄位」併入 keys（播放前的物件、A、B 的欄位都算）。 */
+export function collectManagedKeys(keys, startItem, ...states) {
+    for (const source of [startItem, ...states]) {
+        for (const key of Object.keys(source?.Property || {})) keys.add(key);
+    }
+    return keys;
+}
+
+/** 第 frame 格要顯示的姿勢：先 B 後 A，播完（frame >= total）停在 A。正式播放與預覽共用。 */
+export const poseAt = (frame, total, state1, state2) => (frame >= total || frame % 2 ? state1 : state2);
 
 /**
  * 把部位直接改成指定狀態（A 或 B）。播放時不管目前穿的是什麼，一律照穿。
@@ -180,7 +199,7 @@ export function applyAnimalState(char, slot, state, managedPropertyKeys) {
 
     if (item.Property) {
         for (const key of managedPropertyKeys) {
-            if (UNSAFE_KEYS.has(key)) continue;
+            if (FORBIDDEN_KEYS.has(key)) continue;
             if (!state.Property || !(key in state.Property)) delete item.Property[key];
         }
     }
@@ -191,7 +210,7 @@ export function applyAnimalState(char, slot, state, managedPropertyKeys) {
         if (copy === undefined) continue;
         if (key === 'Property') {
             if (!item.Property) item.Property = {};
-            for (const k of Object.keys(copy)) if (!UNSAFE_KEYS.has(k)) item.Property[k] = copy[k];
+            for (const k of Object.keys(copy)) if (!FORBIDDEN_KEYS.has(k)) item.Property[k] = copy[k];
         } else {
             item[key] = copy;
         }

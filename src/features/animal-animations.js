@@ -3,23 +3,17 @@ import { SETTING_CHANGED_EVENT } from '../core/constants.js';
 import { createSocketBinding } from '../core/lifecycle.js';
 import { createHook } from '../core/hooks.js';
 import modApi from '../modsdk.js';
-import { SLOTS, ANIMAL_TYPES, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, applyAnimalState as applyState } from '../core/animal-actions.js';
+import { SLOTS, ANIMAL_TYPES, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, applyAnimalState as applyState, animalItemSignature, collectManagedKeys, poseAt } from '../core/animal-actions.js';
 
 const hook = createHook('animal-animations');
 
 const HIDDEN_MSG_PREFIX = 'LCEAnimalAnim_';
 
-const renderers = new Map(); // id+type -> { timer, char, slot, names, managedPropertyKeys, state1 }
+const renderers = new Map(); // id+type -> { timer, char, slot, names, managedKeys, state1, startSig }
 let autoTriggerInterval = null;
 
 function refreshCharacter(char) {
     if (typeof CharacterRefresh === 'function') CharacterRefresh(char, false, false);
-}
-
-function itemSignature(item) {
-    if (!item) return '';
-    try { return JSON.stringify([item.Asset.Name, item.Color, item.Property, item.Craft, item.Difficulty]); }
-    catch { return ''; }
 }
 
 /**
@@ -31,15 +25,30 @@ function itemSignature(item) {
 function syncToServer(char, slot, startSig) {
     if (char !== globalThis.Player) return;
     if (typeof globalThis.ChatRoomCharacterItemUpdate !== 'function' || !globalThis.ChatRoomData) return;
-    if (itemSignature(findSlotItem(char, slot)) === startSig) return;
+    if (animalItemSignature(findSlotItem(char, slot)) === startSig) return;
     try { globalThis.ChatRoomCharacterItemUpdate(char, slot); }
     catch (e) { console.warn('[LCE] animal sync failed', e); }
+}
+
+/** 該部位目前仍是這次動畫的物件（沒有被脫下、也沒有換成別的）。 */
+function ownsSlot(r) {
+    const item = findSlotItem(r.char, r.slot);
+    return !!item && r.names.has(item.Asset.Name);
+}
+
+/** 定格在 A 並補送最終狀態；離開畫面、離開房間時共用。 */
+function settleOnA(r, { refresh = true } = {}) {
+    applyState(r.char, r.slot, r.state1, r.managedKeys);
+    if (refresh) refreshCharacter(r.char);
+    syncToServer(r.char, r.slot, r.startSig);
 }
 
 /**
  * 播放用 A → B → A → B …，共 cycles 個完整循環，最後停在 A（靜止姿勢），不還原播放前的物件：
  * 發送者與所有接收者都會停在同一個狀態，不會出現「對方看到 X、本人其實是 A」的落差。
- * 播放中若使用者手動換掉或脫下該部位，立即停止，不覆蓋他的變更。
+ * 播放中若耳朵／尾巴／翅膀被脫下或換成別的物件，立即停止，不覆蓋對方的變更。
+ * 同一個角色、同一個部位再次觸發時，永遠以最新一筆為準：清掉舊計時器後從頭重播，
+ * 但沿用最初的起始簽章與管理欄位，最後只會補送一次同步。
  */
 function startRender(char, type, state1, state2, delay, cycles) {
     const id = char.MemberNumber;
@@ -51,49 +60,39 @@ function startRender(char, type, state1, state2, delay, cycles) {
     if (previous) clearTimeout(previous.timer);
 
     const startItem = findSlotItem(char, slot);
-    const names = new Set([state1.Name, state2.Name, ...(previous ? previous.names : []), ...(startItem ? [startItem.Asset.Name] : [])]);
-    const managedPropertyKeys = new Set([
-        ...(previous ? previous.managedPropertyKeys : []),
-        ...Object.keys(startItem?.Property || {}),
-        ...Object.keys(state1.Property || {}),
-        ...Object.keys(state2.Property || {})
-    ]);
-    const startSig = previous ? previous.startSig : itemSignature(startItem);   // 重新觸發時仍以最初狀態為準
-    const base = { char, slot, names, managedPropertyKeys, state1, startSig };
+    const r = {
+        char, slot, state1, timer: null,
+        names: previous?.names ?? new Set(),
+        managedKeys: previous?.managedKeys ?? new Set(),
+        startSig: previous ? previous.startSig : animalItemSignature(startItem),   // 重新觸發時仍以最初狀態為準
+    };
+    for (const name of [state1.Name, state2.Name, startItem?.Asset.Name]) if (name) r.names.add(name);
+    collectManagedKeys(r.managedKeys, startItem, state1, state2);
+    renderers.set(key, r);
 
-    const states = [state2, state1];   // 先 B 後 A：第一個畫面就會動，結束時剛好停在 A
-    let i = 0;
+    const total = cycles * 2;
+    let frame = 0;
 
-    function finish() { renderers.delete(key); }
+    // 例外或結束時一定要清掉登記，否則該角色之後的動畫會永遠卡住
+    const finish = () => { if (renderers.get(key) === r) renderers.delete(key); };
 
     function step() {
         try {
             // 角色已離開房間：物件已被丟棄，不需要任何處理
             if (char !== globalThis.Player && !(globalThis.ChatRoomCharacter ?? []).includes(char)) { finish(); return; }
 
-            // 使用者手動換掉或脫下 → 停止，保留使用者的變更
-            if (i > 0 || startItem) {
-                const now = findSlotItem(char, slot);
-                if (!now || !names.has(now.Asset.Name)) { finish(); return; }
-            }
+            // 被脫下或換掉 → 停止，保留對方的變更（第一格且原本沒有物件時，視為要穿上，不檢查）
+            if ((frame > 0 || startItem) && !ownsSlot(r)) { finish(); return; }
 
-            if (globalThis.CurrentScreen !== 'ChatRoom') {
-                // 中途離開畫面：定格在 A
-                applyState(char, slot, state1, managedPropertyKeys);
-                refreshCharacter(char);
-                finish();
-                syncToServer(char, slot, startSig);
-                return;
-            }
-            if (i >= cycles * 2) { finish(); syncToServer(char, slot, startSig); return; }
+            if (globalThis.CurrentScreen !== 'ChatRoom') { settleOnA(r); finish(); return; }
+            if (frame >= total) { finish(); syncToServer(char, slot, r.startSig); return; }
 
-            applyState(char, slot, states[i % 2], managedPropertyKeys);
+            applyState(char, slot, poseAt(frame, total, state1, state2), r.managedKeys);
             refreshCharacter(char);
 
-            i++;
-            renderers.set(key, { ...base, timer: setTimeout(step, delay) });
+            frame++;
+            r.timer = setTimeout(step, delay);
         } catch (e) {
-            // 例外時一定要清掉登記，否則該角色之後的動畫會永遠被 renderers.has() 擋住
             console.warn('[LCE] animal animation failed', e);
             finish();
         }
@@ -184,10 +183,10 @@ export function onAnimalMessage(data) {
 
     const dict = Array.isArray(data.Dictionary) ? data.Dictionary[0] : data.Dictionary;
     if (!dict || !dict.type || !dict.state1 || !dict.state2) return;
-    if (!Object.keys(SLOTS).includes(dict.type)) return;
-    
-    if (renderers.has(id + dict.type)) return;
-    if (renderers.size > 20) return;
+    if (!ANIMAL_TYPES.includes(dict.type)) return;
+
+    // 同一個部位再次觸發：永遠以最新一筆為準（startRender 會清掉舊的重新播放）；上限只擋新增的登記
+    if (!renderers.has(id + dict.type) && renderers.size >= 20) return;
     if (!getFeature(`animal${dict.type}`)) return;
     
     const char = (globalThis.ChatRoomCharacter ?? []).find(c => c.MemberNumber === id);
@@ -233,14 +232,9 @@ export function installAnimalAnimations() {
     hook('ChatRoomLeave', 10, (args, next) => {
         for (const r of renderers.values()) {
             clearTimeout(r.timer);
-            // 定格在 A；使用者已手動換掉或脫下的部位不動
-            try {
-                const item = findSlotItem(r.char, r.slot);
-                if (item && r.names.has(item.Asset.Name)) {
-                    applyState(r.char, r.slot, r.state1, r.managedPropertyKeys);
-                    syncToServer(r.char, r.slot, r.startSig);
-                }
-            } catch (e) { console.warn('[LCE] animal finalize failed', e); }
+            // 定格在 A；被脫下或換掉的部位不動
+            try { if (ownsSlot(r)) settleOnA(r, { refresh: false }); }
+            catch (e) { console.warn('[LCE] animal finalize failed', e); }
         }
         renderers.clear();
         return next(args);

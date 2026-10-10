@@ -13,7 +13,8 @@ async function animalRuntime({ player: playerOverride, sent, updates } = {}) {
     const player = playerOverride ?? { MemberNumber: 1, Appearance: [] };
     const rt = runtime({ append: { 'src/features/animal-animations.js': 'export { triggerAnimation };' }, globals: {
         Player: player, CurrentScreen: 'ChatRoom', ServerSend: (...a) => sent?.push(a), ChatRoomData: {}, ChatRoomCharacterItemUpdate: (c, g) => updates?.push([c.MemberNumber, g]), ChatRoomCharacter: [player, remote],
-        setTimeout: fn => timers.push(fn),
+        setTimeout: fn => { timers.push(fn); return fn; },
+        clearTimeout: fn => { const i = timers.indexOf(fn); if (i >= 0) timers.splice(i, 1); },
         AssetGet: (_g, _slot, name) => (['A', 'B', 'Orig'].includes(name) ? { Name: name } : null),
         CharacterRefresh: c => refreshes.push(c.MemberNumber),
         InventoryWear: (char, name, slot, color) => {
@@ -313,4 +314,60 @@ test('animal part list is one source: tab order matches it, and re-saving a pose
     ctl.rebuild(); ctl.play('Ears'); assert.equal(ears(), 'B');
     rt.settings.updateSettings({ animalEarsState2: { Name: 'B2' } });   // 重新儲存姿勢：快取必須失效
     ctl.rebuild(); ctl.play('Ears'); assert.equal(ears(), 'B2');
+});
+
+test('a repeated trigger while playing restarts from the beginning (latest one wins)', async () => {
+    const { mod, remote, timers, refreshes, run } = await animalRuntime();
+    mod.onAnimalMessage(packet({ Name: 'A' }, { Name: 'B' }, { cycles: 3 }));
+    timers.shift()();                                   // frame 1: now on A
+    assert.equal(remote.Appearance[0].Asset.Name, 'A');
+    const before = refreshes.length;
+    mod.onAnimalMessage(packet({ Name: 'A' }, { Name: 'B' }, { cycles: 2 }));
+    assert.equal(remote.Appearance[0].Asset.Name, 'B', 'restarted on the first frame (B)');
+    assert.equal(timers.length, 1, 'the old timer was cleared, only one is pending');
+    run();
+    assert.equal(refreshes.length - before, 4, 'the new run plays its own 2 cycles');
+    assert.equal(remote.Appearance[0].Asset.Name, 'A');
+});
+
+test('the 20-renderer cap does not block a restart of an existing one', async () => {
+    const { rt, mod, remote, timers } = await animalRuntime();
+    mod.onAnimalMessage(packet({ Name: 'A' }, { Name: 'B' }, { cycles: 3 }));
+    for (let n = 100; n < 125; n++) {
+        rt.context.ChatRoomCharacter.push({ MemberNumber: n, Appearance: [] });
+        mod.onAnimalMessage({ ...packet({ Name: 'A' }, { Name: 'B' }), Sender: n });
+    }
+    timers.shift()();
+    mod.onAnimalMessage(packet({ Name: 'A' }, { Name: 'B' }, { cycles: 3 }));
+    assert.equal(remote.Appearance[0].Asset.Name, 'B');
+});
+
+test('removing the item mid-play stops the animation without putting it back', async () => {
+    const { mod, remote, timers, run } = await animalRuntime();
+    mod.onAnimalMessage(packet({ Name: 'A' }, { Name: 'B' }, { cycles: 5 }));
+    timers.shift()();
+    remote.Appearance = [];
+    run();
+    assert.equal(remote.Appearance.length, 0);
+    assert.equal(timers.length, 0);
+});
+
+test('final sync also notices a change that is only in appearance extension fields', async () => {
+    const updates = [];
+    const player = { MemberNumber: 1, Appearance: [makeItem('A', { Rotate: 0 })] };
+    const { rt, mod, run } = await animalRuntime({ player, updates });
+    rt.settings.updateSettings({ animalEarsState1: { Name: 'A', Rotate: 15 }, animalEarsState2: { Name: 'B' } });
+    mod.triggerAnimation('Ears');
+    run();
+    assert.equal(player.Appearance[0].Rotate, 15);
+    assert.deepEqual(updates, [[1, 'HairAccessory2']], 'only Rotate differs from the start, still synced');
+});
+
+test('item signature follows every whitelisted field', async () => {
+    const { rt } = await animalRuntime();
+    const { animalItemSignature, ANIMAL_STATE_KEYS } = await rt.load('src/core/animal-actions.js');
+    const base = makeItem('A');
+    for (const key of ANIMAL_STATE_KEYS) {
+        assert.notEqual(animalItemSignature({ ...base, [key]: key === 'Difficulty' ? 2 : { x: 1 } }), animalItemSignature(base), key);
+    }
 });

@@ -7,7 +7,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { getFeature } from '../core/feature-settings.js';
-import { SLOTS, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, safeClone, applyAnimalState } from '../core/animal-actions.js';
+import { SLOTS, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, safeClone, applyAnimalState, collectManagedKeys, poseAt } from '../core/animal-actions.js';
 
 const PREVIEW_NAME = 'LCE_AnimalPreview';
 
@@ -77,11 +77,7 @@ export function createAnimalPreview(now = () => performance.now()) {
             const track = character && getTrack(type);
             if (!track) return false;
             const startItem = findSlotItem(character, track.slot);
-            const managed = new Set([
-                ...Object.keys(startItem?.Property || {}),
-                ...Object.keys(track.state1.Property || {}),
-                ...Object.keys(track.state2.Property || {}),
-            ]);
+            const managed = collectManagedKeys(new Set(), startItem, track.state1, track.state2);
             run = { start: now(), track: { ...track, managed, frame: -1 } };
             this.update();
             return true;
@@ -97,8 +93,7 @@ export function createAnimalPreview(now = () => performance.now()) {
             const frame = Math.min(total, Math.floor((now() - run.start) / t.delay));
             if (frame !== t.frame) {
                 t.frame = frame;
-                // 第 0 格就是 B，奇數格 A；播完（frame === total）停在 A
-                applyAnimalState(character, t.slot, frame >= total || frame % 2 ? t.state1 : t.state2, t.managed);
+                applyAnimalState(character, t.slot, poseAt(frame, total, t.state1, t.state2), t.managed);
                 refresh();
             }
             if (frame >= total) run = null;
