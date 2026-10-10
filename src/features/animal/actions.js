@@ -186,7 +186,7 @@ export const poseAt = (frame, total, state1, state2) => (frame >= total || frame
 export function applyAnimalState(char, slot, state, managedPropertyKeys) {
     let item = findSlotItem(char, slot);
     if (!item || item.Asset.Name !== state.Name) {
-        item = globalThis.InventoryWear(char, state.Name, slot, state.Color, undefined, undefined, undefined, false);
+        item = InventoryWear(char, state.Name, slot, state.Color, undefined, undefined, undefined, false);
         if (!item) return;
     } else {
         item.Color = Array.isArray(state.Color) ? [...state.Color] : state.Color;

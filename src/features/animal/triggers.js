@@ -1,4 +1,4 @@
-// 耳朵／尾巴／翅膀的文字觸發詞（聊天室輸入 *關鍵字* 並送出）。
+// 耳朵／尾巴／翅膀的文字觸發詞（聊天室輸入 *關鍵字* 或 *關鍵字 並送出，結尾星號可省略）。
 // 七種語言的詞全部啟用，與介面語言無關：房間裡的人可能用不同語言聊天，
 // 所以任何一種語言的詞都能觸發。新增或修改詞請同步更新 docs/animal-trigger-words.md。
 //
@@ -7,27 +7,27 @@
 
 export const ANIMAL_TRIGGER_WORDS = {
     Ears: {
-        EN: ['wiggle', 'wiggles', 'twitch', 'twitches', 'wiggle ears', 'wiggles ears', 'twitch ears', 'twitches ears'],
-        TW: ['搖耳朵', '晃耳朵', '抖耳朵', '動耳朵', '搖動耳朵', '擺動耳朵'],
-        CN: ['摇耳朵', '晃耳朵', '抖耳朵', '动耳朵', '摇动耳朵', '摆动耳朵'],
+        EN: ['wiggle', 'wiggles', 'wiggling', 'twitch', 'twitches', 'twitching', 'wiggle ears', 'wiggles ears', 'wiggling ears', 'wiggle ear', 'wiggles ear', 'twitch ears', 'twitches ears', 'twitching ears', 'twitch ear', 'twitches ear', 'shake ears', 'shakes ears', 'flick ears', 'flicks ears'],
+        TW: ['搖耳朵', '晃耳朵', '抖耳朵', '動耳朵', '搖動耳朵', '擺動耳朵', '甩耳朵', '搖搖耳朵', '晃晃耳朵', '抖抖耳朵', '動動耳朵', '抖動耳朵', '晃動耳朵'],
+        CN: ['摇耳朵', '晃耳朵', '抖耳朵', '动耳朵', '摇动耳朵', '摆动耳朵', '甩耳朵', '摇摇耳朵', '晃晃耳朵', '抖抖耳朵', '动动耳朵', '抖动耳朵', '晃动耳朵'],
         RU: ['шевелит ушами', 'шевелит ушками', 'дергает ушами', 'дергает ушками', 'шевелить ушами'],
         FR: ['remue les oreilles', 'bouge les oreilles', 'agite les oreilles', 'frétille des oreilles'],
         UA: ['ворушить вухами', 'ворушить вушками', 'сіпає вухами', 'сіпає вушками'],
         DE: ['wackelt mit den ohren', 'zuckt mit den ohren', 'bewegt die ohren'],
     },
     Tails: {
-        EN: ['wag', 'wags', 'wag tail', 'wags tail'],
-        TW: ['搖尾巴', '擺尾巴', '甩尾巴', '搖擺尾巴', '搖動尾巴'],
-        CN: ['摇尾巴', '摆尾巴', '甩尾巴', '摇摆尾巴', '摇动尾巴'],
+        EN: ['wag', 'wags', 'wagging', 'wag tail', 'wags tail', 'wagging tail', 'swish', 'swishes', 'swish tail', 'swishes tail', 'wiggle tail', 'wiggles tail', 'shake tail', 'shakes tail'],
+        TW: ['搖尾巴', '擺尾巴', '甩尾巴', '搖擺尾巴', '搖動尾巴', '晃尾巴', '動尾巴', '搖搖尾巴', '擺擺尾巴', '甩甩尾巴', '動動尾巴', '擺動尾巴', '晃動尾巴'],
+        CN: ['摇尾巴', '摆尾巴', '甩尾巴', '摇摆尾巴', '摇动尾巴', '晃尾巴', '动尾巴', '摇摇尾巴', '摆摆尾巴', '甩甩尾巴', '动动尾巴', '摆动尾巴', '晃动尾巴'],
         RU: ['виляет хвостом', 'машет хвостом', 'помахивает хвостом', 'вилять хвостом'],
         FR: ['remue la queue', 'agite la queue', 'bouge la queue', 'frétille de la queue'],
         UA: ['виляє хвостом', 'махає хвостом', 'помахує хвостом'],
         DE: ['wedelt mit dem schwanz', 'wackelt mit dem schwanz', 'bewegt den schwanz', 'wedelt mit dem schweif'],
     },
     Wings: {
-        EN: ['flap', 'flaps', 'flap wings', 'flaps wings'],
-        TW: ['拍翅膀', '搧翅膀', '揮翅膀', '振翅', '拍動翅膀'],
-        CN: ['拍翅膀', '扇翅膀', '挥翅膀', '振翅', '拍动翅膀'],
+        EN: ['flap', 'flaps', 'flapping', 'flap wings', 'flaps wings', 'flapping wings', 'flap wing', 'flaps wing', 'flutter', 'flutters', 'flutter wings', 'flutters wings'],
+        TW: ['拍翅膀', '搧翅膀', '揮翅膀', '拍動翅膀', '搖翅膀', '動翅膀', '拍拍翅膀', '搧搧翅膀', '揮動翅膀', '擺動翅膀', '振動翅膀', '搧動翅膀', '動動翅膀', '振翅'],
+        CN: ['拍翅膀', '扇翅膀', '挥翅膀', '拍动翅膀', '摇翅膀', '动翅膀', '拍拍翅膀', '扇扇翅膀', '挥动翅膀', '摆动翅膀', '振动翅膀', '扇动翅膀', '动动翅膀', '振翅'],
         RU: ['машет крыльями', 'хлопает крыльями', 'взмахивает крыльями', 'трепещет крыльями'],
         FR: ['bat des ailes', 'bat les ailes', 'agite les ailes', 'remue les ailes'],
         UA: ['махає крилами', 'змахує крилами', 'тріпоче крилами'],
@@ -59,12 +59,20 @@ for (const [type, langs] of Object.entries(ANIMAL_TRIGGER_WORDS)) {
     }
 }
 
-const STAR = /^[*＊]$/;   // 中日韓輸入法常打出全形星號
+const STAR = /^[*＊]$/;
+// 口語上常在動作後面加的語氣符號；比對前先去掉，`*搖尾巴~*`、`*wag!` 都算。詞表本身不含標點。
+const TRAILING_MARKS = /[\s~～!！?？.。,，、…♪♥]+$/u;   // 中日韓輸入法常打出全形星號
 
-/** 整句訊息必須是 *關鍵字*（半形或全形星號）；回傳 'Ears' | 'Tails' | 'Wings' | null。 */
+/**
+ * 整句訊息必須是 *關鍵字*（半形或全形星號）；回傳 'Ears' | 'Tails' | 'Wings' | null。
+ * BC 把以 * 開頭的訊息都當成動作（emote），結尾的 * 可有可無，玩家看到的效果一樣，
+ * 所以結尾星號是選填：`*wiggle*` 與 `*wiggle` 都會觸發。開頭星號仍然必填。
+ */
 export function getAnimTypeFromMsg(msg) {
     if (typeof msg !== 'string') return null;
-    const text = msg.trim();
-    if (text.length < 3 || !STAR.test(text[0]) || !STAR.test(text[text.length - 1])) return null;
-    return TRIGGER_MAP.get(normalizeTrigger(text.slice(1, -1))) ?? null;
+    let text = msg.trim();
+    if (text.length < 2 || !STAR.test(text[0])) return null;
+    text = text.slice(1);
+    if (STAR.test(text[text.length - 1])) text = text.slice(0, -1);
+    return TRIGGER_MAP.get(normalizeTrigger(text.replace(TRAILING_MARKS, ''))) ?? null;
 }

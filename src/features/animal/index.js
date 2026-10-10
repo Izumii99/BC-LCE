@@ -24,8 +24,8 @@ function refreshCharacter(char) {
  */
 function pushFrame(char, slot) {
     if (char !== globalThis.Player) return false;
-    if (typeof globalThis.ChatRoomCharacterItemUpdate !== 'function' || !globalThis.ChatRoomData) return false;
-    try { globalThis.ChatRoomCharacterItemUpdate(char, slot); return true; }
+    if (typeof ChatRoomCharacterItemUpdate !== 'function' || !globalThis.ChatRoomData) return false;
+    try { ChatRoomCharacterItemUpdate(char, slot); return true; }
     catch (e) { console.warn('[LCE] animal frame sync failed', e); return false; }
 }
 
@@ -35,9 +35,9 @@ function pushFrame(char, slot) {
  */
 function syncToServer(char, slot, startSig) {
     if (char !== globalThis.Player) return;
-    if (typeof globalThis.ChatRoomCharacterItemUpdate !== 'function' || !globalThis.ChatRoomData) return;
+    if (typeof ChatRoomCharacterItemUpdate !== 'function' || !globalThis.ChatRoomData) return;
     if (animalItemSignature(findSlotItem(char, slot)) === startSig) return;
-    try { globalThis.ChatRoomCharacterItemUpdate(char, slot); }
+    try { ChatRoomCharacterItemUpdate(char, slot); }
     catch (e) { console.warn('[LCE] animal sync failed', e); }
 }
 
@@ -93,7 +93,7 @@ function startRender(char, type, state1, state2, delay, cycles) {
     function step() {
         try {
             // 角色已離開房間：物件已被丟棄，不需要任何處理
-            if (char !== globalThis.Player && !(globalThis.ChatRoomCharacter ?? []).includes(char)) { finish(); return; }
+            if (char !== globalThis.Player && !(globalThis.ChatRoomCharacter || []).includes(char)) { finish(); return; }
 
             // 被脫下或換掉 → 停止，保留對方的變更（第一格且原本沒有物件時，視為要穿上，不檢查）
             if ((frame > 0 || startItem) && !ownsSlot(r)) { finish(); return; }
@@ -149,6 +149,17 @@ function triggerAnimation(type, { auto = false } = {}) {
 
 let lastTriggers = { Ears: Date.now(), Tails: Date.now(), Wings: Date.now() };
 
+/** 依目前設定啟動或停止自動觸發計時器。可重複呼叫。 */
+export function syncAutoTimer() {
+    const anyEnabled = ANIMAL_TYPES.some(type => getFeature(`animal${type}`));
+    if (anyEnabled && !autoTriggerInterval) {
+        autoTriggerInterval = setInterval(checkTriggers, 1000);
+    } else if (!anyEnabled && autoTriggerInterval) {
+        clearInterval(autoTriggerInterval);
+        autoTriggerInterval = null;
+    }
+}
+
 function checkTriggers() {
     if (globalThis.CurrentScreen !== 'ChatRoom') return;
     
@@ -184,7 +195,7 @@ export function onAnimalMessage(data) {
 
     // 同一個部位再次觸發：永遠以最新一筆為準（startRender 會清掉舊的重新播放）；上限只擋新增的登記
     if (!renderers.has(id + dict.type) && renderers.size >= 20) return;
-    const char = (globalThis.ChatRoomCharacter ?? []).find(c => c.MemberNumber === id);
+    const char = (globalThis.ChatRoomCharacter || []).find(c => c.MemberNumber === id);
     if (!char) return;
     
     const delay = clampDelay(dict.delay, 250);
@@ -194,7 +205,7 @@ export function onAnimalMessage(data) {
     const buildState = s => {
         const state = sanitizeAnimalState(s);
         if (!state) return null;
-        if (!globalThis.AssetGet('Female3DCG', SLOTS[dict.type], state.Name)) return null;
+        if (!AssetGet('Female3DCG', SLOTS[dict.type], state.Name)) return null;
         return state;
     };
 
@@ -247,17 +258,7 @@ export function installAnimalAnimations() {
         return result;
     });
 
-    if (!autoTriggerInterval) {
-        autoTriggerInterval = setInterval(checkTriggers, 1000);
-    }
-    
-    window.addEventListener(SETTING_CHANGED_EVENT, () => {
-        const anyEnabled = ANIMAL_TYPES.some(t => getFeature(`animal${t}`));
-        if (!anyEnabled && autoTriggerInterval) {
-            clearInterval(autoTriggerInterval);
-            autoTriggerInterval = null;
-        } else if (anyEnabled && !autoTriggerInterval) {
-            autoTriggerInterval = setInterval(checkTriggers, 1000);
-        }
-    });
+    // 自動觸發的計時器只在至少一個部位開啟時才跑；全部關閉時不佔任何計時器
+    syncAutoTimer();
+    window.addEventListener(SETTING_CHANGED_EVENT, syncAutoTimer);
 }

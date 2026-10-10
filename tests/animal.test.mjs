@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { runtime } from './helpers/runtime.mjs';
 
 function makeItem(name, extra = {}) {
     return { Asset: { Name: name, Group: { Name: 'HairAccessory2' } }, Color: 'Default', ...extra };
 }
 
-async function animalRuntime({ player: playerOverride, sent, updates } = {}) {
+async function animalRuntime({ player: playerOverride, sent, updates, globals: extraGlobals } = {}) {
     const timers = [];
     const refreshes = [];
     const remote = { MemberNumber: 7, Appearance: [makeItem('Orig', { Property: { Keep: 1 } })] };
@@ -22,6 +23,7 @@ async function animalRuntime({ player: playerOverride, sent, updates } = {}) {
             char.Appearance = char.Appearance.filter(i => i.Asset.Group.Name !== slot).concat(item);
             return item;
         },
+        ...extraGlobals,
     } });
     const settings = await rt.load('src/core/feature-settings.js');
     settings.setFeature('animalEars', true);
@@ -411,12 +413,113 @@ test('trigger matching ignores case, accents, extra spaces and accepts full-widt
     assert.equal(getAnimTypeFromMsg(' *摇耳朵* '), 'Ears', 'surrounding spaces');
 });
 
+test('closing asterisk is optional, as BC treats any message starting with * as an emote', async () => {
+    const rt = runtime();
+    const { getAnimTypeFromMsg } = await rt.load('src/features/animal/triggers.js');
+    assert.equal(getAnimTypeFromMsg('*wiggle'), 'Ears');
+    assert.equal(getAnimTypeFromMsg('*wiggle*'), 'Ears');
+    assert.equal(getAnimTypeFromMsg('*  Wags   Tail  '), 'Tails');
+    assert.equal(getAnimTypeFromMsg('＊搖尾巴'), 'Tails', 'full-width, no closing star');
+    assert.equal(getAnimTypeFromMsg('*шевелит ушами'), 'Ears');
+    assert.equal(getAnimTypeFromMsg('wiggle*'), null, 'the opening asterisk is still required');
+    assert.equal(getAnimTypeFromMsg('wiggle'), null);
+});
+
 test('trigger text must be the whole message and exactly a keyword', async () => {
     const rt = runtime();
     const { getAnimTypeFromMsg } = await rt.load('src/features/animal/triggers.js');
-    for (const bad of ['搖尾巴', '*搖尾巴*啊', '我 *搖尾巴*', '*慢慢搖尾巴*', '*remue la queue de son chat*', '**', '*', '', '*wag*wag*']) {
+    for (const bad of ['搖尾巴', '*搖尾巴*啊', '我 *搖尾巴*', '*慢慢搖尾巴*', '*remue la queue de son chat*', '**', '*', '', '*wag*wag*', '*wag**', '*慢慢搖尾巴']) {
         assert.equal(getAnimTypeFromMsg(bad), null, bad);
     }
     assert.equal(getAnimTypeFromMsg(null), null);
     assert.equal(getAnimTypeFromMsg(42), null);
+});
+
+test('trigger matching tolerates trailing mood marks but not extra words', async () => {
+    const rt = runtime();
+    const { getAnimTypeFromMsg } = await rt.load('src/features/animal/triggers.js');
+    for (const [msg, type] of [['*搖尾巴~*', 'Tails'], ['*搖尾巴～', 'Tails'], ['*wag!', 'Tails'], ['*wag tail.*', 'Tails'],
+        ['*拍翅膀！！*', 'Wings'], ['*wiggle...*', 'Ears'], ['*摇耳朵。', 'Ears']]) {
+        assert.equal(getAnimTypeFromMsg(msg), type, msg);
+    }
+    for (const bad of ['*~*', '*!*', '*wag!*wag*', '*wag ok!*']) assert.equal(getAnimTypeFromMsg(bad), null, bad);
+});
+
+test('Chinese and English phrasing covers the verb x part grid, so the natural variants all hit', async () => {
+    const rt = runtime();
+    const { getAnimTypeFromMsg } = await rt.load('src/features/animal/triggers.js');
+    const cases = {
+        Ears: ['搖耳朵', '晃耳朵', '抖耳朵', '動耳朵', '甩耳朵', '搖搖耳朵', '擺動耳朵', '抖動耳朵', '摇耳朵', '甩耳朵', 'wiggling', 'twitch ear', 'flicks ears'],
+        Tails: ['搖尾巴', '動尾巴', '晃尾巴', '擺擺尾巴', '搖動尾巴', '摇尾巴', '动尾巴', 'wagging tail', 'swishes tail'],
+        Wings: ['擺動翅膀', '搖翅膀', '動翅膀', '拍拍翅膀', '振翅', '摆动翅膀', '扇动翅膀', 'flapping', 'flutters wings'],
+    };
+    for (const [type, words] of Object.entries(cases)) {
+        for (const w of words) {
+            assert.equal(getAnimTypeFromMsg(`*${w}*`), type, `*${w}*`);
+            assert.equal(getAnimTypeFromMsg(`*${w}`), type, `*${w}`);
+        }
+    }
+});
+
+test('docs/animal-trigger-words.md lists every word that the code accepts', async () => {
+    const rt = runtime();
+    const { ANIMAL_TRIGGER_WORDS } = await rt.load('src/features/animal/triggers.js');
+    const doc = fs.readFileSync('docs/animal-trigger-words.md', 'utf8');
+    const missing = [];
+    for (const langs of Object.values(ANIMAL_TRIGGER_WORDS)) for (const words of Object.values(langs)) for (const w of words) if (!doc.includes(`*${w}*`)) missing.push(w);
+    assert.deepEqual(missing, [], 'add the missing words to docs/animal-trigger-words.md');
+});
+
+// ───────────────────────── 聊天送出 → 觸發（接線） ─────────────────────────
+async function chatTriggerRuntime({ enabled = true, poses = true, extra = {} } = {}) {
+    const updates = [];
+    let input = '';
+    const player = { MemberNumber: 1, Appearance: [] };
+    const ctx = await animalRuntime({ player, updates, globals: { ElementValue: (_id, v) => (v === undefined ? input : (input = v)), ...extra } });
+    ctx.rt.settings.setFeature('animalEars', enabled);
+    if (poses) {
+        ctx.rt.settings.setFeature('animalEarsState1', { Name: 'A' });
+        ctx.rt.settings.setFeature('animalEarsState2', { Name: 'B' });
+    }
+    ctx.mod.installAnimalAnimations();
+    let sentOriginal = 0;
+    const send = msg => {
+        input = msg; updates.length = 0; sentOriginal = 0;
+        ctx.rt.hooks.get('ChatRoomSendChat')([], () => { sentOriginal++; input = ''; });
+        return { played: updates.length > 0, sentOriginal };
+    };
+    return { ...ctx, send };
+}
+
+test('chat send hook: *wiggle and *wiggle* both play and the message is still sent exactly once', async () => {
+    const { send } = await chatTriggerRuntime();
+    for (const msg of ['*wiggle*', '*wiggle', '＊搖耳朵', '*搖耳朵~*']) assert.deepEqual(send(msg), { played: true, sentOriginal: 1 }, msg);
+});
+
+test('chat send hook: ordinary chat, other words, switch off, or missing poses do not play but never block the message', async () => {
+    const ok = await chatTriggerRuntime();
+    for (const msg of ['hello', '(wiggle)', '/wiggle', 'wiggle*', '*smiles*']) assert.deepEqual(ok.send(msg), { played: false, sentOriginal: 1 }, msg);
+    const off = await chatTriggerRuntime({ enabled: false });
+    assert.deepEqual(off.send('*wiggle*'), { played: false, sentOriginal: 1 });
+    const noPose = await chatTriggerRuntime({ poses: false });
+    assert.deepEqual(noPose.send('*wiggle*'), { played: false, sentOriginal: 1 });
+});
+
+// ───────────────────────── 自動觸發計時器 ─────────────────────────
+test('auto-trigger timer runs only while at least one part is enabled', async () => {
+    let started = 0, cleared = 0;
+    const { rt, mod } = await animalRuntime({ globals: { setInterval: () => ++started, clearInterval: () => { cleared++; } } });
+    rt.settings.setFeature('animalEars', false);
+    mod.installAnimalAnimations();
+    assert.equal(started, 0, 'nothing enabled → no timer at install');
+    rt.settings.setFeature('animalTails', true);
+    assert.equal(started, 1, 'enabling a part starts it');
+    rt.settings.setFeature('animalWings', true);
+    assert.equal(started, 1, 'enabling a second part does not start another timer');
+    rt.settings.setFeature('animalTails', false);
+    assert.equal(cleared, 0, 'one part is still on');
+    rt.settings.setFeature('animalWings', false);
+    assert.equal(cleared, 1, 'all parts off → timer cleared');
+    rt.settings.setFeature('animalEars', true);
+    assert.equal(started, 2, 're-enabling starts it again');
 });
