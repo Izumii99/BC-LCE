@@ -8,6 +8,7 @@
 
 import { getFeature } from '../../core/feature-settings.js';
 import { SLOTS, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, safeClone, applyAnimalState, collectManagedKeys, poseAt } from './actions.js';
+import { getPlayer } from '../../game/bc-state.js';
 
 const PREVIEW_NAME = 'LCE_AnimalPreview';
 
@@ -52,15 +53,15 @@ export function createAnimalPreview(now = () => performance.now()) {
     let character = null;
     let run = null;   // { start, track: {...getTrack(), managed, frame} }
 
-    const refresh = () => globalThis.CharacterRefresh(character, false, false);
+    const refresh = () => CharacterRefresh(character, false, false);
 
     return {
         /** 依本人目前外觀重建預覽角色（進入頁面、從衣櫃返回、按測試時呼叫）。 */
         rebuild() {
-            const player = globalThis.Player;
+            const player = getPlayer();
             run = null;
-            if (!player?.Appearance || typeof globalThis.CharacterLoadSimple !== 'function') { character = null; return false; }
-            character = globalThis.CharacterLoadSimple(PREVIEW_NAME);
+            if (!player?.Appearance || typeof CharacterLoadSimple !== 'function') { character = null; return false; }
+            character = CharacterLoadSimple(PREVIEW_NAME);
             character.Name = player.Name;
             character.AssetFamily = player.AssetFamily;
             character.Appearance = copyAppearance(player);
@@ -103,7 +104,7 @@ export function createAnimalPreview(now = () => performance.now()) {
         draw(x, y, zoom) {
             if (!character) return;
             this.update();
-            globalThis.DrawCharacter(character, x, y, zoom, false);
+            DrawCharacter(character, x, y, zoom, false);
         },
 
         clear() { run = null; character = null; },

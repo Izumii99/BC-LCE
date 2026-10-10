@@ -16,6 +16,7 @@ import { ANIMAL_TYPES } from '../features/animal/actions.js';
 import { closeTrustedDomainManager, isTrustedDomainManagerOpen, openTrustedDomainManager, positionTrustedDomainManager } from './trusted-domain-manager.js';
 import iconUrl from '../assets/lce-icon.svg';
 import { openSettingDropdown, closeSettingDropdown, isSettingDropdownOpen } from './setting-dropdown.js';
+import { getMainCanvas, getPlayer } from '../game/bc-state.js';
 
 const SWATCH_W = 64;   // 色塊寬度（與十六進位欄位齊平）
 const ACTION_W = 500;  // 動作鈕寬度（自 x=300 起）
@@ -181,7 +182,7 @@ function uiColor(key) {
  * 邊框沿用文字色：底色被改深時，原本寫死的黑框會整個看不見。
  */
 function drawTooltip(x, y, width, text) {
-    const ctx = window.MainCanvas?.getContext('2d');
+    const ctx = getMainCanvas()?.getContext('2d');
     if (!ctx) return;
     const bg = uiColor('tooltipBgColor');
     const fg = uiColor('tooltipTextColor');
@@ -201,7 +202,7 @@ function drawTooltip(x, y, width, text) {
  * 對照表比不中，主題就不會插手，分頁與設定列的反亮就會不一致。
  */
 function drawHoverOverlay(x, y, w, h) {
-    const ctx = window.MainCanvas?.getContext('2d');
+    const ctx = getMainCanvas()?.getContext('2d');
     if (!ctx) return;
     const alpha = ctx.globalAlpha;
     try {
@@ -310,7 +311,7 @@ function startAnimalTest() {
  * 確認（accepted）後同步外觀給伺服器，之後回來按「儲存姿勢」才會抓到新的耳朵 / 尾巴。
  */
 async function openWardrobe() {
-    if (typeof CharacterAppearanceLoadCharacter !== 'function' || !window.Player) return;
+    if (typeof CharacterAppearanceLoadCharacter !== 'function' || !getPlayer()) return;
     const screen = typeof CommonGetScreen === 'function' ? CommonGetScreen() : [CurrentModule, CurrentScreen];
     const informationReturnScreen = typeof InformationSheetReturnScreen !== 'undefined' && InformationSheetReturnScreen
         ? [...InformationSheetReturnScreen] : undefined;
@@ -370,7 +371,7 @@ function exit() {
 }
 
 function run() {
-    const ctx = window.MainCanvas?.getContext('2d');
+    const ctx = getMainCanvas()?.getContext('2d');
     if (!ctx) return;
     ctx.textAlign = 'left';
 
@@ -628,7 +629,7 @@ function drawSelectControl(key, def, { controlX, controlW, y }, disabled) {
  * 但 DrawButton 是把文字畫在 Left+Width/2，left 對齊會讓文字偏右，故按鈕文字要暫時切回 center。
  */
 function centered(fn) {
-    const ctx = window.MainCanvas?.getContext('2d');
+    const ctx = getMainCanvas()?.getContext('2d');
     const bak = ctx?.textAlign;
     if (ctx) ctx.textAlign = 'center';
     try { fn(); } finally { if (ctx) ctx.textAlign = bak; }
@@ -648,7 +649,7 @@ function removeNotifyDurationInput(save = true) {
 }
 function positionNotifyDurationInput() {
     if (!notifyDurationInput) return;
-    const canvas = window.MainCanvas;
+    const canvas = getMainCanvas();
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const sx = rect.width / (canvas.width || 2000);

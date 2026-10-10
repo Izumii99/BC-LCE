@@ -5,6 +5,7 @@ import { createHook } from '../../core/hooks.js';
 import modApi from '../../modsdk.js';
 import { getAnimTypeFromMsg } from './triggers.js';
 import { SLOTS, ANIMAL_TYPES, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, applyAnimalState as applyState, animalItemSignature, collectManagedKeys, poseAt } from './actions.js';
+import { getCurrentScreen, getPlayer, getRoomCharacters, getRoomData } from '../../game/bc-state.js';
 
 const hook = createHook('animal-animations');
 
@@ -23,9 +24,9 @@ function refreshCharacter(char) {
  * 不需要對方做任何事。回傳是否成功送出。
  */
 function pushFrame(char, slot) {
-    if (char !== globalThis.Player) return false;
-    if (typeof globalThis.ChatRoomCharacterItemUpdate !== 'function' || !globalThis.ChatRoomData) return false;
-    try { globalThis.ChatRoomCharacterItemUpdate(char, slot); return true; }
+    if (char !== getPlayer()) return false;
+    if (typeof ChatRoomCharacterItemUpdate !== 'function' || !getRoomData()) return false;
+    try { ChatRoomCharacterItemUpdate(char, slot); return true; }
     catch (e) { console.warn('[LCE] animal frame sync failed', e); return false; }
 }
 
@@ -34,10 +35,10 @@ function pushFrame(char, slot) {
  * 本人部位的最終狀態與播放前不同才送，讓伺服器上的狀態停在 A。
  */
 function syncToServer(char, slot, startSig) {
-    if (char !== globalThis.Player) return;
-    if (typeof globalThis.ChatRoomCharacterItemUpdate !== 'function' || !globalThis.ChatRoomData) return;
+    if (char !== getPlayer()) return;
+    if (typeof ChatRoomCharacterItemUpdate !== 'function' || !getRoomData()) return;
     if (animalItemSignature(findSlotItem(char, slot)) === startSig) return;
-    try { globalThis.ChatRoomCharacterItemUpdate(char, slot); }
+    try { ChatRoomCharacterItemUpdate(char, slot); }
     catch (e) { console.warn('[LCE] animal sync failed', e); }
 }
 
@@ -93,12 +94,12 @@ function startRender(char, type, state1, state2, delay, cycles) {
     function step() {
         try {
             // 角色已離開房間：物件已被丟棄，不需要任何處理
-            if (char !== globalThis.Player && !(globalThis.ChatRoomCharacter ?? []).includes(char)) { finish(); return; }
+            if (char !== getPlayer() && !getRoomCharacters().includes(char)) { finish(); return; }
 
             // 被脫下或換掉 → 停止，保留對方的變更（第一格且原本沒有物件時，視為要穿上，不檢查）
             if ((frame > 0 || startItem) && !ownsSlot(r)) { finish(); return; }
 
-            if (globalThis.CurrentScreen !== 'ChatRoom') { settleOnA(r); finish(); return; }
+            if (getCurrentScreen() !== 'ChatRoom') { settleOnA(r); finish(); return; }
             if (frame >= total) { finish(); if (!r.lastFrameSent) syncToServer(char, slot, r.startSig); return; }
 
             applyState(char, slot, poseAt(frame, total, state1, state2), r.managedKeys);
@@ -118,7 +119,7 @@ function startRender(char, type, state1, state2, delay, cycles) {
 
 // 開始本人的動畫（開關與姿勢檢查在這裡，決定的是「自己要不要搖」）
 function triggerAnimation(type, { auto = false } = {}) {
-    const player = globalThis.Player;
+    const player = getPlayer();
     if (!player) return;
 
     // 設定檔內容也走同一套驗證，本地播放與送出的封包一致
@@ -149,8 +150,19 @@ function triggerAnimation(type, { auto = false } = {}) {
 
 let lastTriggers = { Ears: Date.now(), Tails: Date.now(), Wings: Date.now() };
 
+/** 依目前設定啟動或停止自動觸發計時器。可重複呼叫。 */
+export function syncAutoTimer() {
+    const anyEnabled = ANIMAL_TYPES.some(type => getFeature(`animal${type}`));
+    if (anyEnabled && !autoTriggerInterval) {
+        autoTriggerInterval = setInterval(checkTriggers, 1000);
+    } else if (!anyEnabled && autoTriggerInterval) {
+        clearInterval(autoTriggerInterval);
+        autoTriggerInterval = null;
+    }
+}
+
 function checkTriggers() {
-    if (globalThis.CurrentScreen !== 'ChatRoom') return;
+    if (getCurrentScreen() !== 'ChatRoom') return;
     
     const now = Date.now();
     for (const type of ANIMAL_TYPES) {
@@ -175,7 +187,7 @@ export function onAnimalMessage(data) {
     if (data?.Type !== 'Hidden' || !data.Content?.startsWith(HIDDEN_MSG_PREFIX)) return;
     
     const id = data.Sender;
-    if (!Number.isSafeInteger(id) || id === globalThis.Player?.MemberNumber) return;
+    if (!Number.isSafeInteger(id) || id === getPlayer()?.MemberNumber) return;
 
 
     const dict = Array.isArray(data.Dictionary) ? data.Dictionary[0] : data.Dictionary;
@@ -184,7 +196,7 @@ export function onAnimalMessage(data) {
 
     // 同一個部位再次觸發：永遠以最新一筆為準（startRender 會清掉舊的重新播放）；上限只擋新增的登記
     if (!renderers.has(id + dict.type) && renderers.size >= 20) return;
-    const char = (globalThis.ChatRoomCharacter ?? []).find(c => c.MemberNumber === id);
+    const char = getRoomCharacters().find(c => c.MemberNumber === id);
     if (!char) return;
     
     const delay = clampDelay(dict.delay, 250);
@@ -194,7 +206,7 @@ export function onAnimalMessage(data) {
     const buildState = s => {
         const state = sanitizeAnimalState(s);
         if (!state) return null;
-        if (!globalThis.AssetGet('Female3DCG', SLOTS[dict.type], state.Name)) return null;
+        if (!AssetGet('Female3DCG', SLOTS[dict.type], state.Name)) return null;
         return state;
     };
 
@@ -247,17 +259,7 @@ export function installAnimalAnimations() {
         return result;
     });
 
-    if (!autoTriggerInterval) {
-        autoTriggerInterval = setInterval(checkTriggers, 1000);
-    }
-    
-    window.addEventListener(SETTING_CHANGED_EVENT, () => {
-        const anyEnabled = ANIMAL_TYPES.some(t => getFeature(`animal${t}`));
-        if (!anyEnabled && autoTriggerInterval) {
-            clearInterval(autoTriggerInterval);
-            autoTriggerInterval = null;
-        } else if (anyEnabled && !autoTriggerInterval) {
-            autoTriggerInterval = setInterval(checkTriggers, 1000);
-        }
-    });
+    // 自動觸發的計時器只在至少一個部位開啟時才跑；全部關閉時不佔任何計時器
+    syncAutoTimer();
+    window.addEventListener(SETTING_CHANGED_EVENT, syncAutoTimer);
 }

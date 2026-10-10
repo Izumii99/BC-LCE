@@ -12,6 +12,7 @@ import { observeResponsive, responsiveOwns } from '../../core/responsive-compat.
 import modApi from '../../modsdk.js';
 import { getFeature } from '../../core/feature-settings.js';
 import { LOG } from '../../core/constants.js';
+import { getRoomCharacters } from '../../game/bc-state.js';
 
 const MAX_FRAMES = 30;
 
@@ -137,7 +138,7 @@ export function installCharTalk() {
         ++animationGeneration;
         const ids = Object.keys(charData);
         ids.forEach(id => { clearTimeout(charData[id].timer); delete charData[id]; });
-        for (const c of (globalThis.ChatRoomCharacter || [])) {
+        for (const c of getRoomCharacters()) {
             if (ids.includes(String(c.MemberNumber))) CharacterRefresh(c, false);
         }
     });

@@ -56,7 +56,7 @@ Playback goes B → A → B → A … for the configured number of cycles and **
 
   The Russian, French, Ukrainian and German words, plus every word for each language, are listed in [Animal animation trigger words](docs/animal-trigger-words.md), for example `*шевелит ушами*`, `*remue la queue*`, `*махає крилами*` and `*wackelt mit den ohren*`.
 
-  - The whole message must be exactly `*keyword*`: `*wag*` works, but `*wag slowly*` or `I *wag*` do not. Case, accents (`é`, `ö`, `ё`…) and repeated spaces do not matter, and both the normal `*` and the full-width `＊` that CJK input methods produce are accepted. English also accepts the third-person forms (`*wiggles*`, `*wags*`, `*flaps*`) and a part name (`*wag tail*`).
+  - The whole message must be exactly `*keyword*` or `*keyword` (BC treats any message starting with `*` as an emote, so the closing asterisk is optional and both forms behave the same): `*wag*` and `*wag` work, but `*wag slowly*` or `I *wag*` do not. Case, accents (`é`, `ö`, `ё`…), repeated spaces and trailing mood marks (`~`, `!`, `.`…) do not matter, and both the normal `*` and the full-width `＊` that CJK input methods produce are accepted. English also accepts the third-person forms (`*wiggles*`, `*wags*`, `*flaps*`) and a part name (`*wag tail*`).
   - The message is sent as usual, so people in the room see the text; the animation starts right after it is sent.
   - This is chat text, not a `/` command, and it is not listed in the `/lce` command overview.
   - The part's switch must be on (Animal tab in settings) and both the resting pose A and the animated pose B must be saved; if either is missing, nothing happens.

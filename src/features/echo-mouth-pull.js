@@ -2,6 +2,7 @@ import { createHook } from '../core/hooks.js';
 import { getFeature } from '../core/feature-settings.js';
 import modApi from '../modsdk.js';
 import '../core/i18n-engine.js';
+import { getPlayer, getRoomCharacters } from '../game/bc-state.js';
 
 const hook = createHook('echo-mouth-pull');
 const NAME = '拉到身边';
@@ -12,7 +13,7 @@ let installed = false;
 // Echo owns the activity, remote execution and paired-item data. Only relax
 // UseHands, never its leash, asset, room or custom function prerequisites.
 function mouthAvailable(acting, acted) {
-    if (!getFeature('echoMouthPull') || acting !== globalThis.Player || !acted
+    if (!getFeature('echoMouthPull') || acting !== getPlayer() || !acted
         || acting === acted || acting.IsMouthBlocked()
         || (acting.CanInteract() && !acting.Effect?.includes('MergedFingers'))) return false;
     const pair = PAIRS[InventoryGet(acted, 'ItemNeckRestraints')?.Asset?.Name];
@@ -58,8 +59,8 @@ export function installEchoMouthPull() {
                 && (isPull(d.Text) || d.Text === `Activity${NAME}` || d.Text === `ActivityLuzi_${NAME}`)))) return next(args);
         const targetId = dict.find(d => d.Tag === 'TargetCharacter')?.MemberNumber
             ?? dict.find(d => Number.isInteger(d.TargetCharacter))?.TargetCharacter;
-        const target = globalThis.ChatRoomCharacter?.find(c => c.MemberNumber === targetId);
-        if (!mouthAvailable(globalThis.Player, target)) return next(args);
+        const target = getRoomCharacters().find(c => c.MemberNumber === targetId);
+        if (!mouthAvailable(getPlayer(), target)) return next(args);
         // Preserve the original Echo packet: recipients need Echo, not LCE.
         const result = next(args);
         l10n.send('LCE', 'echoMouthPull', CharacterNickname(Player), CharacterNickname(target));

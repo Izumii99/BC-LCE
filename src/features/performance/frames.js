@@ -1,5 +1,6 @@
 import { createHook } from '../../core/hooks.js';
 import { getFeature, getBarFeature } from '../../core/feature-settings.js';
+import { getMainCanvas } from '../../game/bc-state.js';
 const hook = createHook('performance');
 // ───────────────────────── 低幀率 ─────────────────────────
 //
@@ -59,7 +60,7 @@ let fpsSmooth = 0;
 
 function drawFps() {
     const pos = FPS_POS[getFeature('showFps')] ?? FPS_POS.tl;
-    const ctx = window.MainCanvas?.getContext('2d');
+    const ctx = getMainCanvas()?.getContext('2d');
     if (!ctx) return;
 
     const bakAlign = ctx.textAlign;
@@ -90,7 +91,7 @@ export function installFramePerformance() {
     // 低幀率：跳幀的作法與 BC GameRun 自己的上限判斷一致 —— 重掛下一幀後直接返回。
     hook('GameRun', 0, (args, next) => {
         if (!shouldSkipFrame(args[0])) return next(args);
-        window.GameAnimationFrameId = requestAnimationFrame(window.GameRun);
+        window.GameAnimationFrameId = requestAnimationFrame(typeof GameRun === 'function' ? GameRun : undefined);
         return undefined;
     });
 

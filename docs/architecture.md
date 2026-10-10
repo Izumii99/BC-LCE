@@ -45,7 +45,7 @@ src/
 - `settings/`：遊戲內設定、容量及信任來源管理。
 - `core/`：設定 schema／驗證與更新交易、hook／生命週期工具、相容層、i18n 註冊與公開 API。帳號／憑證／桌布實作集中在 `storage/`，不再保留未使用的 `core/storage.js` 轉匯出檔。
 - `storage/`：資料庫連線、帳號資料、加密憑證、桌布；寫入成功以交易完成為準。
-- `game/`：遊戲語言、動作訊息、房間導覽等 BC 呼叫適配。`room-search.js` 共用原生區域讀寫、性別限制與搜尋呼叫；橫式／直式介面各自負責呈現。
+- `game/`：遊戲語言、動作訊息、房間導覽等 BC 呼叫適配。`bc-state.js` 是讀取 BC 全域的統一入口：一律用裸識別字（`Player`、`CurrentScreen`…），可能尚未存在的用 `getPlayer()`、`getCurrentScreen()`、`getRoomCharacters()`、`readBc(() => X)`，不用 `globalThis.X` / `window.X`（BC 的全域若是 `let` 宣告，後者讀不到）。`tests/bc-globals.test.mjs` 會檢查。`room-search.js` 共用原生區域讀寫、性別限制與搜尋呼叫；橫式／直式介面各自負責呈現。
 - `ui/`：本地聊天通知、文字節點標記與共用聊天增量監聽。`chat-pipeline.js` 擁有容器 observer 與處理器訂閱；各功能保留自己的啟用條件和冪等標記，不承擔指令註冊。
 - `assets/icons.js`：自有內嵌 SVG；圖像染色政策位於 `features/theme/image-policy.js`。
 - `commands/`：LCE 指令入口。

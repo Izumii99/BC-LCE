@@ -251,7 +251,7 @@ function hideDesc() { if (descElement) descElement.style.display = 'none'; }
 
 const normalizeCmd = (s) => s.normalize('NFKC').trim().toLowerCase();
 function findCommand(cmdKey) {
-    if (!Array.isArray(window.Commands)) return null;
+    if (typeof Commands === 'undefined' || !Array.isArray(Commands)) return null;
     return Commands.find(c => normalizeCmd(c.Tag) === normalizeCmd(cmdKey) || c.Tag === cmdKey);
 }
 

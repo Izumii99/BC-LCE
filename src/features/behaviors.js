@@ -6,6 +6,7 @@
 
 import modApi from '../modsdk.js';
 import { shouldLceHandle } from '../core/wce-compat.js';
+import { readBc } from '../game/bc-state.js';
 
 let installed = false;
 
@@ -28,7 +29,7 @@ export function installBehaviors() {
             const e = args[0];
             if (!e || e.isComposing || (e.code !== 'Enter' && e.code !== 'NumpadEnter')) return handled;
 
-            const keyManager = globalThis.KeyManager;
+            const keyManager = readBc(() => KeyManager);
             const binding = keyManager?.getKeybinding?.('chat_send_chat');
             const configuredKey = binding?.keyCombo?.key;
             if (configuredKey !== 'Enter' && configuredKey !== 'NumpadEnter') return handled;

@@ -40,6 +40,7 @@ import { deepCopy } from '../../core/util.js';
 import { ArousalExpressionStages, EventExpressions, ActivityTriggers } from './data.js';
 import { echoExpressionEvent } from './qol-rules.js';
 import { LOG } from '../../core/constants.js';
+import { getPlayer } from '../../game/bc-state.js';
 
 
 const AROUSAL_EVT = 'AutomatedByArousal';
@@ -149,9 +150,9 @@ const mustNum = (v, d = 0) => (typeof v === 'number' && !isNaN(v) ? v : d);
 const anotherEngineOwnsExpressions = () =>
     responsiveOwns('expressions') || isWceFeatureEnabled('animationEngine');
 export const canUseExpressionEngine = () => engineStarted
-    && Array.isArray(globalThis.Player?.Appearance)
-    && !!globalThis.Player?.AppearanceLayers
-    && !!globalThis.Player?.ArousalSettings
+    && Array.isArray(getPlayer()?.Appearance)
+    && !!getPlayer()?.AppearanceLayers
+    && !!getPlayer()?.ArousalSettings
     && !!getFeature('animationEngine')
     && !anotherEngineOwnsExpressions();
 
@@ -260,7 +261,7 @@ export function cancelExpressionEvent(type) {
 }
 
 /** 目前玩家某個臉部群組的表情（沒有則 null）。 */
-export const readFace = (group) => (globalThis.Player ? expression(group)[0] : null);
+export const readFace = (group) => (getPlayer() ? expression(group)[0] : null);
 
 /**
  * 臨時表情結束、引擎收回後，把這些群組的「最終值」補送給伺服器一次，並記成已同步。
@@ -268,7 +269,7 @@ export const readFace = (group) => (globalThis.Player ? expression(group)[0] : n
  * 會一直停在臨時表情。這裡不改本地的臉，只負責讓伺服器收斂到本地。
  */
 export function settleFace(groups) {
-    if (anotherEngineOwnsExpressions() || !globalThis.Player) return;
+    if (anotherEngineOwnsExpressions() || !getPlayer()) return;
     for (const group of groups) {
         if (hscExpressionGroups().has(group)) continue;
         sendExpression(group, expression(group)[0]);
@@ -276,7 +277,7 @@ export function settleFace(groups) {
 }
 
 export function restoreQolPose(pose) {
-    if (anotherEngineOwnsExpressions() || !globalThis.Player) return;
+    if (anotherEngineOwnsExpressions() || !getPlayer()) return;
     pushEvent({ Type: MANUAL_EVT, Duration: -1, Poses: [{ Pose: pose, Duration: -1 }] });
 }
 
@@ -772,7 +773,7 @@ export function installExpressions() {
             for (const key of Object.keys(map)) delete map[key];
         }
         staleOnServer.clear();
-        if (!next.expressions && engineStarted && globalThis.Player?.ArousalSettings) {
+        if (!next.expressions && engineStarted && getPlayer()?.ArousalSettings) {
             PreviousArousal = { ...Player.ArousalSettings };
             // Adopt the present face/pose after handoff rather than replaying stale events.
             pushEvent({ Type: MANUAL_EVT, Duration: -1,
