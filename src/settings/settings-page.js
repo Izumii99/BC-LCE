@@ -9,7 +9,10 @@ import { fSettings, saveFeatureSettings, setFeature, runSettingAction, updateSet
 import { T } from '../core/i18n.js';
 import { langFlag, openLanguageDropdown, openFontPicker, promptInput, openColorPicker } from './pickers.js';
 import { currentGameLanguage } from '../game/language.js';
-import { openStorageManager, closeStorageManager, isStorageManagerOpen, positionStorageManager } from './storage-manager.js';
+import { openStorageManager, closeStorageManager, closeStorageManagerLayer, isStorageManagerOpen, positionStorageManager } from './storage-manager.js';
+import { PANEL_X, PANEL_Y, PANEL_W, PANEL_H, PANEL_TAB_H, PANEL_ROWS, ANIMAL_PANEL_W, ANIMAL_SIDE_X, ANIMAL_SIDE_W, ANIMAL_CHAR_H, ANIMAL_CHAR_ZOOM, ANIMAL_BTN_H } from './layout.js';
+import { createAnimalPreview } from './animal-preview.js';
+import { ANIMAL_TYPES } from '../core/animal-actions.js';
 import { closeTrustedDomainManager, isTrustedDomainManagerOpen, openTrustedDomainManager, positionTrustedDomainManager } from './trusted-domain-manager.js';
 import iconUrl from '../assets/lce-icon.svg';
 import { openSettingDropdown, closeSettingDropdown, isSettingDropdownOpen } from './setting-dropdown.js';
@@ -28,11 +31,6 @@ const SEL_WIDTH = 340;
 const HOME_COLUMNS = [300, 800, 1300];
 const HOME_ITEMS_PER_COLUMN = 8;
 const PANEL_CATEGORIES = new Set(['ui', 'theme', 'immersion', 'animal']);
-const PANEL_X = 300;
-const PANEL_Y = 180;
-const PANEL_W = 1400;
-const PANEL_H = 650;
-const PANEL_ROWS = 6;
 const HEADER_RECTS = { reset: [1615, 75, 90, 90], language: [1715, 75, 90, 90], exit: [1815, 75, 90, 90] };
 const TOOLTIP_Y = 870;
 const NOTIFY_DURATION_X = 1400, NOTIFY_DURATION_W = 150, NOTIFY_DURATION_UNIT_X = 1560;
@@ -68,6 +66,9 @@ const actionDone = new Set(); // 已點過的動作按鈕（顯示回饋文字�
 let dragKey = null;
 let dragDef = null;
 let dragLayout = null;
+
+/** 動物頁右側有預覽區塊，左側面板縮窄；其餘分類沿用滿版。 */
+const panelWidth = () => (currentCategory === 'animal' ? ANIMAL_PANEL_W : PANEL_W);
 
 function settingsInCategory(category) {
     return Object.entries(DEFAULT_FEATURE_SETTINGS).filter(([key, def]) => def.category === category && key !== 'resetTheme' && !def.hidden);
@@ -109,11 +110,10 @@ function settingLayouts() {
         ? (currentSection === 1 ? 'antiGarble' : currentSection === 2 ? 'petsuitAnimation' : null) : null;
     const splitIndex = splitKey ? entries.findIndex(([key]) => key === splitKey) : -1;
     const splitColumns = splitIndex >= 0;
-    // 動物每個分頁有 7 項（開關、間隔、次數、延遲、兩個存檔鈕、清除），排成單欄
-    const rows = currentCategory === 'theme' && currentSection === 0 ? 5
-        : currentCategory === 'animal' ? 7 : PANEL_ROWS;
+    // 預設每欄 7 條（PANEL_ROWS），超過換到下一欄；只有「簡易主題」頁特殊處理成 5 條
+    const rows = currentCategory === 'theme' && currentSection === 0 ? 5 : PANEL_ROWS;
     const columns = splitColumns ? 2 : Math.max(1, Math.ceil(entries.length / rows));
-    const columnW = PANEL_W / columns;
+    const columnW = panelWidth() / columns;
     return entries.map((entry, index) => {
         const column = splitColumns ? (index >= splitIndex ? 1 : 0) : Math.floor(index / rows);
         const row = splitColumns ? (column ? index - splitIndex : index) : index % rows;
@@ -193,6 +193,152 @@ function drawTooltip(x, y, width, text) {
     ctx.textAlign = bak;
 }
 
+/**
+ * 懸停反亮：設定列與上方分頁共用這一個函式，兩邊的反亮永遠一致。
+ * 用 BC 原生的 'Cyan' 半透明疊色（底色維持 'White'）——染色引擎的對照表本來就把
+ * #ffffff → element、#00ffff → elementHover，所以主題開啟時會自動換成主題的色，
+ * 不需要 LCE 自己維護另一組懸停色。千萬別在這裡寫死自己的淡藍色碼，
+ * 對照表比不中，主題就不會插手，分頁與設定列的反亮就會不一致。
+ */
+function drawHoverOverlay(x, y, w, h) {
+    const ctx = window.MainCanvas?.getContext('2d');
+    if (!ctx) return;
+    const alpha = ctx.globalAlpha;
+    try {
+        ctx.globalAlpha = 0.14;
+        DrawRect(x, y, w, h, 'Cyan');
+    } finally { ctx.globalAlpha = alpha; }
+}
+
+/**
+ * 面板外框 + 上方分頁列。造型比照容量 / 域名面板：分頁列高 PANEL_TAB_H、
+ * 底下一條分隔線，作用中的分頁用強調色底線標示（不再整格填色）。
+ * 位置與尺寸全來自 layout.js，跟容量 / 域名面板共用同一個外框。
+ */
+function drawPanelFrame(sectionCount) {
+    const accent = fSettings.themeEnabled ? '%accent' : '#8ab4f8';
+    const labels = SECTION_LABELS[currentCategory];
+    const panelW = panelWidth();
+    const tabW = panelW / sectionCount;
+    DrawEmptyRect(PANEL_X, PANEL_Y, panelW, PANEL_H, 'Black', 3);
+    centered(() => {
+        for (let index = 0; index < sectionCount; index++) {
+            const x = PANEL_X + index * tabW;
+            const active = currentSection === index;
+            const hover = !active && MouseIn(x, PANEL_Y, tabW, PANEL_TAB_H);
+            DrawRect(x + 2, PANEL_Y + 2, tabW - 4, PANEL_TAB_H - 2, 'White');
+            if (hover) drawHoverOverlay(x + 2, PANEL_Y + 2, tabW - 4, PANEL_TAB_H - 2);
+            if (active) DrawRect(x + 2, PANEL_Y + PANEL_TAB_H - 5, tabW - 4, 5, accent);
+            DrawTextFit(T(labels[index]), x + tabW / 2, PANEL_Y + PANEL_TAB_H / 2 - 2, tabW - 24, active || hover ? 'Black' : '#555555');   // 懸停時文字跟著亮起（'Black' 由染色引擎換成主題文字色）
+        }
+    });
+    DrawRect(PANEL_X, PANEL_Y + PANEL_TAB_H, panelW, 2, 'Black');
+}
+
+// ───────────────────────────── 動物頁：擺動預覽區塊 ─────────────────────────────
+// 區塊 X1480 Y180 W320 H650：人物 600 高，底下 50 放按鈕（左測試、右前往衣櫃）。
+
+const ANIMAL_BTN_Y = PANEL_Y + ANIMAL_CHAR_H;
+const ANIMAL_BTN_PAD = 4;
+const ANIMAL_BTN_W = (ANIMAL_SIDE_W - ANIMAL_BTN_PAD * 3) / 2;
+const ANIMAL_BTN_RECTS = {
+    test: [ANIMAL_SIDE_X + ANIMAL_BTN_PAD, ANIMAL_BTN_Y + ANIMAL_BTN_PAD, ANIMAL_BTN_W, ANIMAL_BTN_H - ANIMAL_BTN_PAD * 2],
+    wardrobe: [ANIMAL_SIDE_X + ANIMAL_BTN_PAD * 2 + ANIMAL_BTN_W, ANIMAL_BTN_Y + ANIMAL_BTN_PAD, ANIMAL_BTN_W, ANIMAL_BTN_H - ANIMAL_BTN_PAD * 2],
+};
+
+// 分頁順序 = ANIMAL_TYPES 順序（SECTION_LABELS.animal 照同一順序排列）
+const currentAnimalType = () => ANIMAL_TYPES[currentSection] ?? ANIMAL_TYPES[0];
+
+// 測試鈕右側的「i」：無法測試時點它，下方說明框顯示原因
+const ANIMAL_INFO_SIZE = 34;
+const ANIMAL_INFO_RECT = [
+    ANIMAL_BTN_RECTS.test[0] + ANIMAL_BTN_W - ANIMAL_INFO_SIZE - 4,
+    ANIMAL_BTN_RECTS.test[1] + (ANIMAL_BTN_RECTS.test[3] - ANIMAL_INFO_SIZE) / 2,
+    ANIMAL_INFO_SIZE, ANIMAL_INFO_SIZE,
+];
+let animalHintOpen = false;
+
+let animalPreview = null;
+let animalPreviewLive = false;      // 目前這次進入動物頁是否已建立預覽角色
+let returnToAnimalSection = null;   // 從衣櫃回來時，load() 據此回到動物頁原分頁
+
+function disposeAnimalPreview() {
+    animalPreview?.clear();
+    animalPreviewLive = false;
+}
+
+/** 動物頁預覽的生命週期：進入時依本人外觀建立副本，離開（回首頁 / 其他分類）時停止。 */
+function syncAnimalPreview() {
+    if (currentCategory !== 'animal') {
+        if (animalPreviewLive) disposeAnimalPreview();
+        return;
+    }
+    if (animalPreviewLive) return;
+    animalPreviewLive = true;   // 先標記，建立失敗也不要每幀重試
+    try {
+        animalPreview ??= createAnimalPreview();
+        animalPreview.rebuild();
+    } catch (e) { console.warn('🐈‍⬛ [LCE] 動物預覽建立失敗:', e); }
+}
+
+const canTestAnimal = () => !!animalPreview?.hasAnimation(currentAnimalType());
+
+function drawAnimalSide() {
+    DrawEmptyRect(ANIMAL_SIDE_X, PANEL_Y, ANIMAL_SIDE_W, PANEL_H, 'Black', 3);
+    DrawRect(ANIMAL_SIDE_X, ANIMAL_BTN_Y, ANIMAL_SIDE_W, 2, 'Black');
+    const charW = 500 * ANIMAL_CHAR_ZOOM;
+    try { animalPreview?.draw(ANIMAL_SIDE_X + (ANIMAL_SIDE_W - charW) / 2, PANEL_Y, ANIMAL_CHAR_ZOOM); }
+    catch (e) { console.warn('🐈‍⬛ [LCE] 動物預覽繪製失敗:', e); animalPreview?.clear(); }
+    const hasAnimation = canTestAnimal();
+    if (hasAnimation) animalHintOpen = false;   // 已可測試（例如剛存好姿勢）：說明自動收起
+    centered(() => {
+        DrawButton(...ANIMAL_BTN_RECTS.test, T('animal_preview_test'), hasAnimation ? 'White' : '#ebebe4', '', '', !hasAnimation);
+        if (!hasAnimation) DrawButton(...ANIMAL_INFO_RECT, 'i', 'White');
+        DrawButton(...ANIMAL_BTN_RECTS.wardrobe, T('animal_preview_wardrobe'), 'White');
+    });
+}
+
+function startAnimalTest() {
+    if (!animalPreview) return;
+    animalPreview.rebuild();   // 以本人最新外觀為底，連按也會從頭重播
+    animalPreview.play(currentAnimalType());
+}
+
+/**
+ * 前往 BC 原生衣櫃（編輯本人外觀），結束後回到 LCE 動物頁原分頁。
+ * 返回流程與 Responsive 的 editAppearanceState 相同：先還原原畫面、再重開擴充設定頁。
+ * 確認（accepted）後同步外觀給伺服器，之後回來按「儲存姿勢」才會抓到新的耳朵 / 尾巴。
+ */
+async function openWardrobe() {
+    if (typeof CharacterAppearanceLoadCharacter !== 'function' || !window.Player) return;
+    const screen = typeof CommonGetScreen === 'function' ? CommonGetScreen() : [CurrentModule, CurrentScreen];
+    const informationReturnScreen = typeof InformationSheetReturnScreen !== 'undefined' && InformationSheetReturnScreen
+        ? [...InformationSheetReturnScreen] : undefined;
+    saveFeatureSettings();
+    closeSettingDropdown();
+    stopBarDrag();
+    disposeAnimalPreview();
+    returnToAnimalSection = currentSection;
+    const back = async (accepted) => {
+        if (accepted) {
+            try {
+                if (typeof ServerPlayerAppearanceSync === 'function') ServerPlayerAppearanceSync();
+                if (typeof ChatRoomData !== 'undefined' && ChatRoomData && typeof ChatRoomCharacterUpdate === 'function') ChatRoomCharacterUpdate(Player);
+            } catch (e) { console.warn('🐈‍⬛ [LCE] 衣櫃外觀同步失敗:', e); }
+        }
+        await CommonSetScreen(...screen);
+        await PreferenceSubscreenExtensionsOpen?.('LCE', informationReturnScreen);
+        // 重開設定頁的過程可能經過 InformationSheet，補回原本的返回目標
+        if (informationReturnScreen) InformationSheetReturnScreen = [...informationReturnScreen];
+    };
+    try {
+        await CharacterAppearanceLoadCharacter(Player, back);
+    } catch (e) {
+        console.warn('🐈‍⬛ [LCE] 開啟衣櫃失敗:', e);
+        returnToAnimalSection = null;
+    }
+}
+
 // ───────────────────────────── BC 偏好子畫面回呼 ─────────────────────────────
 
 function load() {
@@ -203,6 +349,13 @@ function load() {
     currentSetting = '';
     actionDone.clear();
     stopBarDrag();
+    animalPreviewLive = false;
+    animalHintOpen = false;
+    if (returnToAnimalSection !== null) {   // 從衣櫃回來：直接回到動物頁
+        currentCategory = 'animal';
+        currentSection = returnToAnimalSection;
+        returnToAnimalSection = null;
+    }
 }
 
 function exit() {
@@ -211,6 +364,8 @@ function exit() {
     closeTrustedDomainManager();
     saveFeatureSettings();
     stopBarDrag();
+    disposeAnimalPreview();
+    returnToAnimalSection = null;
     if (typeof PreferenceSubscreenExtensionsClear === 'function') PreferenceSubscreenExtensionsClear();
 }
 
@@ -244,6 +399,8 @@ function run() {
     if (isStorageManagerOpen()) positionStorageManager();
     if (isTrustedDomainManagerOpen()) positionTrustedDomainManager();
 
+    syncAnimalPreview();
+
     if (!currentCategory) {
         homeItems().forEach((item, index) => {
             const [x, y, width, height] = homeRect(index);
@@ -255,14 +412,8 @@ function run() {
     }
 
     if (PANEL_CATEGORIES.has(currentCategory)) {
-        DrawEmptyRect(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, 'Black', 3);
-        const sections = computeSections(currentCategory);
-        const labels = SECTION_LABELS[currentCategory];
-        const tabW = PANEL_W / sections.length;
-        centered(() => sections.forEach((_, index) => {
-            const x = PANEL_X + index * tabW;
-            DrawButton(x, PANEL_Y, tabW, ITEM_H, T(labels[index]), currentSection === index ? (fSettings.themeEnabled ? '%accent' : '#b98be0') : 'White');
-        }));
+        drawPanelFrame(computeSections(currentCategory).length);
+        if (currentCategory === 'animal') drawAnimalSide();
     } else {
         DrawText(T('lce_click_hint'), 300, 190, 'Gray', 'Silver');
     }
@@ -272,13 +423,7 @@ function run() {
         const { x, y, width, controlX } = layout;
         const disabled = !!def.disabled?.(fSettings);
         const hovered = !disabled && MouseIn(x, y, width, ITEM_H);
-        if (hovered) {
-            const alpha = ctx.globalAlpha;
-            try {
-                ctx.globalAlpha = 0.14;
-                DrawRect(x - 4, y - 2, width + 8, ITEM_H + 4, 'Cyan');
-            } finally { ctx.globalAlpha = alpha; }
-        }
+        if (hovered) drawHoverOverlay(x - 4, y - 2, width + 8, ITEM_H + 4);
         const highlight = currentSetting === key ? 'Red' : 'Black';
 
         if (key === 'themeSlot') {
@@ -325,7 +470,9 @@ function run() {
 
     // 描述說明框。左緣從 300 移到 200、寬度補回 100 讓右緣仍停在 1900 ——
     // 說明文字是靠 DrawTextFit 縮字來塞進框裡的，框愈窄字就被壓得愈小愈難讀。
-    if (currentSetting && DEFAULT_FEATURE_SETTINGS[currentSetting]) {
+    if (currentCategory === 'animal' && animalHintOpen) {
+        drawTooltip(TOOLTIP_X, TOOLTIP_Y, TOOLTIP_W, T('animal_preview_none'));
+    } else if (currentSetting && DEFAULT_FEATURE_SETTINGS[currentSetting]) {
         drawTooltip(TOOLTIP_X, TOOLTIP_Y, TOOLTIP_W, T(DEFAULT_FEATURE_SETTINGS[currentSetting].desc));
     }
 
@@ -338,6 +485,7 @@ function run() {
 
 function click() {
     closeSettingDropdown();
+    animalHintOpen = false;   // 任何其他點擊都收起「i」的說明
     if (MouseIn(...HEADER_RECTS.exit)) {
         if (isStorageManagerOpen()) { closeStorageManager(); }
         else if (isTrustedDomainManagerOpen()) { closeTrustedDomainManager(); }
@@ -351,6 +499,9 @@ function click() {
         openLanguageDropdown({ right: x + width, y: y + height, width: 320 });
         return;
     }
+    // 容量 / 域名面板是 DOM，蓋在畫布上；面板開著時畫布上其餘區域不處理點擊，
+    // 避免點到面板外緣縫隙時還去觸發底下的首頁項目。
+    if (isStorageManagerOpen() || isTrustedDomainManagerOpen()) return;
     if (PANEL_CATEGORIES.has(currentCategory) && MouseIn(...HEADER_RECTS.reset)) {
         if (currentCategory !== 'theme') {
             const defaults = defaultValues();
@@ -381,11 +532,18 @@ function click() {
         return;
     }
 
+    if (currentCategory === 'animal') {
+        if (!canTestAnimal() && MouseIn(...ANIMAL_INFO_RECT)) { animalHintOpen = true; currentSetting = ''; return; }
+        if (MouseIn(...ANIMAL_BTN_RECTS.test)) { startAnimalTest(); return; }
+        if (MouseIn(...ANIMAL_BTN_RECTS.wardrobe)) { openWardrobe(); return; }
+    }
+
     if (PANEL_CATEGORIES.has(currentCategory)) {
         const sections = computeSections(currentCategory);
-        const tabW = PANEL_W / sections.length;
+        const tabW = panelWidth() / sections.length;
         for (let index = 0; index < sections.length; index++) {
-            if (!MouseIn(PANEL_X + index * tabW, PANEL_Y, tabW, ITEM_H)) continue;
+            if (!MouseIn(PANEL_X + index * tabW, PANEL_Y, tabW, PANEL_TAB_H)) continue;
+            if (currentSection !== index && currentCategory === 'animal') animalPreview?.rebuild();   // 換分頁：清掉上一個部位的播放
             currentSection = index; currentSetting = ''; stopBarDrag(); return;
         }
     }
@@ -662,6 +820,33 @@ function onGlobalMouseDown() {
     }
 }
 
+/**
+ * 滾輪調整 bar：滑鼠停在可操作 bar 的軌道上時，往上捲 +step、往下捲 -step（Shift = ×10）。
+ * 只有「真的在 bar 上」才攔截事件；其餘位置照常放行。
+ * 連續捲動只記憶體內更新，停手 400ms 後才存檔一次（避免每格都同步到伺服器）。
+ */
+let wheelSaveTimer = 0;
+function onGlobalWheel(e) {
+    if (currentCategory === null || e.ctrlKey || !e.deltaY) return;
+    if (isStorageManagerOpen() || isTrustedDomainManagerOpen() || isSettingDropdownOpen()) return;
+    if (typeof PreferenceExtensionsCurrent !== 'undefined' && PreferenceExtensionsCurrent?.Identifier !== 'LCE') return;
+    for (const layout of settingLayouts()) {
+        const [key, def] = layout.entry;
+        if (!isBarDraggable(key, def) || !MouseIn(layout.controlX, layout.y, layout.controlW, ITEM_H)) continue;
+        e.preventDefault();
+        e.stopPropagation();
+        const base = clampBar(def, fSettings[key]);
+        const step = (def.step || 1) * (e.shiftKey ? 10 : 1);
+        const next = clampBar(def, base + (e.deltaY < 0 ? step : -step));
+        if (next !== base) {
+            setFeature(key, next, { persist: false });
+            clearTimeout(wheelSaveTimer);
+            wheelSaveTimer = setTimeout(() => saveFeatureSettings(), 400);
+        }
+        return;
+    }
+}
+
 /** 繪製 input 控制項：色彩型別 → 十六進位欄位 + 齊平色塊；其餘 → 一般數值鈕。 */
 function drawInputControl(key, def, layout, disabled) {
     const { controlX, controlW, y } = layout;
@@ -702,6 +887,19 @@ function keyHandler(e) {
     if (e.key === 'Escape' && isSettingDropdownOpen()) {
         closeSettingDropdown(); e.stopPropagation(); e.preventDefault(); return;
     }
+    if (e.key === 'Escape' && (isStorageManagerOpen() || isTrustedDomainManagerOpen())) {
+        // 容量 / 域名面板：ESC 只關掉面板、回到 LCE 首頁。
+        // 以前這兩個面板不算「分類」（currentCategory 仍是 null），ESC 沒被攔截，
+        // 直接交給 BC 走 exit()，結果整個退回擴充組件清單。
+        // 容量面板的匯入視窗是更上一層，先關它。
+        if (!closeStorageManagerLayer()) {
+            closeStorageManager();
+            closeTrustedDomainManager();
+        }
+        e.stopPropagation();
+        e.preventDefault();
+        return;
+    }
     if (e.key === 'Escape' && currentCategory !== null) {
         currentCategory = null;
         currentSetting = '';
@@ -733,6 +931,7 @@ export function installSettingsPage() {
         // 只在有 currentCategory 時才動作，離開 LCE 設定頁後這兩個監聽器什麼都不做，不必額外移除。
         window.addEventListener('mousedown', onGlobalMouseDown, true);
         window.addEventListener('mouseup', stopBarDrag, true);
+        window.addEventListener('wheel', onGlobalWheel, { capture: true, passive: false });
         window.addEventListener('touchend', stopBarDrag, true);
         installed = true;
     })();

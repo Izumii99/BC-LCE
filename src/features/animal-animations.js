@@ -3,7 +3,7 @@ import { SETTING_CHANGED_EVENT } from '../core/constants.js';
 import { createSocketBinding } from '../core/lifecycle.js';
 import { createHook } from '../core/hooks.js';
 import modApi from '../modsdk.js';
-import { SLOTS, ANIMAL_STATE_KEYS, clampCycles, clampDelay, sanitizeAnimalState, safeClone } from '../core/animal-actions.js';
+import { SLOTS, ANIMAL_TYPES, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, applyAnimalState as applyState } from '../core/animal-actions.js';
 
 const hook = createHook('animal-animations');
 
@@ -15,10 +15,6 @@ let autoTriggerInterval = null;
 function refreshCharacter(char) {
     if (typeof CharacterRefresh === 'function') CharacterRefresh(char, false, false);
 }
-
-const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
-const findSlotItem = (char, slot) => char.Appearance.find(item => item.Asset.Group.Name === slot);
 
 function itemSignature(item) {
     if (!item) return '';
@@ -38,44 +34,6 @@ function syncToServer(char, slot, startSig) {
     if (itemSignature(findSlotItem(char, slot)) === startSig) return;
     try { globalThis.ChatRoomCharacterItemUpdate(char, slot); }
     catch (e) { console.warn('[LCE] animal sync failed', e); }
-}
-
-/**
- * 把部位直接改成指定狀態（A 或 B）。播放時不管目前穿的是什麼，一律照穿。
- * 只動白名單欄位與 Property 內的欄位。
- */
-function applyState(char, slot, state, managedPropertyKeys) {
-    let item = findSlotItem(char, slot);
-    if (!item || item.Asset.Name !== state.Name) {
-        item = globalThis.InventoryWear(char, state.Name, slot, state.Color, undefined, undefined, undefined, false);
-        if (!item) return;
-    } else {
-        item.Color = Array.isArray(state.Color) ? [...state.Color] : state.Color;
-    }
-
-    for (const key of ANIMAL_STATE_KEYS) {
-        if (key === 'Property' || key in state) continue;
-        delete item[key];
-    }
-
-    if (item.Property) {
-        for (const key of managedPropertyKeys) {
-            if (UNSAFE_KEYS.has(key)) continue;
-            if (!state.Property || !(key in state.Property)) delete item.Property[key];
-        }
-    }
-
-    for (const key of ANIMAL_STATE_KEYS) {
-        if (!(key in state)) continue;
-        const copy = safeClone(state[key]);
-        if (copy === undefined) continue;
-        if (key === 'Property') {
-            if (!item.Property) item.Property = {};
-            for (const k of Object.keys(copy)) if (!UNSAFE_KEYS.has(k)) item.Property[k] = copy[k];
-        } else {
-            item[key] = copy;
-        }
-    }
 }
 
 /**
@@ -160,7 +118,7 @@ function triggerAnimation(type, { auto = false } = {}) {
     // 自動觸發：使用者脫掉的部位不要被動畫穿回去
     if (auto && !currentItem) return;
 
-    let cycles = clampCycles(getFeature(`animal${type}Cycles`), type === 'Wings' ? 3 : 9);
+    let cycles = clampCycles(getFeature(`animal${type}Cycles`), fallbackCycles(type));
     let delay = clampDelay(getFeature(`animal${type}Delay`) || 250);
 
     // Randomize cycles (+/- 1) and delay (+/- 20ms) for a more natural, less rigid feel.
@@ -203,7 +161,7 @@ function checkTriggers() {
     if (globalThis.CurrentScreen !== 'ChatRoom') return;
     
     const now = Date.now();
-    for (const type of ['Ears', 'Tails', 'Wings']) {
+    for (const type of ANIMAL_TYPES) {
         if (!getFeature(`animal${type}`)) continue;
         
         const intervalMs = (getFeature(`animal${type}Interval`) || 30) * 1000;
@@ -305,7 +263,7 @@ export function installAnimalAnimations() {
     }
     
     window.addEventListener(SETTING_CHANGED_EVENT, () => {
-        const anyEnabled = ['Ears', 'Tails', 'Wings'].some(t => getFeature(`animal${t}`));
+        const anyEnabled = ANIMAL_TYPES.some(t => getFeature(`animal${t}`));
         if (!anyEnabled && autoTriggerInterval) {
             clearInterval(autoTriggerInterval);
             autoTriggerInterval = null;

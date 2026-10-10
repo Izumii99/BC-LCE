@@ -3,6 +3,10 @@ export const SLOTS = {
     Tails: 'TailStraps',
     Wings: 'Wings'
 };
+/** 部位清單的單一來源（設定頁分頁順序、定時觸發、預覽都用它）。 */
+export const ANIMAL_TYPES = Object.freeze(Object.keys(SLOTS));
+/** 次數設定壞掉時的退路：翅膀拍一輪較久，預設 3，其餘 9（與 schema 預設一致）。 */
+export const fallbackCycles = type => (type === 'Wings' ? 3 : 9);
 
 // ───────────────────────── 共用限制（發送端、隨機化後、接收端共用同一組） ─────────────────────────
 export const MAX_CYCLES = 20;   // 一個循環 = A → B → A
@@ -149,4 +153,47 @@ export function clearAnimalAnim(type, draft) {
     draft[`animal${type}State1`] = null;
     draft[`animal${type}State2`] = null;
     return true;
+}
+
+// ───────────────────────── 套用姿勢（正式播放與設定頁預覽共用） ─────────────────────────
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+export const findSlotItem = (char, slot) => char.Appearance.find(item => item.Asset.Group.Name === slot);
+
+/**
+ * 把部位直接改成指定狀態（A 或 B）。播放時不管目前穿的是什麼，一律照穿。
+ * 只動白名單欄位與 Property 內的欄位。
+ */
+export function applyAnimalState(char, slot, state, managedPropertyKeys) {
+    let item = findSlotItem(char, slot);
+    if (!item || item.Asset.Name !== state.Name) {
+        item = globalThis.InventoryWear(char, state.Name, slot, state.Color, undefined, undefined, undefined, false);
+        if (!item) return;
+    } else {
+        item.Color = Array.isArray(state.Color) ? [...state.Color] : state.Color;
+    }
+
+    for (const key of ANIMAL_STATE_KEYS) {
+        if (key === 'Property' || key in state) continue;
+        delete item[key];
+    }
+
+    if (item.Property) {
+        for (const key of managedPropertyKeys) {
+            if (UNSAFE_KEYS.has(key)) continue;
+            if (!state.Property || !(key in state.Property)) delete item.Property[key];
+        }
+    }
+
+    for (const key of ANIMAL_STATE_KEYS) {
+        if (!(key in state)) continue;
+        const copy = safeClone(state[key]);
+        if (copy === undefined) continue;
+        if (key === 'Property') {
+            if (!item.Property) item.Property = {};
+            for (const k of Object.keys(copy)) if (!UNSAFE_KEYS.has(k)) item.Property[k] = copy[k];
+        } else {
+            item[key] = copy;
+        }
+    }
 }

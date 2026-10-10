@@ -503,6 +503,9 @@
     "sd_animalWingsSave2": "将当前穿戴的翅膀保存为拍动姿势（状态 2）。",
     "s_animalWingsClear": "清除翅膀数据",
     "sd_animalWingsClear": "清除已保存的翅膀姿势。",
+    "animal_preview_test": "测试",
+    "animal_preview_wardrobe": "前往衣柜",
+    "animal_preview_none": "目前尚无保存外观，无法测试",
     "settings_tab_animal_ears": "耳朵",
     "settings_tab_animal_tails": "尾巴",
     "settings_tab_animal_wings": "翅膀"

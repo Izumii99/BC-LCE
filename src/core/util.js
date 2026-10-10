@@ -52,6 +52,20 @@ export function positionElement(id, font, x, y, w, h) {
     ElementPositionFix(id, font, x, y, w, h);
 }
 
+/**
+ * 把 DOM 面板擺到畫布座標並設定 CSS 變數 --lce-u（= 1 個畫布單位對應的實際像素）。
+ * 面板內需要「跟畫布一致的尺寸」（例如分頁列高度 65）時用 calc(65 * var(--lce-u))，
+ * 這樣縮放視窗時，DOM 面板的分頁列高度仍與 canvas 面板的分頁列相同。
+ */
+export function positionPanel(id, x, y, w, h, font = 32) {
+    positionElement(id, font, x, y, w, h);
+    const el = id && document.getElementById(id);
+    const canvas = window.MainCanvas;
+    if (!el || !canvas) return;
+    const scale = canvas.getBoundingClientRect().width / (canvas.width || 2000);
+    if (Number.isFinite(scale) && scale > 0) el.style.setProperty('--lce-u', `${scale}px`);
+}
+
 /** 注入 / 更新 <style> */
 export function injectStyle(id, css) {
     let el = document.getElementById(id);

@@ -5,7 +5,7 @@ import { runtime } from './helpers/runtime.mjs';
 test('immersion tabs include every setting once and keep all anti-garble controls in the right column', async () => {
     const rt = runtime({ mocks: {
         'src/settings/pickers.js': { langFlag() {}, openLanguageDropdown() {}, openFontPicker() {}, promptInput() {}, openColorPicker() {} },
-        'src/settings/storage-manager.js': { openStorageManager() {}, closeStorageManager() {}, isStorageManagerOpen: () => false, positionStorageManager() {} },
+        'src/settings/storage-manager.js': { openStorageManager() {}, closeStorageManager() {}, closeStorageManagerLayer: () => false, isStorageManagerOpen: () => false, positionStorageManager() {} },
         'src/settings/trusted-domain-manager.js': { openTrustedDomainManager() {}, closeTrustedDomainManager() {}, isTrustedDomainManagerOpen: () => false, positionTrustedDomainManager() {} },
     }, append: { 'src/settings/settings-page.js': `
         export function testLayouts(section) { currentCategory = 'immersion'; currentSection = section; return settingLayouts(); }
