@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  pull-requests: write
 concurrency:
   group: checks-${{ github.ref }}
   cancel-in-progress: true
@@ -32,7 +33,25 @@ jobs:
         run: npm ci && npm run build
       - name: Compare PR bundle size
         if: github.event_name == 'pull_request'
-        run: node scripts/bundle-size.mjs dist/assets .ci-base/dist/assets
+        run: node scripts/bundle-size.mjs dist/assets .ci-base/dist/assets | tee "$RUNNER_TEMP/bundle-size.md"
+      # 把大小比較貼成 PR 留言，之後每次推送都更新同一則，不會洗版。
+      # fork 與 Dependabot 的 PR 沒有寫入權限，直接略過（結果仍在 Job Summary）；留言失敗也不影響檢查結果。
+      - name: Comment bundle size on PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          marker='<!-- lce-bundle-size -->'
+          body="$(printf '%s\n%s\n' "$marker" "$(cat "$RUNNER_TEMP/bundle-size.md")")"
+          api="repos/$GITHUB_REPOSITORY/issues"
+          id="$(gh api "$api/$PR_NUMBER/comments" --paginate --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n1)"
+          if [ -n "$id" ]; then
+            gh api -X PATCH "$api/comments/$id" -f body="$body" >/dev/null
+          else
+            gh api "$api/$PR_NUMBER/comments" -f body="$body" >/dev/null
+          fi
       - name: Report manual build size
         if: github.event_name != 'pull_request'
         run: node scripts/bundle-size.mjs
