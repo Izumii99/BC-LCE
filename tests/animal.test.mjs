@@ -156,24 +156,35 @@ test('automatic triggers do not put back an item the user took off', async () =>
 });
 
 
-test('own animation sends one item update at the end only when the final state differs from the start', async () => {
+test('own animation sends one item update per frame and no Hidden trigger packet, so non-LCE players see it too', async () => {
     const sent = [], updates = [];
     const player = { MemberNumber: 1, Appearance: [makeItem('Other')] };
-    const { rt, mod, run } = await animalRuntime({ player, sent, updates });
+    const { rt, mod, run, refreshes } = await animalRuntime({ player, sent, updates });
     rt.settings.updateSettings({ animalEarsState1: { Name: 'A' }, animalEarsState2: { Name: 'B' } });
     mod.triggerAnimation('Ears');
-    assert.equal(sent.length, 1, 'one Hidden trigger packet');
-    assert.equal(updates.length, 0, 'no per-frame update packets');
+    assert.equal(sent.length, 0, 'no Hidden trigger packet any more');
+    assert.equal(updates.length, 1, 'first frame is sent immediately');
     run();
-    assert.equal(player.Appearance[0].Asset.Name, 'A');
-    assert.deepEqual(updates, [[1, 'HairAccessory2']], 'exactly one update at the end');
+    assert.equal(player.Appearance[0].Asset.Name, 'A', 'ends on the resting pose');
+    assert.equal(updates.length, refreshes.length, 'exactly one update per frame, no extra duplicate at the end');
+    assert.ok(updates.every(u => u[0] === 1 && u[1] === 'HairAccessory2'));
 
-    // starting already on A: nothing to sync
-    updates.length = 0;
+    // starting already on A: frames are still sent (viewers need to see the motion)
+    updates.length = 0; refreshes.length = 0;
     mod.triggerAnimation('Ears');
     run();
     assert.equal(player.Appearance[0].Asset.Name, 'A');
-    assert.equal(updates.length, 0);
+    assert.equal(updates.length, refreshes.length);
+    assert.ok(updates.length >= 2);
+});
+
+test('receiving an animation does not depend on the local setting (the setting only controls whether I animate)', async () => {
+    const { rt, mod, remote, run } = await animalRuntime();
+    rt.settings.setFeature('animalEars', false);
+    mod.onAnimalMessage(packet({ Name: 'A' }, { Name: 'B' }, { cycles: 1 }));
+    assert.equal(remote.Appearance[0].Asset.Name, 'B', 'plays even though my own ear animation is off');
+    run();
+    assert.equal(remote.Appearance[0].Asset.Name, 'A');
 });
 
 test('remote characters never send updates', async () => {
@@ -194,11 +205,11 @@ test('manual trigger (*wag* etc.) plays without equipment; random trigger needs 
     assert.equal(sent.length, 0);
     assert.equal(player.Appearance.length, 0);
     mod.triggerAnimation('Ears');
-    assert.equal(sent.length, 1);
+    assert.equal(sent.length, 0);
     assert.equal(player.Appearance[0].Asset.Name, 'B');
     run();
     assert.equal(player.Appearance[0].Asset.Name, 'A');
-    assert.equal(updates.length, 1);
+    assert.ok(updates.length >= 2, 'every frame is sent');
 });
 
 // ───────────────────────── 設定頁右側擺動預覽 ─────────────────────────
@@ -360,7 +371,7 @@ test('final sync also notices a change that is only in appearance extension fiel
     mod.triggerAnimation('Ears');
     run();
     assert.equal(player.Appearance[0].Rotate, 15);
-    assert.deepEqual(updates, [[1, 'HairAccessory2']], 'only Rotate differs from the start, still synced');
+    assert.ok(updates.length >= 2 && updates.every(u => u[0] === 1 && u[1] === 'HairAccessory2'), 'frames are synced, ending on A with Rotate 15');
 });
 
 test('item signature follows every whitelisted field', async () => {
@@ -370,4 +381,42 @@ test('item signature follows every whitelisted field', async () => {
     for (const key of ANIMAL_STATE_KEYS) {
         assert.notEqual(animalItemSignature({ ...base, [key]: key === 'Difficulty' ? 2 : { x: 1 } }), animalItemSignature(base), key);
     }
+});
+
+// ───────────────────────── 七種語言的文字觸發詞 ─────────────────────────
+
+test('every trigger word in all 7 languages maps to its own part, with no cross-part collisions', async () => {
+    const rt = runtime();
+    const { ANIMAL_TRIGGER_WORDS, ANIMAL_TRIGGER_LANGS, getAnimTypeFromMsg } = await rt.load('src/core/animal-triggers.js');
+    for (const type of ['Ears', 'Tails', 'Wings']) {
+        for (const lang of ANIMAL_TRIGGER_LANGS) {
+            const words = ANIMAL_TRIGGER_WORDS[type][lang];
+            assert.ok(words?.length >= 3, `${type}/${lang} has trigger words`);
+            for (const w of words) assert.equal(getAnimTypeFromMsg(`*${w}*`), type, `${lang}: *${w}*`);
+        }
+    }
+});
+
+test('trigger matching ignores case, accents, extra spaces and accepts full-width asterisks', async () => {
+    const rt = runtime();
+    const { getAnimTypeFromMsg } = await rt.load('src/core/animal-triggers.js');
+    assert.equal(getAnimTypeFromMsg('*WIGGLE*'), 'Ears');
+    assert.equal(getAnimTypeFromMsg('*  wags   tail  *'), 'Tails');
+    assert.equal(getAnimTypeFromMsg('*bat des AILES*'), 'Wings');
+    assert.equal(getAnimTypeFromMsg('*frétille de la queue*'), 'Tails');
+    assert.equal(getAnimTypeFromMsg('*fretille de la queue*'), 'Tails', 'accents optional');
+    assert.equal(getAnimTypeFromMsg('*flattert mit den flugeln*'), 'Wings', 'umlaut optional');
+    assert.equal(getAnimTypeFromMsg('*шевелит ушами*'), 'Ears');
+    assert.equal(getAnimTypeFromMsg('＊搖尾巴＊'), 'Tails', 'full-width asterisks from CJK input');
+    assert.equal(getAnimTypeFromMsg(' *摇耳朵* '), 'Ears', 'surrounding spaces');
+});
+
+test('trigger text must be the whole message and exactly a keyword', async () => {
+    const rt = runtime();
+    const { getAnimTypeFromMsg } = await rt.load('src/core/animal-triggers.js');
+    for (const bad of ['搖尾巴', '*搖尾巴*啊', '我 *搖尾巴*', '*慢慢搖尾巴*', '*remue la queue de son chat*', '**', '*', '', '*wag*wag*']) {
+        assert.equal(getAnimTypeFromMsg(bad), null, bad);
+    }
+    assert.equal(getAnimTypeFromMsg(null), null);
+    assert.equal(getAnimTypeFromMsg(42), null);
 });

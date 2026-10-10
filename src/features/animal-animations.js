@@ -3,6 +3,7 @@ import { SETTING_CHANGED_EVENT } from '../core/constants.js';
 import { createSocketBinding } from '../core/lifecycle.js';
 import { createHook } from '../core/hooks.js';
 import modApi from '../modsdk.js';
+import { getAnimTypeFromMsg } from '../core/animal-triggers.js';
 import { SLOTS, ANIMAL_TYPES, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, applyAnimalState as applyState, animalItemSignature, collectManagedKeys, poseAt } from '../core/animal-actions.js';
 
 const hook = createHook('animal-animations');
@@ -17,10 +18,20 @@ function refreshCharacter(char) {
 }
 
 /**
- * 動畫結束後，如果本人部位的最終狀態與播放前不同，補送「一個」物件更新封包（同 BCAR 的
- * ChatRoomCharacterItemUpdate），讓伺服器與沒裝 LCE 的人看到的也是最終的 A。
- * 播放過程中的每個畫面不送封包（BCAR 每格都送，LCE 只送 1 個 Hidden 觸發封包）。
- * 起始狀態本來就是 A 時不會送，所以一般情況不增加封包。
+ * 本人播放時每一格都送一個物件更新封包（同 BCAR 的 ChatRoomCharacterItemUpdate）。
+ * 這樣房間裡所有人（包含沒安裝 LCE、沒開啟對應設定的人）都會透過伺服器看到搖晃，
+ * 不需要對方做任何事。回傳是否成功送出。
+ */
+function pushFrame(char, slot) {
+    if (char !== globalThis.Player) return false;
+    if (typeof globalThis.ChatRoomCharacterItemUpdate !== 'function' || !globalThis.ChatRoomData) return false;
+    try { globalThis.ChatRoomCharacterItemUpdate(char, slot); return true; }
+    catch (e) { console.warn('[LCE] animal frame sync failed', e); return false; }
+}
+
+/**
+ * 最後一格沒有成功送出時（離開畫面、離開房間、送出失敗）的補送：
+ * 本人部位的最終狀態與播放前不同才送，讓伺服器上的狀態停在 A。
  */
 function syncToServer(char, slot, startSig) {
     if (char !== globalThis.Player) return;
@@ -48,7 +59,9 @@ function settleOnA(r, { refresh = true } = {}) {
  * 發送者與所有接收者都會停在同一個狀態，不會出現「對方看到 X、本人其實是 A」的落差。
  * 播放中若耳朵／尾巴／翅膀被脫下或換成別的物件，立即停止，不覆蓋對方的變更。
  * 同一個角色、同一個部位再次觸發時，永遠以最新一筆為準：清掉舊計時器後從頭重播，
- * 但沿用最初的起始簽章與管理欄位，最後只會補送一次同步。
+ * 但沿用最初的起始簽章與管理欄位。
+ * 本人播放時每格都送物件更新（見 pushFrame），所以別人不需要安裝 LCE 也看得到；
+ * 遠端角色的播放只來自舊版 LCE 送出的 Hidden 觸發封包（見 onAnimalMessage），且從不送封包。
  */
 function startRender(char, type, state1, state2, delay, cycles) {
     const id = char.MemberNumber;
@@ -65,6 +78,7 @@ function startRender(char, type, state1, state2, delay, cycles) {
         names: previous?.names ?? new Set(),
         managedKeys: previous?.managedKeys ?? new Set(),
         startSig: previous ? previous.startSig : animalItemSignature(startItem),   // 重新觸發時仍以最初狀態為準
+        lastFrameSent: false,
     };
     for (const name of [state1.Name, state2.Name, startItem?.Asset.Name]) if (name) r.names.add(name);
     collectManagedKeys(r.managedKeys, startItem, state1, state2);
@@ -85,10 +99,11 @@ function startRender(char, type, state1, state2, delay, cycles) {
             if ((frame > 0 || startItem) && !ownsSlot(r)) { finish(); return; }
 
             if (globalThis.CurrentScreen !== 'ChatRoom') { settleOnA(r); finish(); return; }
-            if (frame >= total) { finish(); syncToServer(char, slot, r.startSig); return; }
+            if (frame >= total) { finish(); if (!r.lastFrameSent) syncToServer(char, slot, r.startSig); return; }
 
             applyState(char, slot, poseAt(frame, total, state1, state2), r.managedKeys);
             refreshCharacter(char);
+            r.lastFrameSent = pushFrame(char, slot);
 
             frame++;
             r.timer = setTimeout(step, delay);
@@ -101,7 +116,7 @@ function startRender(char, type, state1, state2, delay, cycles) {
     step();
 }
 
-// Send the one-packet network trigger
+// 開始本人的動畫（開關與姿勢檢查在這裡，決定的是「自己要不要搖」）
 function triggerAnimation(type, { auto = false } = {}) {
     const player = globalThis.Player;
     if (!player) return;
@@ -128,31 +143,12 @@ function triggerAnimation(type, { auto = false } = {}) {
     const delayVary = 20;
     delay = clampDelay(delay - delayVary + Math.floor(Math.random() * (delayVary * 2 + 1)));
 
-    // Animate locally for ourselves
+    // 本機播放；本人的每一格同時送物件更新，所有人（含沒裝 LCE 的）都看得到
     startRender(player, type, state1, state2, delay, cycles);
-
-    if (globalThis.CurrentScreen !== 'ChatRoom') return;
-
-    // Broadcast hidden message
-    if (typeof ServerSend === 'function') {
-        ServerSend('ChatRoomChat', {
-            Type: 'Hidden',
-            Content: HIDDEN_MSG_PREFIX + type,
-            Dictionary: [{ type, state1, state2, delay, cycles }]
-        });
-    }
 }
 
-// Chat intercept for *wag*, *flap*, *wiggle*
-export function getAnimTypeFromMsg(msg) {
-    if (!msg || typeof msg !== 'string') return null;
-    if (!msg.startsWith('*') || !msg.endsWith('*')) return null;
-    const content = msg.slice(1, -1).toLowerCase().trim();
-    if (/^(?:wag|wags)$/.test(content)) return 'Tails';
-    if (/^(?:flap|flaps)$/.test(content)) return 'Wings';
-    if (/^(?:wiggle|wiggles|twitch|twitches)$/.test(content)) return 'Ears';
-    return null;
-}
+// 聊天文字觸發（*wiggle*、*搖尾巴*、*bat des ailes* …）：詞表與比對在 core/animal-triggers.js
+export { getAnimTypeFromMsg };
 
 let lastTriggers = { Ears: Date.now(), Tails: Date.now(), Wings: Date.now() };
 
@@ -174,6 +170,10 @@ function checkTriggers() {
     }
 }
 
+/**
+ * 舊版 LCE 送出的 Hidden 觸發封包（向下相容）。新版送出端改為逐格物件更新，不再送這種封包。
+ * 對應設定只決定「自己要不要搖」，不決定「看不看得到別人搖」，所以這裡不檢查開關。
+ */
 export function onAnimalMessage(data) {
     if (data?.Type !== 'Hidden' || !data.Content?.startsWith(HIDDEN_MSG_PREFIX)) return;
     
@@ -187,8 +187,6 @@ export function onAnimalMessage(data) {
 
     // 同一個部位再次觸發：永遠以最新一筆為準（startRender 會清掉舊的重新播放）；上限只擋新增的登記
     if (!renderers.has(id + dict.type) && renderers.size >= 20) return;
-    if (!getFeature(`animal${dict.type}`)) return;
-    
     const char = (globalThis.ChatRoomCharacter ?? []).find(c => c.MemberNumber === id);
     if (!char) return;
     
@@ -240,7 +238,7 @@ export function installAnimalAnimations() {
         return next(args);
     });
 
-    // *wag* / *flap* / *wiggle* 聊天觸發：照常送出訊息，送出後播放
+    // 聊天文字觸發（七種語言的詞，見 animal-triggers.js）：照常送出訊息，送出後播放
     hook('ChatRoomSendChat', 5, (args, next) => {
         let type = null;
         try {
