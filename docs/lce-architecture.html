@@ -2,13 +2,39 @@
 document.title='LCE 功能分支圖';document.querySelector('h1').textContent='LCE 功能分支圖';
 const D = [
   [
+    "載入與啟動",
+    "main.js 先做重複載入防護並動態載入 app.js → app.js 先安裝登入前必備項目 → 等 BC 核心與登入 → 依序安裝各功能（每步 safe() 隔離，單一模組失敗不連累其他）→ 掛公開 API。",
+    [
+      [
+        "入口",
+        "載入防護與組裝",
+        "main.js,app.js"
+      ],
+      [
+        "SDK",
+        "內建 bcModSdk",
+        "modsdk.js"
+      ],
+      [
+        "掛鉤",
+        "Hook 管理與生命週期",
+        "core/hooks.js,core/lifecycle.js"
+      ],
+      [
+        "API",
+        "公開 API 與常數",
+        "core/public-api.js,core/constants.js,core/theme-api.js"
+      ]
+    ]
+  ],
+  [
     "設定更新流程",
     "UI／API → 驗證批次 → 更新記憶體與副作用 → 通知 → 保存。失敗回傳不等於回滾；伺服器保存尚無確認協定。",
     [
       [
         "入口",
-        "設定頁與選擇器",
-        "settings/settings-page.js,settings/pickers.js,core/theme-api.js"
+        "設定頁、選擇器與共用版面",
+        "settings/settings-page.js,settings/pickers.js,settings/setting-dropdown.js,settings/layout.js,core/theme-api.js"
       ],
       [
         "設定",
@@ -29,12 +55,12 @@ const D = [
   ],
   [
     "登入與儲存",
-    "登入狀態由 loginpage 擁有；帳號、憑證與桌布各有儲存責任，core 舊入口保留相容轉匯出。",
+    "登入狀態由 loginpage 擁有；帳號、憑證、重連用密碼快取與桌布各有儲存責任，core/storage.js 只保留相容轉匯出。",
     [
       [
         "UI",
         "登入與帳號輪播",
-        "loginpage/index.js,loginpage/login-ui.js,loginpage/account-carousel.js,loginpage/settings-ui.js"
+        "loginpage/index.js,loginpage/login-ui.js,loginpage/account-carousel.js,loginpage/settings-ui.js,loginpage/language-picker.js,loginpage/styles.js"
       ],
       [
         "狀態",
@@ -43,8 +69,8 @@ const D = [
       ],
       [
         "儲存",
-        "連線、帳號、加密",
-        "storage/databases.js,storage/accounts.js,storage/credentials.js"
+        "連線、帳號、加密與重連密碼快取（僅記憶體）",
+        "storage/databases.js,storage/accounts.js,storage/credentials.js,storage/reconnect-credentials.js"
       ],
       [
         "背景",
@@ -54,7 +80,12 @@ const D = [
       [
         "相容",
         "共用狀態與相容入口",
-        "core/state.js,core/i18n-registry.js"
+        "core/state.js,core/i18n-registry.js,core/storage.js"
+      ],
+      [
+        "外掛",
+        "BC 原生登入隱藏與外掛管理器（FUSAM）透傳",
+        "loginpage/bc.js"
       ]
     ]
   ],
@@ -86,6 +117,11 @@ const D = [
         "指令",
         "註冊與操作",
         "commands/commander.js"
+      ],
+      [
+        "輔助",
+        "訊息凍結、本地訊息、待送訊息與私聊對象",
+        "features/chat/chat-scroll-freeze.js,features/chat/local-messages.js,features/chat/pending-messages.js,features/chat/whisper-target.js"
       ]
     ]
   ],
@@ -133,6 +169,11 @@ const D = [
         "樣式",
         "BC HTML 樣式",
         "features/theme/styles/*"
+      ],
+      [
+        "除錯",
+        "/lceThemetest 主題開關測試球",
+        "features/theme/theme-test.js"
       ]
     ]
   ],
@@ -157,14 +198,14 @@ const D = [
       ],
       [
         "共用",
-        "搜尋區域與動畫完成",
-        "game/room-search.js,ui/transition.js"
+        "搜尋區域、動畫完成與直式共用層",
+        "game/room-search.js,ui/transition.js,features/vertical/common.js"
       ]
     ]
   ],
   [
     "表情與姿勢",
-    "事件準備 → 時間序列 → 仲裁／衝突 → BC 寫入與廣播。計算集中管理；表情資料表未改動。",
+    "事件準備 → 時間序列 → 仲裁／衝突 → BC 寫入與廣播。計算集中管理；臨時表情（寵物服、顏文字）先寫入表情緩存，結束後還原。",
     [
       [
         "引擎",
@@ -185,6 +226,42 @@ const D = [
         "功能",
         "說話、慾望與防亂碼",
         "features/expressions/char-talk.js,features/expressions/arousal.js,features/chat/anti-garble.js"
+      ],
+      [
+        "臨時",
+        "表情緩存與隱藏慾望協調",
+        "features/expressions/face-cache.js,features/expressions/hidden-arousal.js"
+      ],
+      [
+        "ECHO",
+        "活動表情對照、嘴部牽引、顏文字與寵物服動作",
+        "features/expressions/qol-data.js,features/expressions/qol-rules.js,features/chat-qol.js,features/echo-mouth-pull.js,features/petsuit-render.js"
+      ]
+    ]
+  ],
+  [
+    "動物動畫",
+    "觸發 → 驗證（白名單、型別、深度與大小）→ A/B 播放（先 B 後 A，停在 A）→ 結束後必要時補送一次物件更新。重複觸發以最新一筆為準；部位被脫下或換掉即提早結束。設定頁預覽用獨立角色副本，不送封包。",
+    [
+      [
+        "播放",
+        "觸發、接收、重播與定格",
+        "features/animal-animations.js"
+      ],
+      [
+        "共用",
+        "姿勢驗證、套用、簽章與幀序",
+        "core/animal-actions.js"
+      ],
+      [
+        "預覽",
+        "設定頁獨立角色預覽",
+        "settings/animal-preview.js"
+      ],
+      [
+        "設定",
+        "耳朵／尾巴／翅膀設定與姿勢存檔",
+        "core/settings-schema.js,settings/settings-page.js"
       ]
     ]
   ],
@@ -199,8 +276,8 @@ const D = [
       ],
       [
         "狀態",
-        "容量、貼圖與幀率",
-        "features/performance/chat-capacity.js,features/performance/textures.js,features/performance/frames.js"
+        "容量、貼圖、幀率與角色重繪分流",
+        "features/performance/chat-capacity.js,features/performance/textures.js,features/performance/frames.js,features/performance/character-load.js"
       ],
       [
         "共用",
@@ -209,8 +286,8 @@ const D = [
       ],
       [
         "相容",
-        "WCE／Responsive",
-        "core/wce-compat.js,core/responsive-compat.js"
+        "WCE／Responsive／HSC",
+        "core/wce-compat.js,core/responsive-compat.js,core/hsc-compat.js"
       ]
     ]
   ],
@@ -220,23 +297,54 @@ const D = [
     [
       [
         "社交",
-        "好友、Profile 與歷史",
-        "features/social/friend-presence.js,features/social/profile.js,features/social/past-profiles.js"
+        "好友、Profile、歷史與備註",
+        "features/social/friend-presence.js,features/social/profile.js,features/social/past-profiles.js,features/social/note-state.js"
       ],
       [
         "衣櫃",
-        "衣櫃與圖層",
+        "拓展衣櫃與圖層隱藏（原生衣櫃已有預覽與覆蓋確認）",
         "features/wardrobe/index.js,features/wardrobe/layering-hide.js"
       ],
       [
         "安全",
-        "重連與安全功能",
-        "features/safety/relogin.js,features/safety/cheats.js,features/safety/safeword.js"
+        "重連、作弊／反作弊與安全詞",
+        "features/safety/relogin.js,features/safety/cheats.js,features/safety/safeword.js,storage/reconnect-credentials.js"
       ],
       [
         "管理",
         "容量、信任與 API",
         "settings/storage-manager.js,settings/trusted-domain-manager.js,core/public-api.js"
+      ],
+      [
+        "打招呼",
+        "歡迎訊息、Hello 協定、徽章與 LCE 身分辨識",
+        "features/social/welcome.js,features/social/hello.js,features/social/badges.js,features/social/lite-identity.js"
+      ],
+      [
+        "雜項",
+        "離開確認、第三方內容確認、自動 ghost、區域切換",
+        "features/behaviors.js,features/misc.js,features/region-switch.js,features/trusted-domains.js"
+      ]
+    ]
+  ],
+  [
+    "多語系與共用元件",
+    "七語字表由 core/i18n 載入並與其他 Liko 插件共用；共用 L10N 引擎負責帶翻譯的訊息；modal 優先使用 PCM，沒有時使用本地後備。",
+    [
+      [
+        "語言",
+        "載入器與語言判斷",
+        "core/i18n.js,core/i18n-registry.js,game/language.js"
+      ],
+      [
+        "引擎",
+        "共用 L10N 訊息引擎",
+        "core/i18n-engine.js"
+      ],
+      [
+        "元件",
+        "Modal 與 DOM／環境工具",
+        "core/modal-service.js,core/util.js"
       ]
     ]
   ]
