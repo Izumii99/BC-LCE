@@ -141,15 +141,17 @@ export function installRegionSwitch() {
     loadSavedState();   // 讀已存的區域（含一次性 localStorage 搬移）；未就緒時下次再試
 
     try {
-        modApi.hookFunction('ChatSearchLoad', 1, (args, next) => {
-            const result = next(args);
+        // BC 的 ChatSearchLoad 是 async（內部有 await）；必須等它完成才能動畫面與狀態，
+        // 否則後處理會搶在 BC 建好輸入框／狀態之前執行。
+        modApi.hookFunction('ChatSearchLoad', 1, async (args, next) => {
+            const result = await next(args);
             if (!enabled()) { removeButton(); return result; }
             try {
                 loadSavedState();
                 inMixedZone = detectCurrentZone();
                 setSearchSpace(inMixedZone ? 'X' : '');
                 inMixedZone = detectCurrentZone();
-                setTimeout(createSwitchButton, 50);
+                createSwitchButton();
             } catch (e) {
                 console.error(LOG, 'Region switch ChatSearchLoad hook 錯誤:', e);
             }

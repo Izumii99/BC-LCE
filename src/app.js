@@ -1,4 +1,5 @@
 import { runSafely } from './core/lifecycle.js';
+import { getHookFailures } from './core/hooks.js';
 // ════════════════════════════════════════════════════════════════════════════
 // Liko Club Extensions (LCE) — 進入點
 // 職責：重複載入防護、安裝各功能模組、等待 BC 核心後初始化、掛載公開 API。
@@ -175,6 +176,8 @@ if (LCE_ALREADY_LOADED) {
         Object.assign(window.Liko.LCE, {
             Vertical,
             version:         MOD_VER,
+            // 診斷：回傳目前沒掛上的 BC 掛鉤（BC 改版造成函式不存在時會出現在這）
+            getHookFailures,
             refreshI18n,
             reloadSettings,
             refreshAccounts,
