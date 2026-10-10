@@ -162,6 +162,8 @@ export function echoActivity(data) {
 }
 
 export function echoExpressionEvent(data, memberNumber) {
+    // 自由文字 Emote/Action 只支援音效（echoSound），不觸發表情，避免 *licks the ice cream* 誤觸
+    if (data?.Type !== 'Activity') return null;
     const activity = echoActivity(data);
     if (!activity) return null;
     const event = mappings.find(([, pattern]) => pattern.test(activity.name))?.[0];

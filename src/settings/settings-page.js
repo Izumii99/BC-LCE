@@ -27,7 +27,7 @@ const SEL_OFFSET = 900;   // select / input / bar / action 控制項起始 X
 const SEL_WIDTH = 340;
 const HOME_COLUMNS = [300, 800, 1300];
 const HOME_ITEMS_PER_COLUMN = 8;
-const PANEL_CATEGORIES = new Set(['ui', 'theme', 'immersion']);
+const PANEL_CATEGORIES = new Set(['ui', 'theme', 'immersion', 'animal']);
 const PANEL_X = 300;
 const PANEL_Y = 180;
 const PANEL_W = 1400;
@@ -89,6 +89,7 @@ const SECTION_LABELS = {
     ui: ['settings_tab_ui', 'settings_tab_ui_colors'],
     theme: ['settings_tab_theme_basic', 'settings_tab_theme_advanced', 'settings_tab_theme_saved'],
     immersion: ['settings_tab_immersion_expressions', 'settings_tab_immersion_chat', 'settings_tab_immersion_other'],
+    animal: ['settings_tab_animal_ears', 'settings_tab_animal_tails', 'settings_tab_animal_wings'],
 };
 
 function visibleSettings() {
@@ -108,7 +109,9 @@ function settingLayouts() {
         ? (currentSection === 1 ? 'antiGarble' : currentSection === 2 ? 'petsuitAnimation' : null) : null;
     const splitIndex = splitKey ? entries.findIndex(([key]) => key === splitKey) : -1;
     const splitColumns = splitIndex >= 0;
-    const rows = currentCategory === 'theme' && currentSection === 0 ? 5 : PANEL_ROWS;
+    // 動物每個分頁有 7 項（開關、間隔、次數、延遲、兩個存檔鈕、清除），排成單欄
+    const rows = currentCategory === 'theme' && currentSection === 0 ? 5
+        : currentCategory === 'animal' ? 7 : PANEL_ROWS;
     const columns = splitColumns ? 2 : Math.max(1, Math.ceil(entries.length / rows));
     const columnW = PANEL_W / columns;
     return entries.map((entry, index) => {
