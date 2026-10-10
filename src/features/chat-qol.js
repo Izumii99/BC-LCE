@@ -9,7 +9,6 @@ import { getSpeechDuration, isSimpleChat } from './expressions/char-talk.js';
 import { drawAlternatingPetsuit } from './petsuit-render.js';
 import { createSocketBinding } from '../core/lifecycle.js';
 import modApi from '../modsdk.js';
-import { getCurrentCharacter, getCurrentScreen, getMainCanvas, getPlayer, getRoomCharacters, readBc } from '../game/bc-state.js';
 
 const hook = createHook('chat-qol');
 let installed = false;
@@ -46,7 +45,7 @@ function holdFace(type, face, duration, event) {
     cancelExpressionEvent(type);
     pushEvent({ Type: type, Duration: duration, Priority: 100, ...event });
     cancelLater(faceHolds.get(type)?.timer);
-    faceHolds.set(type, { player: getPlayer(), timer: later(() => releaseFaceHold(type), duration) });
+    faceHolds.set(type, { player: globalThis.Player, timer: later(() => releaseFaceHold(type), duration) });
 }
 
 function releaseFaceHold(type) {
@@ -60,7 +59,7 @@ function releaseFaceHold(type) {
     const groups = [...touchedGroups];
     touchedGroups.clear();
     later(() => {
-        if (!faceHolds.size && getPlayer() === hold.player && getCurrentScreen() === 'ChatRoom') settleFace(groups);
+        if (!faceHolds.size && globalThis.Player === hold.player && globalThis.CurrentScreen === 'ChatRoom') settleFace(groups);
     }, ENGINE_TICK_MS);
 }
 
@@ -81,7 +80,7 @@ const wearsPetsuit = c => !!c?.Appearance?.some(i => /petsuit|pet suit|宠物服
 
 function sendPetsuitMessage(payload) {
     try {
-        if (typeof ServerSend !== 'function' || !getPlayer()) return;
+        if (typeof ServerSend !== 'function' || !globalThis.Player) return;
         ServerSend('ChatRoomChat', { Type: 'Hidden', Content: PETSUIT_MSG, Dictionary: [{ message: payload }] });
     } catch (e) { console.warn('🐈‍⬛ [LCE]', '寵物服同步訊息送出失敗:', e); }
 }
@@ -124,14 +123,14 @@ function stopRender(id) {
 export function onPetsuitMessage(data) {
     if (data?.Type !== 'Hidden' || data.Content !== PETSUIT_MSG) return;
     const id = data.Sender;
-    if (!Number.isSafeInteger(id) || id === getPlayer()?.MemberNumber) return;
+    if (!Number.isSafeInteger(id) || id === globalThis.Player?.MemberNumber) return;
     const msg = Array.isArray(data.Dictionary) ? data.Dictionary.find(t => t?.message)?.message : data.Dictionary?.message;
     if (!msg || typeof msg !== 'object') return;
     if (msg.type === 'Stop') { stopRender(id); return; }
     if (msg.type !== 'Start') return;
     // 是否交互晃動由發送者的設定決定；對方停用就維持普通擺動，不做本地渲染。
     if (msg.alternate !== true) { stopRender(id); return; }
-    const char = getRoomCharacters().find(c => c.MemberNumber === id);
+    const char = (globalThis.ChatRoomCharacter ?? []).find(c => c.MemberNumber === id);
     if (!char || !wearsPetsuit(char)) return;
     startRender(char, clampDelay(msg.delay), clampCycles(msg.cycles));
 }
@@ -151,8 +150,8 @@ export function installPetsuitSync() {
 }
 
 function canAnimate() {
-    const player = getPlayer();
-    return getFeature('petsuitAnimation') && canUseExpressionEngine() && getCurrentScreen() === 'ChatRoom'
+    const player = globalThis.Player;
+    return getFeature('petsuitAnimation') && canUseExpressionEngine() && globalThis.CurrentScreen === 'ChatRoom'
         && player?.Appearance?.some(i => /petsuit|pet suit|宠物服上/i.test(i.Asset.Name))
         && typeof PoseCanChangeUnaided === 'function' && poses.every(p => PoseCanChangeUnaided(player, p));
 }
@@ -165,7 +164,7 @@ export function stopPetsuitAnimation(restore = true) {
     releaseFaceHold('LcePetsuit');
     if (previous.player?.MemberNumber != null) stopRender(previous.player.MemberNumber);
     if (Date.now() < previous.until) sendPetsuitMessage({ type: 'Stop' });
-    if (restore && getPlayer() === previous.player) restoreQolPose(previous.pose);
+    if (restore && globalThis.Player === previous.player) restoreQolPose(previous.pose);
     refreshCharacter(previous.player);   // 拿掉合成的畫布；不上傳外觀（避免把還掛著 >.< 的快照送出去）
 }
 
@@ -180,7 +179,7 @@ export function togglePetsuitAnimation() {
     const netSteps = Math.max(2, Math.ceil(duration / netStep / 2) * 2);
     animation = { player: Player, pose: [...(Player.ActivePose || [])], until: Date.now() + duration,
         timer: later(() => stopPetsuitAnimation(), duration) };
-    const lower = animation.pose.filter(name => readBc(() => PoseFemale3DCG)?.find(p => p.Name === name)?.Category === 'BodyLower');
+    const lower = animation.pose.filter(name => globalThis.PoseFemale3DCG?.find(p => p.Name === name)?.Category === 'BodyLower');
     holdFace('LcePetsuit', { Eyes: 'Daydream', Eyes2: 'Daydream' }, duration, {
         Expression: { Eyes: [{ Expression: 'Daydream', Duration: duration }] },
         Poses: Array.from({ length: netSteps }, (_, i) => ({ Pose: [poses[i % 2], ...lower], Duration: netStep })),
@@ -208,14 +207,14 @@ export function petsuitButtonRect(position = getFeature('petsuitAnimationPositio
 }
 
 function showPetsuitButton() {
-    return getCurrentScreen() === 'ChatRoom' && !getCurrentCharacter()
-        && !readBc(() => CommonPhotoMode) && !(readBc(() => ChatRoomHideIconState) >= 2)
+    return globalThis.CurrentScreen === 'ChatRoom' && !globalThis.CurrentCharacter
+        && !globalThis.CommonPhotoMode && !(globalThis.ChatRoomHideIconState >= 2)
         && (!!animation || canAnimate());
 }
 
 function drawPetsuitButton() {
     if (!showPetsuitButton()) return;
-    const canvas = getMainCanvas();
+    const canvas = globalThis.MainCanvas;
     const ctx = canvas?.getContext?.('2d') ?? canvas;
     if (!ctx || typeof DrawButton !== 'function') return;
     const [x, y, w, h] = petsuitButtonRect();
@@ -286,7 +285,7 @@ export function installChatQol() {
 
                 mouthDelayTimer = later(() => {
                     mouthDelayTimer = null;
-                    if (!getFeature('chatEmoticons') || !canUseExpressionEngine() || getCurrentScreen() !== 'ChatRoom') return;
+                    if (!getFeature('chatEmoticons') || !canUseExpressionEngine() || globalThis.CurrentScreen !== 'ChatRoom') return;
                     
                     holdFace('LceEmoticon', face, duration, { SingleEye: 'Eyes2' in face,
                         Expression: Object.fromEntries(Object.entries(face).map(([group, expression]) =>
@@ -302,7 +301,7 @@ export function installChatQol() {
     // plugins' sounds first. BC still applies its mute/volume/involvement rules.
     hook('AudioPlaySoundForChatMessage', 0, (args, next) => {
         const sound = getFeature('richerActivitySounds') && echoSound(args[0]);
-        const actions = readBc(() => AudioActions);
+        const actions = globalThis.AudioActions;
         if (!sound || !Array.isArray(actions)) return next(args);
         const fallback = { IsAction: data => data === args[0], GetSoundEffect: () => sound };
         actions.push(fallback);
@@ -312,7 +311,7 @@ export function installChatQol() {
 
     // Manual pose changes cancel our sequence before the engine records them.
     for (const fn of ['CharacterSetActivePose', 'PoseSetActive']) hook(fn, 50, (args, next) => {
-        if (args[0] === getPlayer()) stopPetsuitAnimation(false);
+        if (args[0] === globalThis.Player) stopPetsuitAnimation(false);
         return next(args);
     });
     hook('ChatRoomLeave', 50, (args, next) => { 
@@ -326,14 +325,14 @@ export function installChatQol() {
         const character = args[0];
         const entry = renderers.get(character?.MemberNumber);
         if (!entry || entry.char !== character || Date.now() >= entry.until || !wearsPetsuit(character)) return next(args);
-        if (character === getPlayer() && (!animation || !canAnimate())) return next(args);
+        if (character === globalThis.Player && (!animation || !canAnimate())) return next(args);
         try {
             const raisedLeft = Math.floor((Date.now() - entry.start) / entry.delay) % 2 === 0;
             return drawAlternatingPetsuit(character, raisedLeft, () => next(args));
         } catch (error) {
             // A changed drawing API must not leave the character half-rendered.
             renderers.delete(character.MemberNumber);
-            if (character === getPlayer()) stopPetsuitAnimation(false);
+            if (character === globalThis.Player) stopPetsuitAnimation(false);
             return next(args);
         }
     });

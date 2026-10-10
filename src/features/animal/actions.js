@@ -1,4 +1,3 @@
-import { getPlayer } from '../../game/bc-state.js';
 export const SLOTS = {
     Ears: 'HairAccessory2',
     Tails: 'TailStraps',
@@ -129,7 +128,7 @@ export function safeClone(value) {
 }
 
 export function saveAnimalPose(type, stateNum, draft) {
-    const player = getPlayer();
+    const player = globalThis.Player;
     if (!player) return false;
 
     const slot = SLOTS[type];

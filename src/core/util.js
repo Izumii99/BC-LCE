@@ -1,4 +1,3 @@
-import { getMainCanvas } from '../game/bc-state.js';
 // ════════════════════════════════════════════════════════════════════════════
 // 通用 DOM / 環境工具
 // ════════════════════════════════════════════════════════════════════════════
@@ -61,7 +60,7 @@ export function positionElement(id, font, x, y, w, h) {
 export function positionPanel(id, x, y, w, h, font = 32) {
     positionElement(id, font, x, y, w, h);
     const el = id && document.getElementById(id);
-    const canvas = getMainCanvas();
+    const canvas = window.MainCanvas;
     if (!el || !canvas) return;
     const scale = canvas.getBoundingClientRect().width / (canvas.width || 2000);
     if (Number.isFinite(scale) && scale > 0) el.style.setProperty('--lce-u', `${scale}px`);

@@ -8,7 +8,6 @@
 
 import { getFeature } from '../../core/feature-settings.js';
 import { SLOTS, fallbackCycles, clampCycles, clampDelay, sanitizeAnimalState, findSlotItem, safeClone, applyAnimalState, collectManagedKeys, poseAt } from './actions.js';
-import { getPlayer } from '../../game/bc-state.js';
 
 const PREVIEW_NAME = 'LCE_AnimalPreview';
 
@@ -58,7 +57,7 @@ export function createAnimalPreview(now = () => performance.now()) {
     return {
         /** 依本人目前外觀重建預覽角色（進入頁面、從衣櫃返回、按測試時呼叫）。 */
         rebuild() {
-            const player = getPlayer();
+            const player = globalThis.Player;
             run = null;
             if (!player?.Appearance || typeof CharacterLoadSimple !== 'function') { character = null; return false; }
             character = CharacterLoadSimple(PREVIEW_NAME);

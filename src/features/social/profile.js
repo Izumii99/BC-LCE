@@ -18,7 +18,6 @@ import { createPositionableButton, exposeButton } from '../../core/public-api.js
 import { T } from '../../core/i18n.js';
 import { positionElement, injectStyle } from '../../core/util.js';
 import { processChatAugmentsForLine } from '../chat/chat-augments.js';
-import { getPlayer, readBc } from '../../game/bc-state.js';
 
 const LCE_OWNS_CLASS = 'lce-owns-bio';     // 掛在 body：LCE 正在管 BIO 時藏掉 WCE 的富文本層
 const LCE_EDITING_CLASS = 'lce-bio-editing'; // 掛在 body：編輯狀態，用 !important 強制 textarea 可見（見頂部說明）
@@ -43,8 +42,8 @@ const protectOn = () => shouldLceHandle('profileEditProtect', 'richOnlineProfile
 const anyOn = () => richOn() || protectOn();
 // 必須在 fakeViewButtons 暫時覆寫 IsPlayer 之前取得結果。
 const editButtonEnabled = () => {
-    const target = readBc(() => InformationSheetSelection);
-    return anyOn() && !!target && (target === getPlayer() || target.IsPlayer?.() === true);
+    const target = globalThis.InformationSheetSelection;
+    return anyOn() && !!target && (target === globalThis.Player || target.IsPlayer?.() === true);
 };
 
 /** LCE 是否正在管 BIO：掛/卸 body class，讓 CSS 藏掉 WCE 的富文本層。 */
