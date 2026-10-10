@@ -17,16 +17,16 @@ LCE 同樣有刪除佇列的程式，已改為空陣列。本機 Beta3 的 `Stru
 | --- | --- |
 | 衣櫃入口 | 舊 LCE 直接切畫面，跳過 `Wardrobe.selectedCharacter`／`returnScreen`。偵測到 R132 原生衣櫃時，交回原生入口，由 `WardrobeOpenCharacter` 初始化 |
 | DOM 衣櫃 | 跳過舊 canvas 手繪按鈕、固定座標點擊、暫時替換 Player、舊退出及載入後改身體的邏輯；使用原生 DOM、目標角色、預覽與不含身體選項 |
-| 覆蓋確認 | 原生 `WardrobeSaveSelectedOutfit` 已確認，避免再問一次；直接 `WardrobeFastSave` 覆蓋仍保留 LCE 確認，例外後會解除跳過狀態 |
+| 覆蓋確認 | R132 原生已提供，LCE 的 `confirmWardrobeSave` 設定與 `WardrobeFastSave` hook 已移除（PR22） |
 | 擴充衣櫃 | 保留 `FBCWardrobe` 額外 72 格與前 24 格分開保存，不改資料鍵、不重建既有衣櫃 |
 | 主題 | R132 分層／調色圖示由 `Icons/Small/` 改成 `Icons/`，更新 `AppearanceRun` 的兩個失配文字目標及替換內容 |
 | 表情 | 套用上述 WCE 佇列修正及 Beta3 掙扎防護 |
 
-R132 原生衣櫃已提供角色預覽與身體部位選項，LCE 舊「私人衣櫃」設定不再另外接管此畫面；舊介面 fallback 仍保留，但這個分支的主題補丁以 R132 為目標，未宣告完整向下相容。
+R132 原生衣櫃已提供角色預覽、身體部位選項與覆蓋確認，LCE 的「私人衣櫃」與「確認覆蓋」設定均已移除，不再另外接管此畫面；舊介面 fallback 仍保留，但這個分支的主題補丁以 R132 為目標，未宣告完整向下相容。
 
 ## 驗證
 
-- `tests/r132.test.mjs` 覆蓋原生衣櫃角色／返回狀態、DOM hook 放行、預覽載入選項、退出、覆蓋確認、額外槽位存取、缺失／既有表情佇列及主題補丁匹配。
+- `tests/r132.test.mjs` 覆蓋原生衣櫃角色／返回狀態、DOM hook 放行、預覽載入選項、退出、額外槽位存取、缺失／既有表情佇列及主題補丁匹配。
 - `tests/fixtures/r132-runtime.txt` 保留真實 R132Beta3 原生入口、掙扎及 `AppearanceRun` 函式，附來源與 SHA256。測試執行原生入口／掙扎，並驗證替換後函式可解析；非完整遊戲 DOM 測試。
 - 執行 `npm test`、`npm run build`，含既有 HSC 表情及 WCE 共存回歸測試。
 

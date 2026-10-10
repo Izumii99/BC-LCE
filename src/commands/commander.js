@@ -1,4 +1,5 @@
 import { gotoRoom } from '../game/room-navigation.js';
+import { getHookFailures } from '../core/hooks.js';
 import { parseJSON } from '../core/serialization.js';
 // ════════════════════════════════════════════════════════════════════════════
 // Commander —— WCE 指令系統移植（src/functions/commands.ts）
@@ -410,6 +411,14 @@ function showHelp() {
         desc.textContent = ` — ${c.Description}`;
         row.appendChild(desc);
         wrap.appendChild(row);
+    }
+    // BC 改版導致的掛鉤失敗：以前只會印在 console，使用者看不到功能為何失效
+    const failures = getHookFailures();
+    if (failures.length) {
+        const warn = document.createElement('div');
+        warn.textContent = `⚠ ${failures.length} 個 BC 掛鉤未掛上（相關功能可能失效）：` +
+            failures.map(f => `${f.feature}/${f.name}`).join('、');
+        wrap.appendChild(warn);
     }
     lceChatNotify(wrap);
 }

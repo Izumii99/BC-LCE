@@ -3,8 +3,9 @@ import { parseJSON } from '../../core/serialization.js';
 // ════════════════════════════════════════════════════════════════════════════
 // 衣櫃
 //   extendedWardrobe    拓展衣櫃到 96 格（移植 WCE extendedWardrobe.ts）
-//   privateWardrobe     用角色預覽取代衣櫃清單（移植 WCE privateWardrobe.js）
-//   confirmWardrobeSave 覆蓋既有服裝前先確認
+//
+// R132 原生衣櫃已內建角色預覽與覆蓋確認，LCE 不再另外接管（privateWardrobe /
+//   confirmWardrobeSave 已移除）。
 //
 // 與 WCE 資料互通：額外的衣櫃格存在 Player.ExtensionSettings.FBCWardrobe
 // （與 WCE 同一個鍵、同樣是 LZString UTF16），裝過 WCE 的帳號直接讀得到既有資料。
@@ -22,10 +23,6 @@ const EXPANDED_WARDROBE_SIZE = 96;
 const WARDROBE_KEY = 'FBCWardrobe';      // 與 WCE 相同（勿改，否則資料不互通）
 
 let extendedLoaded = false;
-
-let nativeSaveConfirmationDepth = 0;
-
-
 
 const hook = createHook('wardrobe');
 
@@ -105,31 +102,6 @@ export function installWardrobe() {
         } catch (e) { console.warn(LOG, '拓展衣櫃存檔失敗:', e); }
         return next([wardrobe]);
     });
-
-
-
-    // The DOM save action already confirms. Keep protection for direct callers
-    // without asking twice or letting our cancellation fall through to rename.
-    if (typeof WardrobeSaveSelectedOutfit === 'function') {
-        hook('WardrobeSaveSelectedOutfit', 20, (args, next) => {
-            nativeSaveConfirmationDepth++;
-            try { return next(args); }
-            finally { nativeSaveConfirmationDepth--; }
-        });
-    }
-
-    // ── 覆蓋確認 ──
-    hook('WardrobeFastSave', 20, (args, next) => {
-        const [C] = args;
-        // 該格已有內容（以 Pronouns 判斷存過檔）才問，空格不會被打擾
-        if (!nativeSaveConfirmationDepth && shouldLceHandle('confirmWardrobeSave') && Player.Wardrobe?.length > args[1]
-            && Player.Wardrobe[args[1]]?.some(a => a.Group === 'Pronouns')) {
-            if (!window.confirm(T('wardrobe_override_confirm'))) return null;
-        }
-        return next(args);
-    });
-
-
 
     // 拓展衣櫃：啟動時套用一次，並在設定被切換時即時套用。
     // （不能只在 install 時判斷一次 —— 這個設定預設是關的，那樣使用者打開後永遠不會生效）

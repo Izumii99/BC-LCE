@@ -549,8 +549,8 @@ function buildCshShell() {
     header.appendChild(makeHBtn(BASE_URL + 'Icons/Plus.png', T('v_csh_create_aria'), () => {
         const bcCreate = findChatSearchButton('create');
         if (bcCreate) { bcCreate.style.removeProperty('display'); bcCreate.click(); return; }
-        if (typeof ChatSearchCreateRoom === 'function') ChatSearchCreateRoom();
-        else console.warn(LOG, '找不到原生建立房間按鈕，BC 介面可能已更新');
+        // BC 已沒有 ChatSearchCreateRoom 這個全域函式，只能透過原生按鈕觸發。
+        console.warn(LOG, '找不到原生建立房間按鈕，BC 介面可能已更新');
     }, 'create'));
 
     shell.appendChild(header);

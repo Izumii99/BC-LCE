@@ -17,9 +17,11 @@ const CACHE_CLEAR_INTERVAL = 60 * 60 * 1000;
  */
 function reloadTextures() {
     try {
-        if (typeof GLDrawCanvas !== 'undefined' && GLDrawCanvas) {
-            GLDrawCanvas.GL?.textureCache?.clear();
-            if (typeof GLDrawResetCanvas === 'function') GLDrawResetCanvas();
+        // 新版 BC：貼圖放在 GLDrawImageCache（ImageCache），GLDrawResetCanvas 會
+        // 把舊貼圖全部 unload、重建 canvas 與新的快取，並重畫畫面上的角色。
+        // （舊版的 GL.textureCache 已不存在。）
+        if (typeof GLDrawCanvas !== 'undefined' && GLDrawCanvas && typeof GLDrawResetCanvas === 'function') {
+            GLDrawResetCanvas();
         }
         Character?.filter(c => c.IsOnline?.()).forEach(c => CharacterRefresh(c, false, false));
     } catch (e) { console.warn(LOG, '重載貼圖失敗:', e); }
@@ -53,26 +55,7 @@ function clearWhenSafe() {
 const TEXTURE_SCALE = { normal: 0.7, low: 0.5, lowest: 0.3 };
 
 /**
- * 把圖畫進較小的離屏 canvas。回傳 null 代表這張圖不縮（交回原圖）。
- * 註：BC 的貼圖全是同源（或已帶 CORS）—— 否則它自己的 texImage2D(Img) 也會
- * 丟 SecurityError，所以這裡的 canvas 不會被污染。
- */
-function downscaleImage(img, scale) {
-    if (!img?.width || !img?.height) return null;
-    const w = Math.max(1, Math.round(img.width * scale));
-    const h = Math.max(1, Math.round(img.height * scale));
-    const cv = document.createElement('canvas');
-    cv.width = w; cv.height = h;
-    const ctx = cv.getContext('2d');
-    if (!ctx) return null;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, 0, 0, w, h);
-    return cv;
-}
-
-/**
- * 貼圖是「載入時上傳一次就進 gl.textureCache，之後不再經過我們的 hook」
+ * 貼圖是「載入時解碼上傳一次就進 GLDrawImageCache，之後不再經過解碼器」
  * （見 BC GLDraw.js 的 GLDrawLoadImage：cache 有就直接回傳）。
  * 所以改了畫質一定要把貼圖丟掉重載，否則已經在畫面上的角色不會有任何變化，
  * 設定看起來就像壞掉 —— 要等下一次每小時自動清緩存或重整頁面才生效。
@@ -80,6 +63,55 @@ function downscaleImage(img, scale) {
 function onTextureSettingChanged(key) {
     if (key !== 'textureQuality' && key !== 'textureQualityEnabled') return;
     reloadTextures();
+}
+
+/**
+ * 解碼並縮小貼圖。回傳的 width/height 維持「原圖尺寸」：
+ * GLDrawImage 用它們算繪製大小（m4.scale），不是貼圖解析度，
+ * 改成縮小後的尺寸角色會整個縮小。GL 取樣用正規化座標，所以貼圖本身可以較小。
+ */
+async function decodeScaled(blob, scale, original) {
+    const gl = typeof GLDrawCanvas !== 'undefined' ? GLDrawCanvas?.GL : null;
+    if (!gl || typeof GLDrawCreateTexture !== 'function' || typeof createImageBitmap !== 'function') {
+        return original(blob);
+    }
+    let full = null, small = null;
+    try {
+        full = await createImageBitmap(blob, { premultiplyAlpha: 'none' });
+        const w = Math.max(1, Math.round(full.width * scale));
+        const h = Math.max(1, Math.round(full.height * scale));
+        small = await createImageBitmap(full, { resizeWidth: w, resizeHeight: h, resizeQuality: 'high', premultiplyAlpha: 'none' });
+        const texture = GLDrawCreateTexture(gl);
+        try {
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, small);
+            return { width: full.width, height: full.height, texture };
+        } catch (e) {
+            gl.deleteTexture(texture);
+            throw e;
+        }
+    } catch (e) {
+        console.warn(LOG, '貼圖縮放失敗，改用原圖:', e);
+        return original(blob);
+    } finally {
+        try { small?.close(); } catch { /* ignore */ }
+        try { full?.close(); } catch { /* ignore */ }
+    }
+}
+
+/** 把 LCE 的縮圖解碼器掛到目前的 GLDrawImageCache 上（每個快取實例只包一次）。 */
+function wrapTextureDecoder() {
+    try {
+        const cache = typeof GLDrawImageCache !== 'undefined' ? GLDrawImageCache : null;
+        if (!cache || cache._lceDecodeWrapped || typeof cache._decode !== 'function') return;
+        const original = cache._decode.bind(cache);
+        cache._decode = (blob) => {
+            if (!getFeature('textureQualityEnabled')) return original(blob);
+            const scale = TEXTURE_SCALE[getFeature('textureQuality')];
+            if (!scale) return original(blob);
+            return decodeScaled(blob, scale, original);
+        };
+        cache._lceDecodeWrapped = true;
+    } catch (e) { console.warn(LOG, '貼圖解碼器包裝失敗（BC 版本可能有變動）:', e); }
 }
 
 let installed = false;
@@ -119,23 +151,13 @@ export function installTexturePerformance() {
     setInterval(() => { if (shouldLceHandle('automateCacheClear')) clearWhenSafe(); }, CACHE_CLEAR_INTERVAL);
 
     // 降低角色貼圖解析度
-    hook('GLDrawBingImageToTextureInfo', 10, (args, next) => {
-        if (!getFeature('textureQualityEnabled')) return next(args);
-        const scale = TEXTURE_SCALE[getFeature('textureQuality')];
-        if (!scale) return next(args);
-
-        const [gl, img, textureInfo] = args;
-        let small = null;
-        try { small = downscaleImage(img, scale); }
-        catch (e) { console.warn(LOG, '貼圖縮放失敗，改用原圖:', e); }
-        if (!small) return next(args);
-
-        const ret = next([gl, small, textureInfo]);
-        // next() 會依傳進去的圖設定 textureInfo.width/height，但那組數字是
-        // GLDrawImage 用來算「畫多大」的（見 BC GLDraw.js 的 m4.scale），
-        // 不是貼圖解析度。不改回原圖尺寸，角色會整個照 scale 縮小。
-        textureInfo.width = img.width;
-        textureInfo.height = img.height;
+    // BC 的 ImageCache 在建構時就把 GLDrawDecodeImage 存進 cache._decode，
+    // 所以 hook 全域函式不會生效，必須包裝快取實例本身。
+    // GLDrawResetCanvas → GLDrawLoad 會建立新的快取，因此每次載入後要重包一次。
+    wrapTextureDecoder();
+    hook('GLDrawLoad', 10, (args, next) => {
+        const ret = next(args);
+        wrapTextureDecoder();
         return ret;
     });
 

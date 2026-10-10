@@ -193,6 +193,16 @@ export function openColorPicker(key, def) {
     ['R', 'G', 'B'].forEach((name, index) => {
         const row = document.createElement('label'); row.style.cssText = 'display:grid;grid-template-columns:24px 1fr 44px;gap:10px;align-items:center;margin:10px 0';
         const range = document.createElement('input'); range.type = 'range'; range.min = '0'; range.max = '255'; range.value = String(values[index]);
+        // 滾輪調整：往上 +1、往下 -1（Shift = ×10），與設定頁其他 bar 一致
+        range.addEventListener('wheel', e => {
+            if (!e.deltaY) return;
+            e.preventDefault(); e.stopPropagation();
+            const delta = (e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? 10 : 1);
+            const next = Math.max(Number(range.min), Math.min(Number(range.max), Number(range.value) + delta));
+            if (String(next) === range.value) return;
+            range.value = String(next);
+            range.dispatchEvent(new Event('input', { bubbles: true }));
+        }, { passive: false });
         const output = document.createElement('span'); output.textContent = range.value; output.style.textAlign = 'right';
         row.append(name, range, output); sliders.appendChild(row); channels.push({ range, output });
     });

@@ -1,5 +1,6 @@
 import { T } from '../core/i18n.js';
-import { enableMomentumScroll, positionElement } from '../core/util.js';
+import { enableMomentumScroll, positionPanel } from '../core/util.js';
+import { PANEL_X, PANEL_Y, PANEL_W, PANEL_OVERLAY_H, PANEL_TAB_H } from './layout.js';
 import { addTrustedOrigin, getTrustedOrigins, removeTrustedOrigin } from '../features/trusted-domains.js';
 
 const ROOT_ID = 'lce-trusted-domain-manager';
@@ -10,14 +11,14 @@ function injectStyle() {
     const style = document.createElement('style'); style.id = STYLE_ID;
     style.textContent = `
 #${ROOT_ID}{position:absolute;z-index:100;display:flex;flex-direction:column;overflow:hidden;background:var(--lce-main,#202124);color:var(--lce-text,#f2f2f2);border:2px solid var(--lce-accent,#8ab4f8);border-radius:18px;box-shadow:0 24px 80px #000b;font:16px Arial,sans-serif}
-#${ROOT_ID} *{box-sizing:border-box}.lce-domain-head{padding:22px 28px 14px;border-bottom:1px solid #ffffff2e;font-size:1.35rem;font-weight:800}.lce-domain-toolbar{display:flex;gap:10px;padding:16px 60px 16px 28px;background:#ffffff0a}.lce-domain-input{flex:1;min-width:160px;padding:11px 14px;border:1px solid #ffffff35;border-radius:10px;background:#0004;color:inherit;font:inherit}.lce-domain-btn{min-height:30px;padding:5px 12px;border:0;border-radius:8px;cursor:pointer;background:#ffffff20;color:inherit;font:inherit;font-weight:700;line-height:20px}.lce-domain-btn:hover{filter:brightness(1.2)}.lce-domain-add{background:var(--lce-accent,#4d86c6);color:#fff}.lce-domain-delete{background:#b04444;color:#fff}.lce-domain-error{min-height:24px;padding:0 28px;color:#ffb4ab}.lce-domain-list{overflow:auto;touch-action:pan-x;padding:4px 28px 28px;cursor:grab}.lce-domain-list.lce-drag-scrolling{cursor:grabbing;user-select:none}.lce-domain-row{display:flex;height:40px;align-items:center;gap:14px;padding:4px 16px;margin:9px 0;border:1px solid #ffffff18;border-radius:12px;background:#ffffff0d}.lce-domain-origin{flex:1;overflow-wrap:anywhere;font-family:ui-monospace,Consolas,monospace}.lce-domain-empty{padding:70px 20px;text-align:center;opacity:.7}
+#${ROOT_ID} *{box-sizing:border-box}.lce-domain-head{display:flex;align-items:center;flex:none;height:calc(${PANEL_TAB_H} * var(--lce-u,.5px));padding:0 28px;border-bottom:1px solid #ffffff2e;font-size:1.35rem;font-weight:800}.lce-domain-toolbar{display:flex;gap:10px;padding:16px 60px 16px 28px;background:#ffffff0a}.lce-domain-input{flex:1;min-width:160px;padding:11px 14px;border:1px solid #ffffff35;border-radius:10px;background:#0004;color:inherit;font:inherit}.lce-domain-btn{min-height:30px;padding:5px 12px;border:0;border-radius:8px;cursor:pointer;background:#ffffff20;color:inherit;font:inherit;font-weight:700;line-height:20px}.lce-domain-btn:hover{filter:brightness(1.2)}.lce-domain-add{background:var(--lce-accent,#4d86c6);color:#fff}.lce-domain-delete{background:#b04444;color:#fff}.lce-domain-error{min-height:24px;padding:0 28px;color:#ffb4ab}.lce-domain-list{overflow:auto;touch-action:pan-x;padding:4px 28px 28px;cursor:grab}.lce-domain-list.lce-drag-scrolling{cursor:grabbing;user-select:none}.lce-domain-row{display:flex;height:40px;align-items:center;gap:14px;padding:4px 16px;margin:9px 0;border:1px solid #ffffff18;border-radius:12px;background:#ffffff0d}.lce-domain-origin{flex:1;overflow-wrap:anywhere;font-family:ui-monospace,Consolas,monospace}.lce-domain-empty{padding:70px 20px;text-align:center;opacity:.7}
 `;
     document.head.appendChild(style);
 }
 
 export function closeTrustedDomainManager() { document.getElementById(ROOT_ID)?.remove(); }
 export function isTrustedDomainManagerOpen() { return !!document.getElementById(ROOT_ID); }
-export function positionTrustedDomainManager() { positionElement(ROOT_ID, 32, 100, 175, 1790, 750); }
+export function positionTrustedDomainManager() { positionPanel(ROOT_ID, PANEL_X, PANEL_Y, PANEL_W, PANEL_OVERLAY_H); }
 
 export function openTrustedDomainManager() {
     closeTrustedDomainManager(); injectStyle();

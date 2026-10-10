@@ -119,14 +119,16 @@ export function installVertical() {
 
     hook('ChatSearchResultResponse', 0, (args, next) => { const r = next(args); cshMarkNeedSync(); return r; });
     hook('ChatSearchRun', 0, (args, next) => { const r = next(args); cshSyncIfNeeded(); return r; });
-    hook('ChatSelectLoad', 0, (args, next) => {
-        const r = next(args);
+    // ChatSelectLoad / ChatSearchLoad 在 BC 裡是 async：要 await 完才能安全操作它建好的畫面。
+    hook('ChatSelectLoad', 0, async (args, next) => {
+        const r = await next(args);
         if (isCsActive()) scope.frame(buildCsBg);
         return r;
     });
-    hook('ChatSearchLoad', 0, (args, next) => {
-        const r = next(args);
-        // BC 載入後還會非同步補房間資料，等一下再刷才有東西
+    hook('ChatSearchLoad', 0, async (args, next) => {
+        const r = await next(args);
+        // 載入完成後房間資料還會由伺服器回應補上（ChatSearchResultResponse 也會觸發同步），
+        // 這裡的延遲刷新只是保險
         if (isCshActive()) scope.timeout(() => { if (isCshActive()) renderCshList(); }, 600);
         return r;
     });

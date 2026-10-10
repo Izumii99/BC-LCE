@@ -299,8 +299,23 @@ test('performance entry installs independent subsystems once and preserves cache
     const textures = await rt.load('src/features/performance/textures.js');
     entry.installPerformance(); const count = rt.hooks.size; entry.installPerformance();
     assert.equal(rt.hooks.size, count); assert.equal(intervals, 1);
-    for (const name of ['GameRun', 'DrawProcess', 'ChatRoomSync', 'GLDrawBingImageToTextureInfo']) assert.ok(rt.hooks.has(name));
+    for (const name of ['GameRun', 'DrawProcess', 'ChatRoomSync', 'GLDrawLoad']) assert.ok(rt.hooks.has(name));
     assert.equal(entry.doClearCaches, textures.doClearCaches);
+});
+
+test('texture quality wraps the live GLDrawImageCache decoder once and defers to BC when disabled', async () => {
+    const calls = [];
+    const cache = { _decode: async (blob) => { calls.push(blob); return { width: 1, height: 1, texture: 't' }; } };
+    const rt = runtime({ globals: { setInterval: () => 1, GLDrawImageCache: cache } });
+    const entry = await rt.load('src/features/performance/index.js');
+    entry.installPerformance();
+    assert.equal(cache._lceDecodeWrapped, true);
+    const wrapped = cache._decode;
+    // 新快取（GLDrawResetCanvas → GLDrawLoad）建立後要重新包裝，且同一個實例不會重複包
+    rt.hooks.get('GLDrawLoad')([], () => undefined);
+    assert.equal(cache._decode, wrapped);
+    assert.deepEqual(await cache._decode('blob'), { width: 1, height: 1, texture: 't' });
+    assert.deepEqual(calls, ['blob']);
 });
 
 test('theme actions restore only theme keys and reject malformed snapshots atomically', async () => {

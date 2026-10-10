@@ -14,44 +14,11 @@ async function wardrobeRuntime() {
         CommonSetScreen: (...args) => { screens.push(args); }, WardrobeSaveSelectedOutfit() {},
     } });
     vm.runInContext(nativeSource, rt.context);
-    const settings = await rt.load('src/core/feature-settings.js');
-    settings.setFeature('confirmWardrobeSave', true);
     const mod = await rt.load('src/features/wardrobe/index.js'); mod.installWardrobe();
     return { rt, player, wardrobeState, screens };
 }
 
 
-
-test('native save confirms once; direct overwrite still confirms, including after exceptions', async () => {
-    const { rt, player } = await wardrobeRuntime();
-    player.Wardrobe = [[{ Group: 'Pronouns' }]];
-    let prompts = 0, writes = 0;
-    rt.window.confirm = () => { prompts++; return false; };
-    const save = () => rt.hooks.get('WardrobeFastSave')([player, 0], () => { writes++; });
-    rt.hooks.get('WardrobeSaveSelectedOutfit')([], save);
-    assert.equal(prompts, 0); assert.equal(writes, 1);
-    save(); assert.equal(prompts, 1); assert.equal(writes, 1);
-    assert.throws(() => rt.hooks.get('WardrobeSaveSelectedOutfit')([], () => { throw Error('save failure'); }));
-    save(); assert.equal(prompts, 2); assert.equal(writes, 1);
-});
-
-test('actual native DOM save cancel does not save or rename; acceptance asks only once', async () => {
-    const { rt, player, wardrobeState } = await wardrobeRuntime();
-    wardrobeState.selectedCharacter = player; player.Wardrobe = [[{ Group: 'Pronouns' }]];
-    let answer = false, prompts = 0, writes = 0, renames = 0;
-    rt.window.confirm = () => { throw Error('unexpected second confirmation'); };
-    Object.assign(rt.context, { WardrobeSelection: 0,
-        WardrobeSetActionPreview() {}, WardrobeGetSidePreviewCharacter: () => null,
-        TextGet: x => x, confirm: () => { prompts++; return answer; },
-        WardrobeFastSave: (...args) => rt.hooks.get('WardrobeFastSave')(args, () => { writes++; }),
-        WardrobeRenameSelectedOutfit: () => { renames++; return true; },
-        WardrobePushAll() {}, WardrobeUpdateElements() {},
-    });
-    const call = () => rt.hooks.get('WardrobeSaveSelectedOutfit')([], () => rt.context.WardrobeSaveSelectedOutfit());
-    call(); assert.equal(prompts, 1); assert.equal(writes, 0); assert.equal(renames, 0);
-    answer = true; call(); assert.equal(prompts, 2); assert.equal(writes, 1); assert.equal(renames, 1);
-    assert.equal(wardrobeState.previewLocked, false);
-});
 
 test('extended wardrobe keeps extra slots separate and native first 24 intact', async () => {
     const { rt, player } = await wardrobeRuntime();
