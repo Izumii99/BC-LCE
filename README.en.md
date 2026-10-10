@@ -134,7 +134,7 @@ Translation/         Seven-language JSON string tables (TW / CN / EN / DE / FR /
 tests/               Node VM modules tests
 scripts/             Asset verification and bundle-size report
 docs/                Design notes and maintenance records
-loader.user.js       Production loader (loads assets/main.js generated on GitHub Pages)
+loader.user.js       Production loader (emitted into dist/ by vite.config.js at build time and served by GitHub Pages; loads the generated assets/main.js)
 loader.local.user.js Local development loader (loads http://localhost:5174/assets/main.js)
 ```
 
