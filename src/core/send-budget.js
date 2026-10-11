@@ -14,11 +14,18 @@ import { createHook } from './hooks.js';
 //   • 外部流量需求：ServerSend hook 看到的「呼叫」。呼叫時訊息可能還在佇列，不等於已送出，
 //     所以只當作「別人也想送」的讓路訊號；BC 水位讀不到時才併入估算。
 // 兩者都不可用時退回靜態保守預算（只算自己的提交）。
+//
+// 優先級：預設（低）給持續不斷的動畫，永遠讓路。{ priority: 'high' } 給使用者主動觸發、總量有限的
+// 一次性傳送（個資分享）：留給其他訊息的額度較小（reserveHigh），也不因為「別人剛呼叫過 ServerSend」
+// 而讓路——表情引擎每秒都會補送，低優先級的策略會讓分享被它們一直卡住。
+// 高優先級仍遵守 BC 的視窗與佇列：BC 的 ServerSendRateLimitQueue 是單純的 FIFO，佇列非空就等，
+// 所以聊天最多只會排在一塊分享後面，不會排在整串後面。
 
 export const SEND_BUDGET_DEFAULTS = Object.freeze({
     limit: 14,        // BC ServerSendRateLimit 的預設
     interval: 1200,   // BC ServerSendRateLimitInterval 的預設
     reserve: 4,       // 留給聊天／表情等其他訊息的額度（起始值，之後看觀測數據調整）
+    reserveHigh: 2,   // 高優先級（使用者主動觸發、有限量的一次性傳送，例如個資分享）留給其他訊息的額度
     minGap: 100,      // 任兩次動畫提交之間的全域最小間隔
     queueRetry: 50,   // BC 佇列非空時，建議的重試間隔
 });
@@ -51,21 +58,22 @@ export function createSendBudget({ now = () => Date.now(), readBc = readBcState,
     const prune = (list, t, interval) => list.filter(x => t - x < interval).slice(-MAX_TRACKED);
 
     /** 回傳 { ok, at }：ok 為現在能否提交；at 為預估最早可再嘗試的時間（醒來後仍須重新檢查）。 */
-    function evaluate() {
+    function evaluate({ priority } = {}) {
+        const high = priority === 'high';
         const t = now();
         const bc = readBc();
         const interval = positive(bc?.interval, cfg.interval);
         const limit = positive(bc?.limit, cfg.limit);
-        const budget = Math.max(1, limit - cfg.reserve);
+        const budget = Math.max(1, limit - (high ? cfg.reserveHigh : cfg.reserve));
 
         ownTimes = prune(ownTimes, t, interval);
         demandTimes = prune(demandTimes, t, interval);
 
         if (t < nextAt) return { ok: false, at: nextAt };
 
-        // 其他功能剛剛才要求發送：讓它先走一個最小間隔
+        // 其他功能剛剛才要求發送：讓它先走一個最小間隔（高優先級不讓：它自己有最小間隔與額度上限）
         const lastDemand = demandTimes[demandTimes.length - 1];
-        if (lastDemand !== undefined && t - lastDemand < cfg.minGap) return { ok: false, at: lastDemand + cfg.minGap };
+        if (!high && lastDemand !== undefined && t - lastDemand < cfg.minGap) return { ok: false, at: lastDemand + cfg.minGap };
 
         stats.mode = bc ? 'bc' : 'fallback';
         let used;
@@ -90,10 +98,10 @@ export function createSendBudget({ now = () => Date.now(), readBc = readBcState,
     return {
         stats,
         config: cfg,
-        /** 現在能不能提交一格動畫更新。只檢查，不佔用額度；提交成功後要呼叫 markSubmitted()。 */
-        requestSlot: () => evaluate().ok,
+        /** 現在能不能提交一格。只檢查，不佔用額度；提交成功後要呼叫 markSubmitted()。opts.priority: 'high' 見檔頭說明。 */
+        requestSlot: opts => evaluate(opts).ok,
         /** 預估最早何時值得再問（不是保證；醒來後要重新 requestSlot）。可用時回傳現在。 */
-        nextAllowedAt: () => evaluate().at,
+        nextAllowedAt: opts => evaluate(opts).at,
         /** 動畫已成功提交一格：記帳並啟動全域最小間隔。 */
         markSubmitted() {
             const t = now();
