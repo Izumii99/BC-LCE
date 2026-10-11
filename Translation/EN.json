@@ -235,6 +235,8 @@
     "profiles_shared_open": "▶ Open",
     "profiles_shared_self": "📜 Shared profile: {name} ({id})",
     "profiles_shared_from": "📜 {from} shared a profile",
+    "profiles_share_busy": "📜 A profile is still being shared. Please wait.",
+    "profiles_share_too_large": "📜 This profile is too large to share ({size} KB, limit {max} KB).",
     "notes_title": "Personal notes (only you can read these):",
     "notes_saved": "Last saved:",
     "notes_button": "[LCE] Notes",

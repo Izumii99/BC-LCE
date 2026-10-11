@@ -188,6 +188,8 @@
     "profiles_shared_open": "▶ 開啟",
     "profiles_shared_self": "📜 已分享 {name} ({id}) 的個人資料",
     "profiles_shared_from": "📜 {from} 分享了個人資料",
+    "profiles_share_busy": "📜 正在分享個資，請稍候。",
+    "profiles_share_too_large": "📜 這份個資太大，無法分享（{size} KB，上限 {max} KB）。",
     "notes_title": "個人備註（只有你看得到）：",
     "notes_saved": "最後儲存：",
     "notes_button": "[LCE] 備註",

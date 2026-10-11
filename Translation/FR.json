@@ -188,6 +188,8 @@
     "profiles_shared_open": "▶ Ouvrir",
     "profiles_shared_self": "📜 Profil partagé : {name} ({id})",
     "profiles_shared_from": "📜 {from} a partagé un profil",
+    "profiles_share_busy": "📜 Un profil est encore en cours d'envoi. Veuillez patienter.",
+    "profiles_share_too_large": "📜 Ce profil est trop volumineux pour être partagé ({size} Ko, limite {max} Ko).",
     "notes_title": "Notes personnelles (vous seul pouvez les lire) :",
     "notes_saved": "Dernier enregistrement :",
     "notes_button": "[LCE] Notes",

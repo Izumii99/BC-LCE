@@ -22,6 +22,10 @@ import { createPositionableButton, exposeButton, LCE_API } from '../../core/publ
 import { T } from '../../core/i18n.js';
 import { positionElement, deepCopy } from '../../core/util.js';
 import { lceChatNotify } from '../../ui/chat/notification.js';
+import { sendBudget } from '../../core/send-budget.js';
+import {
+    PROFILE_SHARE_PREFIX, buildShareMessages, chunkSizeFor, createShareAssembler,
+} from './profile-share.js';
 
 const NOTE_ID = 'lceNoteInput';
 const STYLE_ID = 'lce-notes-style';
@@ -40,10 +44,10 @@ LCE_API.profileDatabase = Object.freeze({ name: DB_NAME, version: DB_VER });
 
 // ── WCE Profile Share（WPS）互通協定 ──
 // 移植自 Liko - WPS 外掛：把個資切塊後用隱藏聊天訊息傳給房內其他人，對方能一鍵開啟並存下。
-// 這些常數（前綴、開啟標記、每塊大小）必須與 WPS 外掛完全一致，才能雙向互通，勿更動。
-const PROFILE_SHARE_PREFIX = '[PROFILESHARE]';
-const WPS_CHUNK_SIZE = 800;
-const wpsIncoming = new Map();   // shareId → { total, chunks[] }：組裝中的分塊
+// 線路格式（前綴、i/n、base64 串接）必須與 WPS 外掛一致才能雙向互通，細節與接收端的安全限制
+// 都在 profile-share.js。每塊大小只由送出端決定，接收端靠 i/n 重組，所以可依 BC 的單則訊息上限調整。
+const shareAssembler = createShareAssembler();
+let shareInFlight = false;   // 同一時間只送一份，避免連按「分享」把發送佇列塞滿
 
 function higherProfileReceiverAvailable() {
     const fcm = window.Liko?.FCM;
@@ -274,12 +278,49 @@ function openSharedCharacter(profile) {
     }
 }
 
+const SHARE_PRIORITY = Object.freeze({ priority: 'high' });   // 使用者主動、總量有限：高於動畫，也不被表情的持續補送卡住
+const SHARE_RETRY_MIN = 40;       // 發送額度不足時的最短重試間隔
+const SHARE_STALL_MS = 10_000;    // 單塊等不到額度的上限，超過就放棄這次分享
+
+const inRoom = () => (typeof ServerPlayerIsInChatRoom === 'function' ? ServerPlayerIsInChatRoom() : CurrentScreen === 'ChatRoom');
+
+/**
+ * 依序送出分塊，並與動畫共用同一份發送預算（高優先級）：額度不足就等，BC 發送佇列非空就讓路。
+ * 不能一次把幾十塊全塞進佇列，否則聊天與動畫都得排在它們後面好幾秒。
+ * 回傳是否全部送出；離開房間、發送失敗或等待過久則中止並回傳 false。
+ */
+function sendShareChunks(contents) {
+    return new Promise(resolve => {
+        let index = 0, waitStart = null;
+        const step = () => {
+            try {
+                if (!inRoom()) return resolve(false);
+                if (index >= contents.length) return resolve(true);
+                if (!sendBudget.requestSlot(SHARE_PRIORITY)) {
+                    const now = Date.now();
+                    waitStart ??= now;
+                    if (now - waitStart > SHARE_STALL_MS) return resolve(false);
+                    return void setTimeout(step, Math.max(SHARE_RETRY_MIN, sendBudget.nextAllowedAt(SHARE_PRIORITY) - now));
+                }
+                waitStart = null;
+                sendBudget.withOwnSend(() => ServerSend('ChatRoomChat', { Type: 'Hidden', Content: contents[index] }));
+                sendBudget.markSubmitted();
+                index++;
+                setTimeout(step, sendBudget.config.minGap);
+            } catch (e) { console.warn(LOG, '分享分塊送出失敗:', e); resolve(false); }
+        };
+        step();
+    });
+}
+
 /** 把某會員的個資切塊後用隱藏訊息送給房內所有人。 */
 async function shareProfile(memberNumber) {
     if (!db) { lceChatNotify(T('profiles_none')); return; }
     if (CurrentScreen !== 'ChatRoom' || typeof ServerSend !== 'function') {
         lceChatNotify(T('profiles_none')); return;   // 不在房間裡就沒有對象可分享
     }
+    if (shareInFlight) { lceChatNotify(T('profiles_share_busy')); return false; }
+    shareInFlight = true;
     try {
         const profile = await db.get('profiles', memberNumber);
         if (!profile) { lceChatNotify(T('profiles_none')); return; }
@@ -300,53 +341,44 @@ async function shareProfile(memberNumber) {
             },
         };
 
-        const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
         const shareId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-        const total = Math.ceil(encoded.length / WPS_CHUNK_SIZE);
-        for (let i = 0; i < total; i++) {
-            const chunk = encoded.slice(i * WPS_CHUNK_SIZE, (i + 1) * WPS_CHUNK_SIZE);
-            ServerSend('ChatRoomChat', { Type: 'Hidden', Content: `${PROFILE_SHARE_PREFIX} ${shareId} ${i + 1}/${total} ${chunk}` });
+        const built = buildShareMessages(payload, shareId, chunkSizeFor(globalThis.ServerChatMessageMaxLength));
+        if (built.tooLarge) {
+            lceChatNotify(T('profiles_share_too_large')
+                .replace('{size}', String(Math.ceil(built.chars / 1000)))
+                .replace('{max}', String(Math.floor(built.limit / 1000))));
+            return false;
         }
+
         const displayName = profile.lastNick || profile.name || String(memberNumber);
         lceChatNotify(T('profiles_shared_self').replace('{name}', displayName).replace('{id}', String(memberNumber)));
-        return true;
+        return await sendShareChunks(built.contents);
     } catch (e) { console.warn(LOG, '分享個資失敗:', e); }
+    finally { shareInFlight = false; }
     return false;
 }
 
-/** 收到隱藏分塊訊息 → 組回完整 payload → 顯示可一鍵開啟的本地訊息。回傳是否為 WPS 訊息。 */
+/** 收到隱藏分塊訊息 → 組回完整 payload → 顯示可一鍵開啟的本地訊息。回傳是否為 WPS 訊息（不合格的也吞掉）。 */
 function handleShareMessage(data) {
-    if (!data?.Content?.startsWith(PROFILE_SHARE_PREFIX)) return false;
+    if (typeof data?.Content !== 'string' || !data.Content.startsWith(PROFILE_SHARE_PREFIX)) return false;
     try {
-        const parts = data.Content.split(' ');
-        const shareId = parts[1];
-        const [idx, total] = parts[2].split('/').map(Number);
-        const chunk = parts.slice(3).join(' ');
-        if (!wpsIncoming.has(shareId)) wpsIncoming.set(shareId, { total, chunks: [] });
-        const entry = wpsIncoming.get(shareId);
-        entry.chunks[idx - 1] = chunk;
-        if (entry.chunks.filter(Boolean).length === entry.total) {
-            wpsIncoming.delete(shareId);
-            const payload = JSON.parse(decodeURIComponent(escape(atob(entry.chunks.join('')))));
-            showReceivedShare(payload);
-        }
+        const result = shareAssembler.accept(data.Sender, data.Content);
+        if (result.status === 'complete') showReceivedShare(result.payload, data.Sender);
     } catch (e) { console.warn(LOG, 'WPS 解析失敗:', e); }
     return true;
 }
 
-/** 顯示一則「某人分享了個資」的本地訊息，附上可點的開啟連結。 */
-function showReceivedShare(payload) {
-    const p = payload?.profile;
-    if (!p) return;
-    const from = payload.from || {};
-    if (from.memberNumber === Player?.MemberNumber) return;   // 自己分享的不用再顯示一次
+/** 顯示一則「某人分享了個資」的本地訊息，附上可點的開啟連結。sender 是伺服器附的送出者編號，不是 payload 自稱的。 */
+function showReceivedShare({ profile: p, fromName }, sender) {
+    if (sender === Player?.MemberNumber) return;   // 自己分享的不用再顯示一次
 
-    const fromName = from.name || from.memberNumber || '?';
+    const known = typeof ChatRoomCharacter !== 'undefined' ? ChatRoomCharacter.find(c => c.MemberNumber === sender) : null;
+    const from = (known && typeof CharacterNickname === 'function' ? CharacterNickname(known) : null) || fromName || String(sender);
     const displayName = p.lastNick || p.name || p.memberNumber;
     const seen = new Date(p.seen).toLocaleDateString();
 
     const wrap = document.createElement('div');
-    wrap.appendChild(document.createTextNode(`${T('profiles_shared_from').replace('{from}', fromName)}： `));
+    wrap.appendChild(document.createTextNode(`${T('profiles_shared_from').replace('{from}', from)}： `));
     const open = document.createElement('a');
     open.textContent = T('profiles_shared_open');
     open.href = '#';
