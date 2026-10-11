@@ -247,6 +247,11 @@ export function pushEvent(evt) {
             if (!getFeature('activityExpressions')) return;
     }
 
+    // 當更高優先權的活動或手動事件進來時，取消臨時表情（例如 ciuman/kiss 取代 >w<）
+    if (evt.Type !== 'LceEmoticon' && (evt.Priority ?? 1) >= 100) {
+        cancelExpressionEvent('LceEmoticon');
+    }
+
     const event = prepareExpressionEvent(evt, Date.now(), newUniqueId);
     // Hypnosis owns these groups until its own effect stack releases them.
     // Filter after eye expansion; never replay suppressed events after hypnosis ends.
@@ -258,6 +263,8 @@ export function pushEvent(evt) {
 export function cancelExpressionEvent(type) {
     for (let i = queue.length - 1; i >= 0; i--) if (queue[i].Type === type) queue.splice(i, 1);
 }
+
+export const hasExpressionEvent = (type) => queue.some(e => e.Type === type);
 
 /** 目前玩家某個臉部群組的表情（沒有則 null）。 */
 export const readFace = (group) => (globalThis.Player ? expression(group)[0] : null);
@@ -868,6 +875,7 @@ export function installExpressions() {
             return next(args);
         }
         const duration = typeof Timer === 'number' && Timer > 0 ? Timer * 1000 : -1;
+        const priority = duration > 0 ? 200 : 1;
         if (!Color || !CommonColorIsValid(Color)) Color = undefined;
         const e = {};
 
@@ -892,7 +900,7 @@ export function installExpressions() {
             if (duration < 0) manualComponents[t] = Expression;
         }
         if (!Object.keys(e).length) return;
-        pushEvent({ Type: MANUAL_EVT, Duration: duration, Expression: e });
+        pushEvent({ Type: MANUAL_EVT, Duration: duration, Priority: priority, Expression: e });
         return customArousalExpression();
     });
 }

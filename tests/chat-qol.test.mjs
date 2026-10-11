@@ -237,6 +237,7 @@ async function fixture({ responsive = false } = {}) {
             restoreQolPose: pose => restored.push([...pose]),
             readFace: group => player.Appearance.find(i => i.Asset.Group?.Name === group)?.Property?.Expression ?? null,
             settleFace: groups => settled.push([...groups]),
+            hasExpressionEvent: type => !cancelled.includes(type),
         },
     } });
     const settings = await rt.load('src/core/feature-settings.js');
@@ -536,8 +537,14 @@ test('real expression engine expires textmoji and restores temporary pose withou
     ex.pushEvent({ Type: 'LceEmoticon', Duration: 5000, Expression: { Eyes: [{ Expression: 'Daydream' }] } });
     tick();
     assert.equal(player.Appearance[0].Property.Expression, 'Daydream');
-    now = 5001; tick();
+    settings.setFeature('activityExpressions', true);
+    ex.pushEvent({ Type: 'KissOnLips', Priority: 200, Duration: 2000, Expression: { Eyes: [{ Expression: 'Closed', Duration: 2000 }] } });
+    tick();
+    assert.equal(player.Appearance[0].Property.Expression, 'Closed');
+    assert.equal(ex.hasExpressionEvent('LceEmoticon'), false);
+    now = 7001; tick();
     assert.equal(player.Appearance[0].Property.Expression, 'Happy');
+    settings.setFeature('activityExpressions', false);
     ex.pushEvent({ Type: 'LcePetsuit', Duration: 1000, Poses: [{ Pose: ['OverTheHead', 'BaseLower'], Duration: 1000 }] });
     tick();
     assert.ok(player.ActivePose.includes('OverTheHead'));
