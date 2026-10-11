@@ -248,7 +248,7 @@ async function listProfiles(filter) {
 // 用隱藏聊天訊息送給房內每個人；對方收到後可一鍵開啟並存進自己的 DB。
 // 線路格式與 WPS 完全一致，兩邊可雙向互通（LCE↔WPS）。
 
-/** 分享來的個資只在比本地那份新時才覆蓋，避免用舊資料蓋掉新的（同 WPS saveIfNewer）。 */
+/** 分享來的個資只在比本地那份新時才覆蓋，避免用舊資料蓋掉新的。收到分享時就會呼叫（與 FCM 一致），開啟時也會再呼叫一次（無害）。 */
 async function saveIfNewer(profile) {
     if (!db) return;
     try {
@@ -363,7 +363,11 @@ function handleShareMessage(data) {
     if (typeof data?.Content !== 'string' || !data.Content.startsWith(PROFILE_SHARE_PREFIX)) return false;
     try {
         const result = shareAssembler.accept(data.Sender, data.Content);
-        if (result.status === 'complete') showReceivedShare(result.payload, data.Sender);
+        if (result.status === 'complete') {
+            showReceivedShare(result.payload, data.Sender);
+            // 收到就記錄（與 FCM 一致），不必等使用者點「開啟」；仍只在比本地新時才覆蓋。自己分享的不用再存。
+            if (data.Sender !== Player?.MemberNumber) void saveIfNewer(result.payload.profile);
+        }
     } catch (e) { console.warn(LOG, 'WPS 解析失敗:', e); }
     return true;
 }

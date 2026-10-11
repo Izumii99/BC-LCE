@@ -180,6 +180,7 @@ async function shareRuntime({ bundleBytes = 60_000, extra = {}, mocks = {} } = {
     const room = { in: true };
     const stored = { memberNumber: 42, name: 'Test', lastNick: 'Nick', seen: 1000,
         characterBundle: JSON.stringify({ MemberNumber: 42, Appearance: 'x'.repeat(bundleBytes) }) };
+    const dbRows = new Map([[42, stored]]);
     const rt = runtime({
         globals: {
             ...clock.globals, CurrentScreen: 'ChatRoom', Player: { MemberNumber: 1 }, ServerChatMessageMaxLength: 2000,
@@ -187,7 +188,7 @@ async function shareRuntime({ bundleBytes = 60_000, extra = {}, mocks = {} } = {
             ServerPlayerIsInChatRoom: () => room.in,
             ChatRoomCharacter: [{ MemberNumber: 7, Nickname: 'RealName' }],
             CharacterNickname: c => c.Nickname,
-            testDb: { get: async () => stored },
+            testDb: { get: async (_store, key) => dbRows.get(key) ?? null, put: async (_store, row) => { dbRows.set(row.memberNumber, row); } },
             ...extra,
         },
         mocks: {
@@ -200,7 +201,7 @@ async function shareRuntime({ bundleBytes = 60_000, extra = {}, mocks = {} } = {
     });
     const mod = await rt.load('src/features/social/past-profiles.js');
     const tick = () => new Promise(resolve => setImmediate(resolve));
-    return { ...mod, clock, sent, notices, room, rt, tick, stored };
+    return { ...mod, clock, sent, notices, room, rt, tick, stored, dbRows };
 }
 
 test('sharing is paced through the shared send budget instead of flooding the queue', async () => {
@@ -227,6 +228,30 @@ test('what we send can be received and opened on the other side, naming the real
     assert.equal(notices.length, 1);
     assert.match(notices[0], /RealName/, 'name comes from the server-attached sender, not the payload');
     assert.match(notices[0], /\(42\)/);
+});
+
+test('a received share is recorded without opening it, but only when newer and not from ourselves', async () => {
+    const { shareProfile, handleShareMessage, clock, sent, tick, dbRows } = await shareRuntime({ bundleBytes: 8000 });
+    const done = shareProfile(42);
+    await tick();
+    for (let i = 0; i < 400; i++) { clock.advance(50); await tick(); }
+    assert.equal(await done, true);
+    const feedAll = sender => { for (const s of sent) handleShareMessage({ Type: 'Hidden', Sender: sender, Content: s.data.Content }); return tick(); };
+
+    const local = dbRows.get(42);
+    local.seen = 500;                                  // 本地較舊
+    await feedAll(1);                                  // 自己（Player 1）分享的：不存
+    assert.equal(dbRows.get(42).seen, 500, 'own shares are not saved again');
+    await feedAll(7);                                  // 別人分享的：收到就存，不必點開
+    assert.equal(dbRows.get(42).seen, 1000, 'saved on receipt');
+
+    dbRows.get(42).seen = 2000;                        // 本地較新
+    await feedAll(7);
+    assert.equal(dbRows.get(42).seen, 2000, 'an older share never overwrites newer local data');
+
+    dbRows.delete(42);                                 // 本地沒有這個人
+    await feedAll(7);
+    assert.equal(dbRows.get(42)?.memberNumber, 42, 'a profile we never had is stored too');
 });
 
 test('a second share while one is in flight is refused, not queued', async () => {
