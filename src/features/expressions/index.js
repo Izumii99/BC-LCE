@@ -60,6 +60,8 @@ const MODIFIER_MAP = Object.freeze({ Blush: [null, 'Low', 'Medium', 'High', 'Ver
 // 模組的眼睛就不會動。這是 WCE 的缺陷，不要對齊它。
 // 我們終止呼叫鏈，就必須讓所有人先跑完；負值確保排在最末端（BC 本體仍在我們之後）。
 const ENGINE_HOOK_PRIORITY = -100;
+export const TIMED_MANUAL_PRIORITY = 200;
+export const DEFAULT_MANUAL_PRIORITY = 1;
 // BC 內建的表情部位（＝WCE 的 faceComponents）。當保底用，實際清單見 faceComponents()。
 const BASE_FACE_COMPONENTS = ['Eyes', 'Eyes2', 'Eyebrows', 'Mouth', 'Fluids', 'Emoticon', 'Blush', 'Pussy'];
 
@@ -89,6 +91,7 @@ const POSE_CATEGORIES = {
 const DIR = { None: 0, Down: 1, Up: 2 };
 
 const queue = [];
+const pendingSettle = new Set();
 const manualComponents = {};
 // If installed during hypnosis, the visible face is not the underlying baseline.
 const pendingHscBaseline = new Set();
@@ -223,7 +226,7 @@ function bcxRule(name) {
 
 // ───────────────────────── 佇列 ─────────────────────────
 export function pushEvent(evt) {
-    if (anotherEngineOwnsExpressions()) { queue.length = 0; return; }
+    if (anotherEngineOwnsExpressions()) { queue.length = 0; pendingSettle.clear(); return; }
     if (!evt) return;
     // 依事件來源套用各自的功能開關。
     switch (evt.Type) {
@@ -259,8 +262,24 @@ export function cancelExpressionEvent(type) {
     for (let i = queue.length - 1; i >= 0; i--) if (queue[i].Type === type) queue.splice(i, 1);
 }
 
+export const hasExpressionEvent = (type) => queue.some(e => e.Type === type);
+
 /** 目前玩家某個臉部群組的表情（沒有則 null）。 */
 export const readFace = (group) => (globalThis.Player ? expression(group)[0] : null);
+
+function isGroupControlled(group, now = Date.now()) {
+    return queue.some(e => {
+        if (e.Type === AROUSAL_EVT || e.Type === DEFAULT_EVT) return false;
+        if (!isEventActive(e, now)) return false;
+        const steps = e.Expression?.[group];
+        if (!steps?.length) return false;
+        const i = activeStepIndex(steps, now - (e.At ?? 0));
+        if (i < 0) return false;
+        const step = steps[i];
+        if (step.Skip) return false;
+        return step.Duration > 0 || e.Duration > 0;
+    });
+}
 
 /**
  * 臨時表情結束、引擎收回後，把這些群組的「最終值」補送給伺服器一次，並記成已同步。
@@ -269,8 +288,13 @@ export const readFace = (group) => (globalThis.Player ? expression(group)[0] : n
  */
 export function settleFace(groups) {
     if (anotherEngineOwnsExpressions() || !globalThis.Player) return;
+    const now = Date.now();
     for (const group of groups) {
         if (hscExpressionGroups().has(group)) continue;
+        if (isGroupControlled(group, now)) {
+            pendingSettle.add(group);
+            continue;
+        }
         sendExpression(group, expression(group)[0]);
     }
 }
@@ -282,6 +306,7 @@ export function restoreQolPose(pose) {
 
 function resetExpressionQueue(types, skippedTypes = []) {
     Player.ExpressionQueue = [];
+    pendingSettle.clear();
     queue.push(...queue.splice(0).map(e => {
         if (types.includes(e.Type) || (e.Duration <= 0 && e.Type !== AROUSAL_EVT && !skippedTypes.includes(e.Type))) {
             delete e.Expression;
@@ -649,6 +674,18 @@ function customArousalExpression() {
         }
     }
 
+    if (pendingSettle.size) {
+        const now = Date.now();
+        for (const group of [...pendingSettle]) {
+            if (hscExpressionGroups().has(group) || !isGroupControlled(group, now)) {
+                pendingSettle.delete(group);
+                if (!hscExpressionGroups().has(group) && globalThis.Player) {
+                    sendExpression(group, expression(group)[0]);
+                }
+            }
+        }
+    }
+
     desiredPose = resolvePoseConflicts(desiredPose, POSE_CATEGORIES);
 
     if (Object.keys(desiredPose).length === 0) {
@@ -868,6 +905,7 @@ export function installExpressions() {
             return next(args);
         }
         const duration = typeof Timer === 'number' && Timer > 0 ? Timer * 1000 : -1;
+        const priority = duration > 0 ? TIMED_MANUAL_PRIORITY : DEFAULT_MANUAL_PRIORITY;
         if (!Color || !CommonColorIsValid(Color)) Color = undefined;
         const e = {};
 
@@ -892,7 +930,7 @@ export function installExpressions() {
             if (duration < 0) manualComponents[t] = Expression;
         }
         if (!Object.keys(e).length) return;
-        pushEvent({ Type: MANUAL_EVT, Duration: duration, Expression: e });
+        pushEvent({ Type: MANUAL_EVT, Duration: duration, Priority: priority, Expression: e });
         return customArousalExpression();
     });
 }

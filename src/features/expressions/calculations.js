@@ -26,7 +26,7 @@ export function prepareExpressionEvent(evt, time, nextId) {
         for (const t of Object.values(event.Expression)) {
             for (const exp of t) {
                 exp.Id = nextId();
-                if (typeof exp.Priority !== 'number') exp.Priority = 1;
+                if (typeof exp.Priority !== 'number') exp.Priority = (typeof event.Priority === 'number' && event.Priority > 1) ? event.Priority : 1;
                 if (typeof exp.Duration !== 'number') exp.Duration = event.Duration;
             }
         }

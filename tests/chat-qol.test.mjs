@@ -217,6 +217,7 @@ async function fixture({ responsive = false } = {}) {
     let tick, ready = true, responsiveConsumer;
     const player = { Appearance: [{ Asset: { Name: 'Petsuit' } }], ActivePose: ['Kneel', 'BaseUpper'], _BlindLevel: 3 };
     const actions = [];
+    const queue = [];
     const rt = runtime({ globals: {
         Player: player, CurrentScreen: 'ChatRoom', AudioActions: actions,
         MainCanvas: { globalAlpha: 0.4 }, DrawButton: (...args) => buttons.push(args), DrawImageResize() {}, MouseIn: () => false,
@@ -232,11 +233,17 @@ async function fixture({ responsive = false } = {}) {
     }, mocks: {
         'src/features/expressions/index.js': {
             canUseExpressionEngine: () => ready,
-            pushEvent: event => events.push(event),
-            cancelExpressionEvent: type => cancelled.push(type),
+            pushEvent: event => { events.push(event); queue.push(event); },
+            cancelExpressionEvent: type => {
+                cancelled.push(type);
+                for (let i = queue.length - 1; i >= 0; i--) {
+                    if (queue[i].Type === type) queue.splice(i, 1);
+                }
+            },
             restoreQolPose: pose => restored.push([...pose]),
             readFace: group => player.Appearance.find(i => i.Asset.Group?.Name === group)?.Property?.Expression ?? null,
             settleFace: groups => settled.push([...groups]),
+            hasExpressionEvent: type => queue.some(e => e.Type === type),
         },
     } });
     const settings = await rt.load('src/core/feature-settings.js');
@@ -538,6 +545,7 @@ test('real expression engine expires textmoji and restores temporary pose withou
     assert.equal(player.Appearance[0].Property.Expression, 'Daydream');
     now = 5001; tick();
     assert.equal(player.Appearance[0].Property.Expression, 'Happy');
+    settings.setFeature('activityExpressions', false);
     ex.pushEvent({ Type: 'LcePetsuit', Duration: 1000, Poses: [{ Pose: ['OverTheHead', 'BaseLower'], Duration: 1000 }] });
     tick();
     assert.ok(player.ActivePose.includes('OverTheHead'));
@@ -552,6 +560,101 @@ test('real expression engine expires textmoji and restores temporary pose withou
     tick();
     assert.ok(!ex.getExpressionQueue().some(event => event.Type === 'LceEchoActivity'));
     assert.equal(rt.warnings.length, 0);
+});
+
+test('priority arbitration overrides emoticon during activity, resumes emoticon after activity ends, and preserves non-overlapping groups and pose events', async () => {
+    let now = 0, tick = null;
+    const sent = [];
+    const player = {
+        MemberNumber: 1, IsPlayer: () => true,
+        Appearance: [
+            { Asset: { Group: { Name: 'Eyes', AllowExpression: ['Happy', 'Daydream', 'Closed', 'Surprised', 'Sad'] } }, Property: { Expression: 'Happy' } },
+            { Asset: { Group: { Name: 'Eyes2', AllowExpression: ['Happy', 'Daydream', 'Closed', 'Surprised', 'Sad'] } }, Property: { Expression: 'Happy' } },
+            { Asset: { Group: { Name: 'Mouth', AllowExpression: ['HalfOpen'] } }, Property: { Expression: null } },
+        ],
+        AppearanceLayers: [], ActivePose: ['BaseUpper', 'BaseLower'], ArousalSettings: { Progress: 0 },
+    };
+    const rt = runtime({ globals: { Player: player, CurrentScreen: 'ChatRoom',
+        Date: class extends Date { static now() { return now; } },
+        addEventListener() {}, removeEventListener() {}, setInterval: cb => { tick = cb; return 1; },
+        PoseFemale3DCG: ['BaseUpper', 'BaseLower', 'OverTheHead', 'BackElbowTouch'].map(Name =>
+            ({ Name, Category: Name === 'BaseLower' ? 'BodyLower' : 'BodyUpper' })),
+        DialogSelfMenuSelected: '', CharacterRefresh() {}, ServerSend: (...args) => sent.push(args),
+        ServerAppearanceBundle: x => x, CharacterSetFacialExpression() {},
+    } });
+    const settings = await rt.load('src/core/feature-settings.js');
+    settings.setFeature('animationEngine', true);
+    settings.setFeature('autoArousalExpression', false);
+    settings.setFeature('activityExpressions', true);
+    settings.setFeature('chatEmoticons', true);
+    const ex = await rt.load('src/features/expressions/index.js');
+    ex.installExpressions();
+    rt.hooks.get('CharacterSetFacialExpression')([player, 'Eyes', 'Happy'], () => {});
+
+    // 1. Emoticon on Eyes (Daydream, duration 5000)
+    ex.pushEvent({ Type: 'LceEmoticon', Duration: 5000, Expression: { Eyes: [{ Expression: 'Daydream' }] } });
+    tick();
+    assert.equal(player.Appearance[0].Property.Expression, 'Daydream');
+
+    // 2. Overlapping higher-priority activity (KissOnLips: Priority 200 > HOLD_PRIORITY 100, Eyes: Closed, Duration 2000)
+    ex.pushEvent({ Type: 'KissOnLips', Priority: 200, Duration: 2000, Expression: { Eyes: [{ Expression: 'Closed', Duration: 2000 }] } });
+    tick();
+    assert.equal(player.Appearance[0].Property.Expression, 'Closed', 'Activity wins on contested group Eyes');
+    assert.equal(ex.hasExpressionEvent('LceEmoticon'), true, 'Emoticon remains queued instead of permanently cancelled');
+
+    // settleFace while activity is playing should defer sending to server
+    sent.length = 0;
+    ex.settleFace(['Eyes']);
+    assert.equal(sent.some(s => s[0] === 'ChatRoomCharacterExpressionUpdate' && s[1]?.Group === 'Eyes' && s[1]?.Name === 'Closed'), false, 'settleFace does not settle active activity expression');
+
+    // 3. Activity ends at now = 2500 (duration 2000 has elapsed, emoticon still has 2500ms left)
+    now = 2500;
+    tick();
+    assert.equal(player.Appearance[0].Property.Expression, 'Daydream', 'Emoticon resumes on Eyes after activity finishes');
+
+    // 4. Emoticon expires at now = 5001
+    now = 5001;
+    tick();
+    assert.equal(player.Appearance[0].Property.Expression, 'Happy', 'Face returns to baseline once emoticon expires');
+
+    // 5. Non-overlapping groups (Kiss on Mouth vs Daydream on Eyes)
+    now = 6000;
+    ex.pushEvent({ Type: 'LceEmoticon', Duration: 5000, Expression: { Eyes: [{ Expression: 'Daydream' }] } });
+    tick();
+    assert.equal(player.Appearance[0].Property.Expression, 'Daydream');
+    ex.pushEvent({ Type: 'Kiss', Priority: 200, Duration: 2000, Expression: { Mouth: [{ Expression: 'HalfOpen', Duration: 2000 }] } });
+    tick();
+    assert.equal(player.Appearance[0].Property.Expression, 'Daydream', 'Eyes untouched by mouth-only activity');
+    assert.equal(player.Appearance[2].Property.Expression, 'HalfOpen', 'Mouth updated by activity');
+
+    // 6. Pose-only event (Stretch with Priority 100, no Expression)
+    ex.pushEvent({ Type: 'Stretch', Priority: 100, Duration: 1000, Poses: [{ Pose: ['OverTheHead', 'BaseLower'], Duration: 1000 }] });
+    tick();
+    assert.equal(player.Appearance[0].Property.Expression, 'Daydream', 'Eyes untouched by pose-only event');
+    assert.ok(player.ActivePose.includes('OverTheHead'), 'Pose updated');
+
+    // 7. Manual expression priority constants & overrides
+    now = 12000;
+    tick();
+    assert.equal(player.Appearance[0].Property.Expression, 'Happy');
+    // Emoticon active
+    ex.pushEvent({ Type: 'LceEmoticon', Duration: 5000, Expression: { Eyes: [{ Expression: 'Daydream' }] } });
+    tick();
+    assert.equal(player.Appearance[0].Property.Expression, 'Daydream');
+
+    // Untimed manual expression call: sets default manual priority (1)
+    rt.hooks.get('CharacterSetFacialExpression')([player, 'Mouth', 'HalfOpen'], () => {});
+    const queueAfterUntimed = ex.getExpressionQueue();
+    const untimedEvt = queueAfterUntimed.find(e => e.Type === 'ManualOverride' && e.Expression?.Mouth);
+    assert.equal(untimedEvt?.Priority, ex.DEFAULT_MANUAL_PRIORITY);
+
+    // Timed manual expression call: sets timed manual priority (200) and overrides emoticon (100)
+    rt.hooks.get('CharacterSetFacialExpression')([player, 'Eyes', 'Surprised', 3], () => {});
+    const queueAfterTimed = ex.getExpressionQueue();
+    const timedEvt = queueAfterTimed.find(e => e.Type === 'ManualOverride' && e.Expression?.Eyes && e.Duration === 3000);
+    assert.equal(timedEvt?.Priority, ex.TIMED_MANUAL_PRIORITY);
+    tick();
+    assert.equal(player.Appearance[0].Property.Expression, 'Surprised', 'Timed manual expression outranks emoticon');
 });
 
 test('Petsuit sends one Hidden message, throttles network poses, and remote clients render locally', async () => {
