@@ -2,7 +2,7 @@ import { createHook } from '../core/hooks.js';
 import { getFeature } from '../core/feature-settings.js';
 import { observeResponsive, responsiveOwns } from '../core/responsive-compat.js';
 import { T } from '../core/i18n.js';
-import { canUseExpressionEngine, cancelExpressionEvent, hasExpressionEvent, pushEvent, restoreQolPose, readFace, settleFace } from './expressions/index.js';
+import { canUseExpressionEngine, cancelExpressionEvent, pushEvent, restoreQolPose, readFace, settleFace } from './expressions/index.js';
 import { captureFace, releaseCachedFace } from './expressions/face-cache.js';
 import { emoticonExpression, emoticonDuration, echoSound } from './expressions/qol-rules.js';
 import { getSpeechDuration, isSimpleChat } from './expressions/char-talk.js';
@@ -191,7 +191,7 @@ export function togglePetsuitAnimation() {
 
 // 只檢查「條件失效」（功能被關、引擎停了、寵物服脫掉…）；正常結束由各自的計時器負責。
 function updateAnimationState() {
-    if (faceHolds.has('LceEmoticon') && (!getFeature('chatEmoticons') || !canUseExpressionEngine() || !hasExpressionEvent('LceEmoticon'))) releaseFaceHold('LceEmoticon');
+    if (faceHolds.has('LceEmoticon') && (!getFeature('chatEmoticons') || !canUseExpressionEngine())) releaseFaceHold('LceEmoticon');
     if (animation && !canAnimate()) stopPetsuitAnimation();
     if (mouthDelayTimer && (!getFeature('chatEmoticons') || !canUseExpressionEngine())) {
         cancelLater(mouthDelayTimer);
