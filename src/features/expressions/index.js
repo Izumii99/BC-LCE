@@ -60,6 +60,9 @@ const MODIFIER_MAP = Object.freeze({ Blush: [null, 'Low', 'Medium', 'High', 'Ver
 // 模組的眼睛就不會動。這是 WCE 的缺陷，不要對齊它。
 // 我們終止呼叫鏈，就必須讓所有人先跑完；負值確保排在最末端（BC 本體仍在我們之後）。
 const ENGINE_HOOK_PRIORITY = -100;
+// 手動表情的步驟優先權。帶 Timer 的 CharacterSetFacialExpression（BC 原生活動表情都走這條）要能壓過
+// 顏文字的 HOLD_PRIORITY(100)；沒帶 Timer 的是持續性手動基準，維持最低，由顏文字／活動覆蓋。
+// 注意：任何帶 Timer 的呼叫（含其他模組）都會套用 TIMED_MANUAL_PRIORITY，並壓過優先權 ≤200 的 LCE 活動事件。
 export const TIMED_MANUAL_PRIORITY = 200;
 export const DEFAULT_MANUAL_PRIORITY = 1;
 // BC 內建的表情部位（＝WCE 的 faceComponents）。當保底用，實際清單見 faceComponents()。
@@ -261,8 +264,6 @@ export function pushEvent(evt) {
 export function cancelExpressionEvent(type) {
     for (let i = queue.length - 1; i >= 0; i--) if (queue[i].Type === type) queue.splice(i, 1);
 }
-
-export const hasExpressionEvent = (type) => queue.some(e => e.Type === type);
 
 /** 目前玩家某個臉部群組的表情（沒有則 null）。 */
 export const readFace = (group) => (globalThis.Player ? expression(group)[0] : null);

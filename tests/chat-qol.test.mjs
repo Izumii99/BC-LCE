@@ -243,7 +243,6 @@ async function fixture({ responsive = false } = {}) {
             restoreQolPose: pose => restored.push([...pose]),
             readFace: group => player.Appearance.find(i => i.Asset.Group?.Name === group)?.Property?.Expression ?? null,
             settleFace: groups => settled.push([...groups]),
-            hasExpressionEvent: type => queue.some(e => e.Type === type),
         },
     } });
     const settings = await rt.load('src/core/feature-settings.js');
@@ -562,6 +561,14 @@ test('real expression engine expires textmoji and restores temporary pose withou
     assert.equal(rt.warnings.length, 0);
 });
 
+// 與 chat-qol.holdFace 相同的事件形狀：事件層與每個步驟都明確寫 HOLD_PRIORITY(100)。
+// 測試若省略 Priority，顏文字會是 1，和「沒修正前的活動（步驟 1）」平手，測不出優先權傳遞。
+const holdEmoticon = (expression, duration = 5000) => ({
+    Type: 'LceEmoticon', Duration: duration, Priority: 100,
+    Expression: { Eyes: [{ Expression: expression, Priority: 100 }] },
+});
+const queued = (ex, type) => ex.getExpressionQueue().some(event => event.Type === type);
+
 test('priority arbitration overrides emoticon during activity, resumes emoticon after activity ends, and preserves non-overlapping groups and pose events', async () => {
     let now = 0, tick = null;
     const sent = [];
@@ -592,7 +599,7 @@ test('priority arbitration overrides emoticon during activity, resumes emoticon 
     rt.hooks.get('CharacterSetFacialExpression')([player, 'Eyes', 'Happy'], () => {});
 
     // 1. Emoticon on Eyes (Daydream, duration 5000)
-    ex.pushEvent({ Type: 'LceEmoticon', Duration: 5000, Expression: { Eyes: [{ Expression: 'Daydream' }] } });
+    ex.pushEvent(holdEmoticon('Daydream'));
     tick();
     assert.equal(player.Appearance[0].Property.Expression, 'Daydream');
 
@@ -600,7 +607,7 @@ test('priority arbitration overrides emoticon during activity, resumes emoticon 
     ex.pushEvent({ Type: 'KissOnLips', Priority: 200, Duration: 2000, Expression: { Eyes: [{ Expression: 'Closed', Duration: 2000 }] } });
     tick();
     assert.equal(player.Appearance[0].Property.Expression, 'Closed', 'Activity wins on contested group Eyes');
-    assert.equal(ex.hasExpressionEvent('LceEmoticon'), true, 'Emoticon remains queued instead of permanently cancelled');
+    assert.equal(queued(ex, 'LceEmoticon'), true, 'Emoticon remains queued instead of permanently cancelled');
 
     // settleFace while activity is playing should defer sending to server
     sent.length = 0;
@@ -619,7 +626,7 @@ test('priority arbitration overrides emoticon during activity, resumes emoticon 
 
     // 5. Non-overlapping groups (Kiss on Mouth vs Daydream on Eyes)
     now = 6000;
-    ex.pushEvent({ Type: 'LceEmoticon', Duration: 5000, Expression: { Eyes: [{ Expression: 'Daydream' }] } });
+    ex.pushEvent(holdEmoticon('Daydream'));
     tick();
     assert.equal(player.Appearance[0].Property.Expression, 'Daydream');
     ex.pushEvent({ Type: 'Kiss', Priority: 200, Duration: 2000, Expression: { Mouth: [{ Expression: 'HalfOpen', Duration: 2000 }] } });
@@ -638,7 +645,7 @@ test('priority arbitration overrides emoticon during activity, resumes emoticon 
     tick();
     assert.equal(player.Appearance[0].Property.Expression, 'Happy');
     // Emoticon active
-    ex.pushEvent({ Type: 'LceEmoticon', Duration: 5000, Expression: { Eyes: [{ Expression: 'Daydream' }] } });
+    ex.pushEvent(holdEmoticon('Daydream'));
     tick();
     assert.equal(player.Appearance[0].Property.Expression, 'Daydream');
 
@@ -655,6 +662,91 @@ test('priority arbitration overrides emoticon during activity, resumes emoticon 
     assert.equal(timedEvt?.Priority, ex.TIMED_MANUAL_PRIORITY);
     tick();
     assert.equal(player.Appearance[0].Property.Expression, 'Surprised', 'Timed manual expression outranks emoticon');
+});
+
+async function expressionEngine({ autoArousal = false } = {}) {
+    let now = 0, tick = null;
+    const sent = [];
+    const allow = ['Happy', 'Daydream', 'Closed', 'Sad', 'Heart', 'VeryLewd', 'HalfOpen', 'Surprised'];
+    const face = (Name, Expression) => ({ Asset: { Group: { Name, AllowExpression: allow } }, Property: { Expression } });
+    const player = { MemberNumber: 1, IsPlayer: () => true,
+        Appearance: [face('Eyes', 'Happy'), face('Eyes2', 'Happy'), face('Mouth', null)],
+        AppearanceLayers: [], ActivePose: ['BaseUpper', 'BaseLower'], ArousalSettings: { Progress: 0 } };
+    const rt = runtime({ globals: { Player: player, CurrentScreen: 'ChatRoom',
+        Date: class extends Date { static now() { return now; } },
+        addEventListener() {}, removeEventListener() {}, setInterval: cb => { tick = cb; return 1; },
+        PoseFemale3DCG: ['BaseUpper', 'BaseLower'].map(Name => ({ Name, Category: Name === 'BaseLower' ? 'BodyLower' : 'BodyUpper' })),
+        DialogSelfMenuSelected: '', CharacterRefresh() {}, ServerSend: (...args) => sent.push(args),
+        ServerAppearanceBundle: x => x, CharacterSetFacialExpression() {} } });
+    const settings = await rt.load('src/core/feature-settings.js');
+    settings.setFeature('animationEngine', true);
+    settings.setFeature('autoArousalExpression', autoArousal);
+    settings.setFeature('activityExpressions', true);
+    settings.setFeature('chatEmoticons', true);
+    const ex = await rt.load('src/features/expressions/index.js');
+    const { EventExpressions } = await rt.load('src/features/expressions/data.js');
+    ex.installExpressions();
+    rt.hooks.get('CharacterSetFacialExpression')([player, 'Eyes', 'Happy'], () => {});
+    const eyesUpdates = () => sent.filter(a => a[0] === 'ChatRoomCharacterExpressionUpdate' && a[1]?.Group === 'Eyes').map(a => a[1].Name);
+    return { ex, EventExpressions, player, sent, eyesUpdates, eyes: () => player.Appearance[0].Property.Expression,
+        at: value => { now = value; tick(); }, tick: () => tick() };
+}
+
+test('settleFace defers while an activity still controls the group, then settles the baseline face', async () => {
+    const { ex, eyes, eyesUpdates, at, tick, sent } = await expressionEngine();
+    ex.pushEvent(holdEmoticon('Daydream'));            // 0–5000
+    tick();
+    at(4000);
+    ex.pushEvent({ Type: 'KissOnLips', Priority: 200, Duration: 2000, Expression: { Eyes: [{ Expression: 'Closed', Duration: 2000 }] } });
+    at(4000);
+    assert.equal(eyes(), 'Closed');
+
+    // chat-qol 在顏文字結束 300ms 後呼叫 settleFace；此時活動（到 6000）仍在播放。
+    at(5300);
+    sent.length = 0;
+    ex.settleFace(['Eyes']);
+    assert.deepEqual(eyesUpdates(), [], 'nothing is settled while the activity still owns Eyes');
+    assert.equal(eyes(), 'Closed');
+
+    // 活動結束後，延後的同步由引擎補送「基準值」，而不是活動的臨時值。
+    at(6100);
+    assert.equal(eyes(), 'Happy');
+    assert.ok(eyesUpdates().includes('Happy'), 'deferred settle sends the baseline face');
+    assert.ok(!eyesUpdates().includes('Closed'), 'the temporary activity face is never settled');
+});
+
+test('higher-priority events keep their groups against later lower-priority events (existing activities)', async () => {
+    const { ex, EventExpressions, eyes, at, tick } = await expressionEngine({ autoArousal: true });
+    // PostOrgasm(10000) 先進佇列；Stimulated(400) 後到。修正前所有步驟都是 1，後進的會贏。
+    ex.pushEvent(EventExpressions.PostOrgasm);
+    tick();
+    assert.equal(eyes(), 'Closed');
+    at(1000);
+    ex.pushEvent(EventExpressions.Stimulated);
+    at(1000);
+    assert.equal(eyes(), 'Closed', 'PostOrgasm still wins on Eyes over the later Stimulated');
+    at(6100);                                              // Stimulated 已結束
+    assert.equal(eyes(), 'Closed', 'PostOrgasm keeps Eyes after Stimulated ends');
+});
+
+test('equal-priority events keep last-wins, and a lower-priority event resumes after a higher one ends', async () => {
+    const { ex, eyes, at, tick } = await expressionEngine();
+    const eyesEvent = (Type, Priority, Expression, Duration) => ({ Type, Priority, Duration, Expression: { Eyes: [{ Expression }] } });
+
+    ex.pushEvent(eyesEvent('LowA', 200, 'Closed', 6000));
+    tick();
+    ex.pushEvent(eyesEvent('LowB', 200, 'Sad', 6000));     // 平手：後進的贏
+    at(0);
+    assert.equal(eyes(), 'Sad', 'equal priority: later event wins');
+
+    at(1000);
+    ex.pushEvent(eyesEvent('High', 300, 'Surprised', 2000));
+    at(1000);
+    assert.equal(eyes(), 'Surprised', 'higher priority wins');
+    at(3100);                                              // High 結束，LowB 還在
+    assert.equal(eyes(), 'Sad', 'lower-priority event resumes after the higher one ends');
+    at(6100);
+    assert.equal(eyes(), 'Happy', 'baseline once everything has ended');
 });
 
 test('Petsuit sends one Hidden message, throttles network poses, and remote clients render locally', async () => {
