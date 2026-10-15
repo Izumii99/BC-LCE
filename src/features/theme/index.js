@@ -59,7 +59,9 @@ function drawButtonImageFit(image, x, y, w, h) {
         return;
     }
     const img = DrawGetImage(image);
-    if (!img.complete) return;
+    // R132 回傳 <img>（未載入完成時 complete === false）；R133 回傳 ImageBitmap，
+    // 尚未載入時回傳 undefined，且 ImageBitmap 沒有 .complete。兩個版本都要能過。
+    if (!img || img.complete === false) return;
     const buttonRect = RectMakeRect(boxX, boxY, boxW, boxH);
     const baseImageRect = RectMakeRect(boxX, boxY, img.width, img.height);
     const [, imageRect] = RectFitIntoRect(baseImageRect, buttonRect, DrawingResizeMode.ShowFullOriginalRatio);
