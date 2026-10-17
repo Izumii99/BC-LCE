@@ -493,10 +493,8 @@ function installPatches() {
         });
 
         patch('ChatAdminRun', {
-            // 新版 BC 把停用色抽成 disabledColor 變數（原本是直接寫死 "#ebebe4"），兩種寫法都保留以相容舊版。
+            // 新版 R133 把停用色抽成 disabledColor 變數
             'const ButtonBackground = canEdit ? "White" : disabledColor;':
-                'const ButtonBackground = canEdit ? "%background" : "%disabled";',
-            'const ButtonBackground = canEdit ? "White" : "#ebebe4";':
                 'const ButtonBackground = canEdit ? "%background" : "%disabled";',
         });
 
