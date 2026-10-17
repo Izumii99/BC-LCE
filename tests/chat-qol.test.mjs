@@ -17,6 +17,11 @@ test('textmoji handle mixed faces without matching URLs or ordinary words', () =
     assert.equal(emoticonExpression('0///0').Blush, 'Medium');
     assert.equal(emoticonExpression('>///<').Blush, 'Medium');
     assert.equal(emoticonExpression('<\\\\\\>').Blush, 'Medium');
+    assert.equal(emoticonExpression('^///^').Blush, 'Medium');
+    assert.equal(emoticonExpression('^///^').Eyes, 'ShylyHappy');
+    assert.equal(emoticonExpression('^///^').Mouth, 'Smile');
+    assert.equal(emoticonExpression('^/////^').Blush, 'VeryHigh');
+    assert.equal(emoticonExpression('^/////^').Emoticon, 'Hearts');
     assert.equal(emoticonExpression('///////').Blush, 'Extreme');
     assert.equal(emoticonExpression('=w=/////').Emoticon, 'Hearts');
     assert.equal(emoticonExpression('=w=////').Emoticon, undefined);
