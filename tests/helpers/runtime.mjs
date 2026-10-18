@@ -34,6 +34,15 @@ export class Element {
         }
     }
     appendChild(node) { this.append(node); return node; }
+    insertBefore(node, ref) {
+        const nodes = node.nodeType === 11 ? [...node.childNodes] : [node];
+        for (const n of nodes) n.remove();
+        const index = ref ? this.childNodes.indexOf(ref) : -1;
+        const at = index < 0 ? this.childNodes.length : index;
+        for (const n of nodes) n.parentElement = this;
+        this.childNodes.splice(at, 0, ...nodes);
+        return node;
+    }
     removeChild(node) { node.remove(); return node; }
     replaceChildren(...nodes) { for (const n of [...this.childNodes]) n.remove(); this.append(...nodes); }
     remove() { if (this.parentElement) { const p = this.parentElement; p.childNodes.splice(p.childNodes.indexOf(this), 1); this.parentElement = null; } }
@@ -61,6 +70,13 @@ export class Element {
     addEventListener(type, fn) { if (!this.listeners.has(type)) this.listeners.set(type, new Set()); this.listeners.get(type).add(fn); }
     removeEventListener(type, fn) { this.listeners.get(type)?.delete(fn); }
     dispatchEvent(event) { for (const fn of [...(this.listeners.get(event.type) ?? [])]) fn(event); return true; }
+    cloneNode(deep = false) {
+        const copy = new Element(this.tagName.toLowerCase(), this._text, this.strict);
+        copy.className = this.className; copy.id = this.id;
+        Object.assign(copy.dataset, this.dataset); Object.assign(copy.attributes, this.attributes);
+        if (deep) for (const child of this.childNodes) copy.append(child.cloneNode(true));
+        return copy;
+    }
     focus() {} blur() {}
 }
 

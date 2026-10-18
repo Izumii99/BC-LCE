@@ -1,3 +1,9 @@
+// 【安全說明｜刻意維持現狀】
+// 這裡的 AES-GCM 金鑰以可匯出的 JWK 存在與密文相同的 IndexedDB（store: IDB_KEY_STORE, id: 'mainKey'）。
+// 因此它的作用是「避免密碼以明文躺在儲存區」，不是抵禦能讀取同源儲存區／在頁面內執行程式碼的攻擊者：
+// 能讀到密文的人同樣讀得到金鑰。已儲存的密碼與 MPL 共用的資料庫結構（見 databases.js）都依賴這個格式，
+// 貿然改成不可匯出的 CryptoKey 會使使用者已記住的密碼全數解不開。
+// 若日後要強化，必須做「用舊金鑰解出 → 新金鑰重新加密 → 與 MPL 協調」的整批遷移，見 docs/security-notes.md。
 import { openProfilesDB } from './databases.js';
 import { IDB_KEY_STORE } from '../core/constants.js';
 
