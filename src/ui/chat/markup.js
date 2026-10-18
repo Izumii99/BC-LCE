@@ -1,9 +1,11 @@
+const originalText = new WeakMap();
+
 /** Transform text nodes only. Existing links, controls and plugin-owned nodes stay intact. */
 export function decorateChatText(element, findCommand) {
     const visit = parent => {
         for (const node of Array.from(parent.childNodes)) {
             if (node.nodeType === 1) {
-                if (!node.matches('a,button,input,textarea,script,style,.lceRoom,.lceCmd,[data-liko-processed="1"]')) visit(node);
+                if (!node.matches('a,button,input,textarea,script,style,.lceRoom,.lceCmd,.likoRoomInChat,.likoCommandInChat,[data-liko-processed="1"]')) visit(node);
                 continue;
             }
             if (node.nodeType !== 3 || /https?:\/\//i.test(node.textContent)) continue;
@@ -31,6 +33,7 @@ export function decorateChatText(element, findCommand) {
                     span.dataset.desc = command.Description || '';
                     span.textContent = match[3];
                 }
+                originalText.set(span, room ? match[0] : match[3]);
                 fragment.append(span);
                 offset = match.index + match[0].length;
             }
@@ -41,4 +44,12 @@ export function decorateChatText(element, findCommand) {
         }
     };
     visit(element);
+}
+
+/** Restore only our own buttons, using literal text and preserving adjacent DOM. */
+export function restoreChatText(root = document) {
+    root.querySelectorAll('.lceRoom,.lceCmd').forEach(span => {
+        if (!originalText.has(span)) return;
+        span.replaceWith(document.createTextNode(originalText.get(span)));
+    });
 }

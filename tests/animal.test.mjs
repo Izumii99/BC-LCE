@@ -10,12 +10,19 @@ function makeItem(name, extra = {}) {
 
 async function animalRuntime({ player: playerOverride, sent, updates, globals: extraGlobals } = {}) {
     const timers = [];
+    let now = 0;
     const refreshes = [];
     const remote = { MemberNumber: 7, Appearance: [makeItem('Orig', { Property: { Keep: 1 } })] };
     const player = playerOverride ?? { MemberNumber: 1, Appearance: [] };
     const rt = runtime({ append: { 'src/features/animal/index.js': 'export { triggerAnimation };' }, globals: {
         Player: player, CurrentScreen: 'ChatRoom', ServerSend: (...a) => sent?.push(a), ChatRoomData: {}, ChatRoomCharacterItemUpdate: (c, g) => updates?.push([c.MemberNumber, g]), ChatRoomCharacter: [player, remote],
-        setTimeout: fn => { timers.push(fn); return fn; },
+        // Advance fixture time with scheduled work instead of busy-looping on real Date.now().
+        Date: class extends Date { static now() { return now; } },
+        setTimeout: (fn, delay = 0) => {
+            const at = now + Math.max(0, delay);
+            const scheduled = () => { now = Math.max(now, at); fn(); };
+            timers.push(scheduled); return scheduled;
+        },
         clearTimeout: fn => { const i = timers.indexOf(fn); if (i >= 0) timers.splice(i, 1); },
         AssetGet: (_g, _slot, name) => (['A', 'B', 'Orig'].includes(name) ? { Name: name } : null),
         CharacterRefresh: c => refreshes.push(c.MemberNumber),
