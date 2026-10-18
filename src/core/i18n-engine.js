@@ -375,8 +375,23 @@
     function _bust(url) { return url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(); }
 
     // 抓一支 JS 並執行（合併字庫檔會自行呼叫 register 註冊）
+    // 只允許執行自家來源的腳本：loadScript 掛在公開的 Liko.__Sys_i18n__ / __Sys_L10N__ 上，
+    // 沒有限制的話任何插件都能藉它 new Function 執行任意遠端程式碼。
+    const _SCRIPT_ORIGINS = new Set(['https://awdrrawd.github.io', 'https://cdn.jsdelivr.net']);
+    function _isAllowedScriptUrl(url) {
+        try {
+            const u = new URL(url);   // 只接受絕對網址；相對路徑一律拒絕
+            if (u.protocol !== 'https:' || !_SCRIPT_ORIGINS.has(u.origin)) return false;
+            return u.origin !== 'https://cdn.jsdelivr.net' || /^\/(gh\/awdrrawd\/|npm\/)/.test(u.pathname);
+        } catch { return false; }
+    }
+
     function loadScript(url) {
         if (!url || _loadedUrls.has(url)) return Promise.resolve(false);
+        if (!_isAllowedScriptUrl(url)) {
+            console.warn(`🐈‍⬛ [Liko i18n] ⚠️ loadScript blocked (origin not allowed): ${url}`);
+            return Promise.resolve(false);
+        }
         _loadedUrls.add(url);
         return fetch(_bust(url))
             .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.text(); })

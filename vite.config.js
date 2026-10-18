@@ -69,7 +69,10 @@ export default defineConfig({
       input: 'src/main.js',
       output: {
         entryFileNames: 'assets/[name].js',
-        chunkFileNames: 'assets/[name].js',
+        // app chunk 加內容 hash：main.js（loader 以 ?v= 取新）會指向最新的 app-<hash>.js，
+        // 避免更新後瀏覽器拿到「新 main.js + 舊 app.js」。部署時舊 chunk 要保留一段時間，
+        // 讓仍快取舊 main.js 的分頁可以載入。
+        chunkFileNames: 'assets/[name]-[hash].js',
         // 圖片等 asset 加 content hash：內容變更時檔名跟著變，避免瀏覽器讀到舊快取。
         // main.js 不加 hash（loader 用固定 URL + ?v= 破快取），會自動引用到最新的 hash 檔名。
         assetFileNames: 'assets/[name]-[hash].[ext]',

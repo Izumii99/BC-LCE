@@ -17,7 +17,7 @@
 
 ## 錯誤流程的後續驗證
 
-目前 144 項 Node VM 測試通過（PR26）；Source ZIP 由於沒有 `.git`，建置時會略過 pinned assets 同步；Git clone／CI 仍應完整執行 `npm run build`，但模擬 DOM／BC／IndexedDB 不能代替瀏覽器與伺服器驗收。
+目前 208 項 Node VM 測試通過；Source ZIP 由於沒有 `.git`，建置時會略過 pinned assets 同步；Git clone／CI 仍應完整執行 `npm run build`，但模擬 DOM／BC／IndexedDB 不能代替瀏覽器與伺服器驗收。
 
 - [ ] IM 整合故障注入：開庫延遲／失敗期間仍接收事件，讀取失敗後連續訊息保留，再次開窗成功還原後按順序合併。既有測試涵蓋讀取失敗禁止保存及正常延遲收訊，完整失敗後重試鏈仍需補驗證。
 - [ ] IM 寫入失敗：目前記錄警告並回傳 false，控制器未提供使用者可見的未保存狀態；評估提示與重試策略，避免只留 console。
@@ -37,7 +37,8 @@
   - `core/` 仍反向依賴外層：`settings-schema.js` → `settings/theme-actions.js`、`game/setting-effects.js`、`features/animal/actions.js`；`settings-values.js` → `game/language.js`；`state.js` → `loginpage/state.js`；`theme-api.js` → `features/theme/`。根本做法是讓各功能自己提供 schema 片段再由 core 組合，工程較大，另案處理。
   - `ui/chat/markup.js` 只有 `features/chat/index.js` 使用，`ui/transition.js` 只有 `features/vertical/chatsearch.js` 使用；目前保留在 `ui/` 當共用層，若之後仍無第二個使用者再搬回各功能。
   - `echo-mouth-pull.js`、`behaviors.js`、`misc.js`、`region-switch.js` 仍是 `features/` 根目錄的獨立檔案，數量不多，暫不另立資料夾。
-- [ ] 【不急迫】`src/core/i18n-engine.js` 的 `loadScript()` 會 `fetch` 遠端 JS 後用 `new Function(code)` 執行。目前七語字庫走 `.json` 分支（`_loadJsonLang`，只解析資料、不執行），這條路徑沒有使用者影響。待辦只有兩種擇一：確認沒有任何呼叫者後移除 `loadScript`，或保留但限制只能載入自家網域（例如 `awdrrawd.github.io`）。不影響目前功能，有空再處理。
+- [x] `src/core/i18n-engine.js` 的 `loadScript()` 已限制只能載入 `awdrrawd.github.io` 與 jsDelivr 的自家路徑（見 `docs/security-notes.md`、`tests/security-patches.test.mjs`）。
+- [ ] 信息凍結插件改釘 jsDelivr commit hash 並加 SRI（需要實際 commit 與 hash，無法離線產生）。
 - [ ] 僅在實測或事件流程分析證明有責任混雜時，才整理其他大模組；不以行數或檔案數作為目標。
 
 ## 已收斂的範圍

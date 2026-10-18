@@ -32,7 +32,7 @@ let loginError = null;
 // 可能因此消失。LCE 在斷線當下先記下「訊息本身」，回房後不再猜 400ms 的固定時序，
 // 而是在 BC 通知重連／回房或新 ChatLog 建立時嘗試，只補回缺失的訊息；不對伺服器重連設定時間上限。
 const CHATLOG_ID = 'TextAreaChatLog';
-let chatSnapshot = null;   // { html, stamp, count }
+let chatSnapshot = null;   // { nodes: Element[]（複本）, stamp, count }
 let snapshotSeq = 0;
 let chatRestoreBodyObserver = null;
 let chatRestoreLogObserver = null;
@@ -62,7 +62,8 @@ function snapshotChatLog() {
         const stamp = `lce-${++snapshotSeq}-${Date.now()}`;
         log.dataset.lceChatStamp = stamp;
         chatSnapshot = {
-            html: messages.map(message => message.outerHTML).join(''),
+            // 存節點複本而非 outerHTML 字串：避免重連時把字串重新當 HTML 解析（屬性型事件處理器、mXSS）。
+            nodes: messages.map(message => message.cloneNode(true)),
             stamp,
             count: messages.length,
         };
@@ -74,21 +75,19 @@ function snapshotChatLog() {
  * 只用 data-* + class + text 做輕量 dedupe，避免 BC 已經恢復一部分歷史時產生大量重複。
  */
 function mergeChatSnapshot(log, snap) {
-    if (!log || !snap?.html) return 0;
+    if (!log || !snap?.nodes?.length) return 0;
     const currentCounts = new Map();
     for (const message of log.querySelectorAll('.ChatMessage')) {
         const key = chatMessageKey(message);
         currentCounts.set(key, (currentCounts.get(key) ?? 0) + 1);
     }
 
-    const template = document.createElement('template');
-    template.innerHTML = snap.html;
     const missing = [];
-    for (const node of [...template.content.children]) {
-        const key = chatMessageKey(node);
+    for (const original of snap.nodes) {
+        const key = chatMessageKey(original);
         const count = currentCounts.get(key) ?? 0;
         if (count > 0) currentCounts.set(key, count - 1);
-        else missing.push(node);
+        else missing.push(original.cloneNode(true));   // 再複製一次，快照可重複使用
     }
     if (missing.length === 0) return 0;
 
