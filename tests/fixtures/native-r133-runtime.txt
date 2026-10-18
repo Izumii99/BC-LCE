@@ -1,7 +1,7 @@
-// Native BC R132Beta3 excerpts for compatibility tests. Do not edit function bodies.
-// Source: https://gitgud.io/BondageProjects/Bondage-College (local R132Beta3 snapshot)
-// Test runtime dependencies are supplied by the harness.
-// Scripts/Struggle.js :: StruggleMinigameHandleExpression SHA256 dd9ee3626c140e9b3f72ef5f0ea128c8edbc9216c4e6d9ceaa5175c387b13fbe
+// Native BC R133 excerpts, checked against the local mirror on 2026-10-18.
+// Source: https://gitgud.io/BondageProjects/Bondage-College
+// Test dependencies are supplied by the harness; function bodies are unmodified.
+// Scripts/Struggle.js :: StruggleMinigameHandleExpression SHA256 1fc786f90b9eacd12a247b90ed335131de77af5d5256864370077700c933e3be
 function StruggleMinigameHandleExpression(Decrease) {
 
 	const Count = StruggleProgressStruggleCount;
@@ -20,7 +20,7 @@ function StruggleMinigameHandleExpression(Decrease) {
 		}
 
 		// Each click accelerates ExpressionQueue timers 1 second.
-		for (const item of Player.ExpressionQueue) {
+		for (const item of Player.ExpressionQueue ?? []) {
 			item.Time += -1000;
 		}
 	}
@@ -159,40 +159,4 @@ function AppearanceRun() {
 			}
 		}
 	}
-}
-// Screens/Character/Appearance/Appearance.js :: CharacterAppearanceWardrobeLoad SHA256 6d0acf68473c80ede6e36af50c62aeb14cb763d062ae41900b083f4f006c9e93
-function CharacterAppearanceWardrobeLoad(C) {
-	CommonPromiseCatch(WardrobeOpenCharacter(C));
-}
-// Screens/Character/Wardrobe/Wardrobe.js :: WardrobeOpenCharacter SHA256 a7579ce4a7eaca63e82d9c8243adc620f1af7c59c0465ff5bdbe145bcf84e1e8
-function WardrobeOpenCharacter(C) {
-	Wardrobe.returnScreen = CommonGetScreen();
-	Wardrobe.selectedCharacter = C;
-	return CommonSetScreen("Character", "Wardrobe");
-}
-
-// Screens/Character/Wardrobe/Wardrobe.js :: WardrobeSaveSelectedOutfit SHA256 29086b6078548fb623cc799f908b718ef69dd77c53bc89f79c01bc8ef05b792a
-function WardrobeSaveSelectedOutfit() {
-	if (!Wardrobe.selectedCharacter || WardrobeSelection < 0) return;
-
-	WardrobeSetActionPreview("Save", true);
-	Wardrobe.previewLocked = true;
-	let confirmed = false;
-	try {
-		const sideCharacter = WardrobeGetSidePreviewCharacter();
-		if (sideCharacter) WardrobeDrawToCanvas(WardrobeID.sideCanvas, sideCharacter, 1);
-		confirmed = confirm(TextGet("SaveOutfitConfirm"));
-	} finally {
-		Wardrobe.previewLocked = false;
-		WardrobeSetActionPreview(null, true);
-	}
-	if (!confirmed) return;
-
-	WardrobeFastSave(Wardrobe.selectedCharacter, WardrobeSelection);
-	if (WardrobeRenameSelectedOutfit()) {
-		WardrobePushAll();
-	} else {
-		ServerAccountUpdate.QueueData({ Wardrobe: CharacterCompressWardrobe(Player.Wardrobe) });
-	}
-	WardrobeUpdateElements();
 }

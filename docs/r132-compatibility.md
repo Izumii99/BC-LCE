@@ -1,5 +1,7 @@
 # R132Beta3 相容性修補
 
+> 歷史紀錄：2026-10-18 已將現行測試改為 `tests/native-compat.test.mjs`，快照更新為 `tests/fixtures/native-r133-runtime.txt`。只保留目前確實執行的 R133 掙扎與 AppearanceRun 函式，移除三個未使用的衣櫃副本。下列 R132 路徑及驗證描述屬當時紀錄，現況見 [聊天按鈕與測試整理](chat-buttons-test-audit.md)。
+
 日期：2026-09-16。分支：`fix/r132`。依本機 Bondage-College-Mirror-bondageclub R132Beta3 原始碼修正；正式 R132 發布後仍需核對。
 
 ## WCE 指定 commit 核對

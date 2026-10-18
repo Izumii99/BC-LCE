@@ -1,7 +1,7 @@
 import { registerChatProcessor } from '../../ui/chat/pipeline.js';
 import { shouldLceHandle } from '../../core/wce-compat.js';
 import { joinRoom } from '../../game/room-navigation.js';
-import { decorateChatText } from '../../ui/chat/markup.js';
+import { decorateChatText, restoreChatText } from '../../ui/chat/markup.js';
 import { sendActionText } from '../../game/chat-actions.js';
 import { createHook } from '../../core/hooks.js';
 // ════════════════════════════════════════════════════════════════════════════
@@ -17,7 +17,7 @@ import { createHook } from '../../core/hooks.js';
 
 import { getFeature } from '../../core/feature-settings.js';
 import { T } from '../../core/i18n.js';
-import { LOG } from '../../core/constants.js';
+import { LOG, SETTING_CHANGED_EVENT } from '../../core/constants.js';
 
 const STYLE_ID = 'lce-chat-style';
 const HIST_CLASS = 'lce-hist-input';
@@ -260,7 +260,7 @@ function installMarkupEvents() {
     const target = event => event.target.closest?.('.lceCmd[data-cmd],.lceRoom[data-room]');
     document.addEventListener('click', event => {
         const el = target(event);
-        if (!el || !getFeature('commandButtons')) return;
+        if (!el || !commandButtonsEnabled()) return;
         if (el.classList.contains('lceRoom')) { event.stopPropagation(); joinRoom(el.dataset.room); }
         else {
             const input = getChatInput();
@@ -269,7 +269,7 @@ function installMarkupEvents() {
     });
     document.addEventListener('mouseover', event => {
         const el = target(event);
-        if (!el || !getFeature('commandButtons')) return;
+        if (!el || !commandButtonsEnabled()) return;
         showDesc(el.classList.contains('lceRoom')
             ? T('desc_join_room').replace('{room}', el.dataset.room)
             : (el.dataset.desc || el.dataset.cmd) + '\n' + T('desc_paste_cmd'));
@@ -277,17 +277,22 @@ function installMarkupEvents() {
     document.addEventListener('mouseout', event => { if (target(event)) hideDesc(); });
 }
 
-const processedText = new WeakMap();
+// The shared pipeline already limits work to changed messages; text-only caches can
+// miss a replacement node with identical text (e.g. translation/history updates).
+function commandButtonsEnabled() {
+    return !!getFeature('commandButtons') && !window.LikoChatTtoBInstance?.isEnabled?.();
+}
+
+let markupEnabled = false;
+function syncCommandButtons() {
+    const enabled = commandButtonsEnabled();
+    if (markupEnabled && !enabled) { hideDesc(); restoreChatText(); }
+    markupEnabled = enabled;
+}
+
 function processMessage(element) {
-    if (!element) return;
-    if (element.dataset.lceDone === '1' && (!processedText.has(element) || processedText.get(element) === element.textContent)) {
-        processedText.set(element, element.textContent);
-        return;
-    }
-    if (element.closest('.lce-pending')) return;
+    if (!element || !commandButtonsEnabled() || element.closest('.lce-pending')) return;
     if (element.dataset.likoProcessed !== '1' && !element.closest('a')) decorateChatText(element, findCommand);
-    element.dataset.lceDone = '1';
-    processedText.set(element, element.textContent);
 }
 
 // ───────────────────────── 悄悄話斜體 ─────────────────────────
@@ -308,6 +313,14 @@ export function installChat() {
     injectStyle();
     createDescElement();
     installMarkupEvents();
+    window.addEventListener(SETTING_CHANGED_EVENT, event => {
+        if (event.detail?.key !== 'commandButtons') return;
+        syncCommandButtons();
+        if (commandButtonsEnabled()) {
+            document.getElementById('TextAreaChatLog')?.querySelectorAll('.chat-room-message-content').forEach(processMessage);
+        }
+    });
+    hook('ChatRoomLeave', 4, (args, next) => { hideDesc(); return next(args); });
 
     // 姿勢選單：畫在點選角色的對話框
     hook('DialogDraw', 4, (args, next) => {
@@ -358,7 +371,8 @@ export function installChat() {
     // 指令 / 房間 轉按鈕
     registerChatProcessor({
         selector: '.chat-room-message-content',
-        enabled: () => !!getFeature('commandButtons'),
+        enabled: commandButtonsEnabled,
+        sync: syncCommandButtons,
         process: processMessage,
     });
 }

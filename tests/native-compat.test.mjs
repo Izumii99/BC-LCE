@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { runtime } from './helpers/runtime.mjs';
 
-const nativeSource = fs.readFileSync(new URL('./fixtures/r132-runtime.txt', import.meta.url), 'utf8');
+const nativeSource = fs.readFileSync(new URL('./fixtures/native-r133-runtime.txt', import.meta.url), 'utf8');
 
 async function wardrobeRuntime() {
     const screens = [], player = { MemberNumber: 1, IsPlayer: () => true };
@@ -13,7 +13,6 @@ async function wardrobeRuntime() {
         CommonPromiseCatch: p => p, CommonGetScreen: () => ['Character', 'Appearance'],
         CommonSetScreen: (...args) => { screens.push(args); }, WardrobeSaveSelectedOutfit() {},
     } });
-    vm.runInContext(nativeSource, rt.context);
     const mod = await rt.load('src/features/wardrobe/index.js'); mod.installWardrobe();
     return { rt, player, wardrobeState, screens };
 }
@@ -38,7 +37,7 @@ test('extended wardrobe keeps extra slots separate and native first 24 intact', 
     assert.equal(player.Wardrobe[95][0].Name, '95');
 });
 
-test('WCE expression reset fix and native Beta3 struggle tolerate an absent queue', async () => {
+test('WCE expression reset fix and native R133 struggle tolerate an absent queue', async () => {
     const player = { MemberNumber: 1, ExpressionQueue: [{ Time: 5000 }], OnlineSharedSettings: { ItemsAffectExpressions: true } };
     const rt = runtime({ globals: { Player: player, CurrentScreen: 'Login', StruggleProgressStruggleCount: 1,
         StruggleProgressCurrentMinigame: 'Strength', CharacterSetFacialExpression() {}, addEventListener() {},
@@ -53,7 +52,7 @@ test('WCE expression reset fix and native Beta3 struggle tolerate an absent queu
     call(); assert.equal(player.ExpressionQueue, events); assert.equal(events[0].Time, 4000);
 });
 
-test('AppearanceRun theme patch targets match and remain syntactically valid on native R132', () => {
+test('AppearanceRun theme patch targets match and remain syntactically valid on native R133', () => {
     const source = fs.readFileSync('src/features/theme/index.js', 'utf8');
     const patches = new Map();
     vm.runInNewContext(source.slice(source.indexOf('function installPatches()')) + '\ninstallPatches();', {
