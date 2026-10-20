@@ -95,6 +95,12 @@ test('equals-sign eye faces do not shadow each other', () => {
     for (const text of ['=x=', '=o=', '=a=']) assert.deepEqual(emoticonExpression(text), {}, text);
 });
 
+test('looking away >> and << faces trigger dazed harsh expression like >.> and <.<', () => {
+    for (const text of ['>>', '<<', '>.>', '<.<', '>,>', '<,<', '>_>', '<_<']) {
+        assert.deepEqual(emoticonExpression(text), { Eyes: 'Dazed', Eyebrows: 'Harsh' }, text);
+    }
+});
+
 test('deadpan -_- face and punctuation precedence', () => {
     assert.deepEqual(emoticonExpression('-_-'), { Eyes: 'Dazed', Eyebrows: 'Harsh', Mouth: 'Frown' });
     const strong = emoticonExpression('-_-!!!');
@@ -122,11 +128,15 @@ test('deadpan -_- face and punctuation precedence', () => {
 });
 
 test('Echo bridge recognizes canonical names, filters uninvolved players and non-mouth kisses', () => {
-    assert.equal(echoExpressionEvent(packet('舔手'), 1), 'Lick');
+    assert.equal(echoExpressionEvent(packet('舔手'), 2), 'Lick', 'Sender triggers Lick');
+    assert.equal(echoExpressionEvent(packet('舔手'), 1), null, 'Target being licked does not trigger Lick');
     assert.equal(echoExpressionEvent(packet('抱入怀中', 'ItemTorso'), 1), 'Cuddle');
     assert.equal(echoExpressionEvent(packet('Luzi_DeepKiss'), 1), 'LongKiss');
     assert.equal(echoExpressionEvent(packet('Luzi_Kiss', 'ItemHead'), 1), null);
     assert.equal(echoExpressionEvent(packet('轻弹额头', 'ItemHead', 1, 2), 1), null);
+    assert.equal(echoExpressionEvent(packet('轻弹额头', 'ItemHead', 1, 2), 2), 'Spank');
+    assert.equal(echoExpressionEvent(packet('Flick', 'ItemHead', 1, 2), 2), 'Spank', 'Flick triggers Spank on target');
+    assert.notEqual(echoExpressionEvent(packet('Flick', 'ItemHead', 1, 2), 2), 'Lick', 'Flick must never trigger Lick');
     assert.equal(echoExpressionEvent(packet('舔手', 'ItemHands', 2, 3), 1), null);
     assert.equal(echoSound(packet('轻弹额头', 'ItemHead')), 'SpankSkin');
     assert.equal(echoSound(packet('Spank', 'ItemButt')), null, 'native activity stays native');
@@ -167,14 +177,16 @@ test('Echo bridge custom sound regex matching', () => {
 
     // Built-in Echo activity (not in knownEchoNames)
     assert.equal(echoSound(echoPacket('舔液体', 'ChatOther-ItemMouth-舔液体', 'licks')), null);
-    assert.equal(echoExpressionEvent(echoPacket('舔液体', 'ChatOther-ItemMouth-舔液体', 'licks'), 1), 'Lick');
+    assert.equal(echoExpressionEvent(echoPacket('舔液体', 'ChatOther-ItemMouth-舔液体', 'licks'), 2), 'Lick', 'Sender triggers Lick');
+    assert.equal(echoExpressionEvent(echoPacket('舔液体', 'ChatOther-ItemMouth-舔液体', 'licks'), 1), null, 'Target does not trigger Lick');
     
     // User-created hash-name cases (pure marker path, no Luzi_ fallback)
     assert.equal(echoSound(echoPacket('笨蛋笨Custom_k3x9a', 'ChatOther-ItemMouth-笨蛋笨Custom_k3x9a', '...slaps...')), 'SpankSkin');
     assert.equal(echoExpressionEvent(echoPacket('笨蛋笨Custom_k3x9a', 'ChatOther-ItemMouth-笨蛋笨Custom_k3x9a', '...slaps...'), 1), 'Spank');
     
     assert.equal(echoSound(echoPacket('笨蛋笨Custom_q7m2z', 'ChatOther-ItemMouth-笨蛋笨Custom_q7m2z', '...licks...')), null);
-    assert.equal(echoExpressionEvent(echoPacket('笨蛋笨Custom_q7m2z', 'ChatOther-ItemMouth-笨蛋笨Custom_q7m2z', '...licks...'), 1), 'Lick');
+    assert.equal(echoExpressionEvent(echoPacket('笨蛋笨Custom_q7m2z', 'ChatOther-ItemMouth-笨蛋笨Custom_q7m2z', '...licks...'), 2), 'Lick', 'Sender triggers Lick');
+    assert.equal(echoExpressionEvent(echoPacket('笨蛋笨Custom_q7m2z', 'ChatOther-ItemMouth-笨蛋笨Custom_q7m2z', '...licks...'), 1), null, 'Target does not trigger Lick');
     
     // Legacy fallback cases without a marker (testing backwards compatibility)
     const legacyPacket = (content, text) => ({
@@ -558,7 +570,7 @@ test('real expression engine expires textmoji and restores temporary pose withou
     tick();
     assert.ok(player.ActivePose.includes('BackElbowTouch'));
     settings.setFeature('activityExpressions', true);
-    ex.testMessage(packet('舔手'));
+    ex.testMessage(packet('舔手', 'ItemMouth', 1, 2));
     assert.ok(ex.getExpressionQueue().some(event => event.Type === 'LceEchoActivity'), 'Echo is included in the existing activity switch');
     settings.setFeature('activityExpressions', false);
     tick();

@@ -94,6 +94,37 @@ test('whisper reset yields to WCE even if WCE takes ownership after the timer st
     callback(); assert.equal(resets, 1);
 });
 
+test('persistent whisper keeps target locked on whisper send and reply, unlocks on /p or Escape', async () => {
+    let currentTarget = -1;
+    const rt = runtime({ globals: {
+        Player: { MemberNumber: 100 },
+        CurrentScreen: 'ChatRoom',
+        ChatRoomTargetMemberNumber: -1,
+        ChatRoomSetTarget: (num) => { currentTarget = num; rt.window.ChatRoomTargetMemberNumber = num; },
+        ChatRoomMessageGetType: (id) => id === 'w1' ? 'Whisper' : 'Chat',
+        ChatRoomMessageGetById: (id) => ({
+            getAttribute: (attr) => attr === 'data-sender' ? '200' : attr === 'data-target' ? '100' : null
+        })
+    } });
+    const settings = await rt.load('src/core/feature-settings.js');
+    settings.setFeature('persistentWhisper', true);
+    const feature = await rt.load('src/features/chat/whisper-target.js');
+    feature.installWhisperTarget();
+
+    // 1. Reply to whisper locks target to sender
+    rt.hooks.get('ChatRoomMessageSetReply')(['w1'], () => {});
+    assert.equal(currentTarget, 200);
+
+    // 2. Sending whisper keeps target locked
+    rt.hooks.get('ChatRoomSendWhisper')([200, 'hello'], () => true);
+    assert.equal(currentTarget, 200);
+
+    // 3. Command /p returns to public
+    const handled = rt.hooks.get('CommandParse')(['/p'], () => false);
+    assert.equal(handled, true);
+    assert.equal(currentTarget, -1);
+});
+
 test('hook registration exposes failures and clears them after successful retry', async () => {
     let fail = true;
     const rt = runtime({ mocks: { 'src/modsdk.js': { default: { hookFunction() {

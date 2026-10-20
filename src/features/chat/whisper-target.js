@@ -1,17 +1,12 @@
 import { createHook } from '../../core/hooks.js';
 // ════════════════════════════════════════════════════════════════════════════
-// 私聊對象離開房間時自動解除（whisperTargetReset）—— 移植自 WCE chatRoomWhisperFixes.ts
-//
-// 機制：監看聊天室的 Action 訊息。當「目前私聊對象」送出 ServerLeave/Ban/Kick/Disconnect
-// 這類離開訊息時，起一個 60 秒寬限計時器；逾時仍指著同一人就 ChatRoomSetTarget(-1) 改回
-// 對所有人說話，並送一則本地訊息告知。對方在一分鐘內 ServerEnter 回來則取消計時。
-// 寬限一分鐘是為了容忍短暫斷線重連 —— 一離開就清會很煩（同 WCE）。
-//
-// 註：只做「離開房間」這半邊（使用者要的）。WCE 另有 patch ChatRoomSendChat 在「私聊送到
-// 不在場對象」時也重置，但那要靠精確比對 BC 原始碼字串、跨版本易碎，暫不移植。
+// 私聊對象管理：
+// 1. 私聊對象離開房間時自動解除（whisperTargetReset）—— 移植自 WCE chatRoomWhisperFixes.ts
+// 2. 回覆/點擊悄悄話後持續鎖定對象（persistentWhisper）—— 防止後續發言洩漏至公開頻道
 // ════════════════════════════════════════════════════════════════════════════
 
 import { shouldLceHandle } from '../../core/wce-compat.js';
+import { getFeature } from '../../core/feature-settings.js';
 import { T } from '../../core/i18n.js';
 import { LOCAL_MARKER } from './local-messages.js';
 import { LOG } from '../../core/constants.js';
@@ -20,6 +15,7 @@ const GRACE_MS = 60 * 1000;   // 離開後的寬限：一分鐘內回來就不�
 const LEAVE_PREFIXES = ['ServerLeave', 'ServerBan', 'ServerKick', 'ServerDisconnect'];
 
 const resetOn = () => shouldLceHandle('whisperTargetReset', 'whisperTargetFixes');
+const persistentOn = () => !!getFeature('persistentWhisper');
 const target = () => (typeof ChatRoomTargetMemberNumber !== 'undefined' ? ChatRoomTargetMemberNumber : -1);
 
 /** memberNumber → 計時器 id（同時最多一個，因為一次只有一個私聊對象）。 */
@@ -41,12 +37,36 @@ function clearTargetNotify() {
     } catch (e) { console.warn(LOG, '解除私聊對象失敗:', e); }
 }
 
+function lockWhisperTarget(memberNumber) {
+    if (!persistentOn()) return;
+    if (typeof memberNumber !== 'number' || isNaN(memberNumber) || memberNumber < 0) return;
+
+    if (typeof ChatRoomSetTarget === 'function') {
+        ChatRoomSetTarget(memberNumber);
+    } else {
+        window.ChatRoomTargetMemberNumber = memberNumber;
+    }
+}
+
+function unlockWhisperTarget() {
+    if (typeof ChatRoomSetTarget === 'function') {
+        ChatRoomSetTarget(-1);
+    } else {
+        window.ChatRoomTargetMemberNumber = -1;
+    }
+
+    if (typeof ChatRoomMessageReplyStop === 'function') {
+        ChatRoomMessageReplyStop();
+    }
+}
+
 let installed = false;
 
 export function installWhisperTarget() {
     if (installed) return;
     installed = true;
 
+    // 1. 自動解除（離開房間計時）
     hook('ChatRoomMessageDisplay', 1, (args, next) => {
         try {
             const msg = args[0];
@@ -68,4 +88,91 @@ export function installWhisperTarget() {
         } catch { /* ignore */ }
         return next(args);
     });
+
+    // 2. 點擊私聊訊息的 Reply 按鈕時鎖定私聊對象
+    hook('ChatRoomMessageSetReply', 1, (args, next) => {
+        const res = next(args);
+        try {
+            if (persistentOn()) {
+                const msgId = args[0];
+                const isWhisper = typeof ChatRoomMessageGetType === 'function'
+                    ? ChatRoomMessageGetType(msgId) === 'Whisper'
+                    : false;
+
+                if (isWhisper) {
+                    const replyMsg = typeof ChatRoomMessageGetById === 'function'
+                        ? ChatRoomMessageGetById(msgId)
+                        : null;
+
+                    if (replyMsg) {
+                        const sender = Number(replyMsg.getAttribute('data-sender'));
+                        const tgt = Number(replyMsg.getAttribute('data-target'));
+                        const myNumber = typeof Player !== 'undefined' && Player ? Player.MemberNumber : -1;
+                        const receiver = (sender === myNumber && !isNaN(tgt) && tgt >= 0) ? tgt : sender;
+
+                        if (!isNaN(receiver) && receiver >= 0) {
+                            lockWhisperTarget(receiver);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn(LOG, 'ChatRoomMessageSetReply hook error:', e);
+        }
+        return res;
+    });
+
+    // 3. 點擊聊天記錄發言者名字時鎖定私聊對象
+    hook('ChatRoomMessageNameClick', 1, function (args, next) {
+        const res = next(args);
+        try {
+            if (persistentOn()) {
+                const el = this?.parentElement ? this : window.event?.currentTarget;
+                const sender = Number.parseInt(el?.parentElement?.dataset?.sender, 10);
+                const tgt = Number.parseInt(el?.parentElement?.dataset?.target, 10);
+                const myNumber = typeof Player !== 'undefined' && Player ? Player.MemberNumber : -1;
+                const receiver = (sender === myNumber && !isNaN(tgt) && tgt >= 0) ? tgt : sender;
+
+                if (!isNaN(receiver) && receiver >= 0) {
+                    lockWhisperTarget(receiver);
+                }
+            }
+        } catch (e) {
+            console.warn(LOG, 'ChatRoomMessageNameClick hook error:', e);
+        }
+        return res;
+    });
+
+    // 4. 發送悄悄話後持續鎖定對象
+    hook('ChatRoomSendWhisper', 1, (args, next) => {
+        const res = next(args);
+        if (persistentOn() && res === true && typeof args[0] === 'number' && args[0] >= 0) {
+            lockWhisperTarget(args[0]);
+        }
+        return res;
+    });
+
+    // 5. 支援 /p, /public, /all 快速切回公開聊天
+    hook('CommandParse', 1, (args, next) => {
+        if (persistentOn() && typeof args[0] === 'string') {
+            const cmd = args[0].trim().toLowerCase();
+            if (cmd === '/p' || cmd === '/public' || cmd === '/all') {
+                unlockWhisperTarget();
+                return true;
+            }
+        }
+        return next(args);
+    });
+
+    // 6. 按 Esc 鍵隨時靜音返回公開聊天
+    document.addEventListener('keydown', (e) => {
+        if (!persistentOn()) return;
+        if (e.key === 'Escape') {
+            if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+                if (target() >= 0) {
+                    unlockWhisperTarget();
+                }
+            }
+        }
+    }, true);
 }
