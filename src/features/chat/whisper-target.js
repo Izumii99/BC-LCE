@@ -176,12 +176,9 @@ export function installWhisperTarget() {
         if (persistentOn()) {
             if (res === true && typeof targetNum === 'number' && targetNum >= 0) {
                 lockWhisperTarget(targetNum);
-            } else if (res === false && typeof targetNum === 'number' && targetNum >= 0) {
-                if (typeof ChatRoomCharacter !== 'undefined' && Array.isArray(ChatRoomCharacter)) {
-                    const inRoom = ChatRoomCharacter.some(c => c && c.MemberNumber === targetNum);
-                    if (!inRoom && typeof ChatRoomSendLocal === 'function') {
-                        ChatRoomSendLocal(`<div class="${LOCAL_MARKER}">${T('whisper_absent_hint')}</div>`);
-                    }
+            } else if (res === 'target-gone') {
+                if (typeof ChatRoomSendLocal === 'function') {
+                    ChatRoomSendLocal(`<div class="${LOCAL_MARKER}">${T('whisper_absent_hint')}</div>`);
                 }
             }
         }
@@ -195,15 +192,18 @@ export function installWhisperTarget() {
             const lower = raw.toLowerCase();
             if (lower === '/p' || lower === '/public' || lower === '/all') {
                 unlockWhisperTarget();
+                if (typeof CommandChangeChatInputContent === 'function') {
+                    CommandChangeChatInputContent('');
+                } else {
+                    const input = document.getElementById('InputChat');
+                    if (input) input.value = '';
+                }
                 return true;
             }
             const match = raw.match(/^\/(?:p|public|all)\s+(.+)$/i);
             if (match) {
                 unlockWhisperTarget();
-                if (typeof ChatRoomSendChat === 'function') {
-                    ChatRoomSendChat(match[1]);
-                }
-                return true;
+                return match[1];
             }
         }
         return next(args);
@@ -214,7 +214,8 @@ export function installWhisperTarget() {
         if (!persistentOn()) return;
         if (e.key === 'Escape') {
             if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
-                if (e.target?.id === 'InputChat' && target() >= 0) {
+                const hasWhisperPrefix = typeof e.target?.value === 'string' && /^\/(?:whisper|w)\s+\d+/i.test(e.target.value);
+                if (e.target?.id === 'InputChat' && (target() >= 0 || hasWhisperPrefix)) {
                     unlockWhisperTarget();
                 }
             }

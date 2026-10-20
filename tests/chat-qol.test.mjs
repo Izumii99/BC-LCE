@@ -115,9 +115,24 @@ test('Echo activity inflections recognize English verb forms without substring c
     assert.equal(echoExpressionEvent(packet('Luzi_Giggling'), 1), 'Giggle');
     assert.equal(echoExpressionEvent(packet('Luzi_Startled', 'ItemHead', 1, 2), 2), 'ShockLight');
 
-    // Negative collision checks: Custom_3bit2 must not trigger LipBite
-    assert.equal(echoExpressionEvent(packet('Custom_3bit2'), 2), null);
-    assert.equal(echoExpressionEvent(packet('Custom_flickering'), 2), null);
+    // Marker-bearing packet for custom activities (matching BC custom activity packets)
+    const customPacket = (name, group = 'ItemMouth', sender = 2, target = 1) => {
+        const content = `ChatOther-${group}-${name}`;
+        return {
+            Type: 'Activity', Content: content, Sender: sender,
+            Dictionary: [
+                { TargetCharacter: target },
+                { Tag: `MISSING TEXT IN "ActivityDictionary.csv": ${content}`, Text: name }
+            ],
+        };
+    };
+
+    // Positive control: Custom_bite_x exercises matching path and triggers LipBite on target (1)
+    assert.equal(echoExpressionEvent(customPacket('Custom_bite_x'), 1), 'LipBite');
+
+    // Negative collision checks: Custom_3bit2 must not trigger LipBite, even for target (1)
+    assert.equal(echoExpressionEvent(customPacket('Custom_3bit2'), 1), null);
+    assert.equal(echoExpressionEvent(customPacket('Custom_flickering'), 1), null);
 });
 
 test('deadpan -_- face and punctuation precedence', () => {
