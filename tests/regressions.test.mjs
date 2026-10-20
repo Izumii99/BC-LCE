@@ -94,19 +94,39 @@ test('whisper reset yields to WCE even if WCE takes ownership after the timer st
     callback(); assert.equal(resets, 1);
 });
 
-test('persistent whisper keeps target locked on whisper send and reply, unlocks on /p or Escape', async () => {
+test('persistent whisper keeps target locked on send/reply, strips prefill on Esc, validates recipients, and preserves target on leave', async () => {
     let currentTarget = -1;
+    let localMessages = [];
+    let publicChats = [];
+    let leaveTimerCallback = null;
+    const inputChat = new Element('input');
+    inputChat.id = 'InputChat';
+
+    const otherElement = new Element('div');
+    otherElement.id = 'OtherElement';
+
     const rt = runtime({ globals: {
         Player: { MemberNumber: 100 },
         CurrentScreen: 'ChatRoom',
-        ChatRoomTargetMemberNumber: -1,
-        ChatRoomSetTarget: (num) => { currentTarget = num; rt.window.ChatRoomTargetMemberNumber = num; },
+        ChatRoomCharacter: [{ MemberNumber: 100 }, { MemberNumber: 200 }],
+        ChatRoomSetTarget: (num) => {
+            currentTarget = num;
+            rt.window.ChatRoomTargetMemberNumber = num;
+            if (rt.context) rt.context.ChatRoomTargetMemberNumber = num;
+        },
         ChatRoomMessageGetType: (id) => id === 'w1' ? 'Whisper' : 'Chat',
         ChatRoomMessageGetById: (id) => ({
             getAttribute: (attr) => attr === 'data-sender' ? '200' : attr === 'data-target' ? '100' : null
-        })
+        }),
+        ChatRoomSendLocal: (msg) => localMessages.push(msg),
+        ChatRoomSendChat: (msg) => publicChats.push(msg),
+        setTimeout: (cb) => { leaveTimerCallback = cb; return 1; },
+        clearTimeout: () => { leaveTimerCallback = null; },
     } });
+    rt.document.body.append(inputChat, otherElement);
+
     const settings = await rt.load('src/core/feature-settings.js');
+    settings.setFeature('whisperTargetReset', true);
     settings.setFeature('persistentWhisper', true);
     const feature = await rt.load('src/features/chat/whisper-target.js');
     feature.installWhisperTarget();
@@ -119,10 +139,68 @@ test('persistent whisper keeps target locked on whisper send and reply, unlocks 
     rt.hooks.get('ChatRoomSendWhisper')([200, 'hello'], () => true);
     assert.equal(currentTarget, 200);
 
-    // 3. Command /p returns to public
-    const handled = rt.hooks.get('CommandParse')(['/p'], () => false);
-    assert.equal(handled, true);
+    // 3. NameClick recipient validation:
+    // 3a. Clicking self must not lock target
+    const selfMsgEl = new Element('div');
+    selfMsgEl.dataset.sender = '100';
+    const nameBtnSelf = new Element('span');
+    selfMsgEl.append(nameBtnSelf);
+    rt.hooks.get('ChatRoomMessageNameClick').call(nameBtnSelf, [], () => {});
+    assert.equal(currentTarget, 200, 'Self click did not overwrite target');
+
+    // 3b. Clicking absent member (not in ChatRoomCharacter) must not lock target
+    const absentMsgEl = new Element('div');
+    absentMsgEl.dataset.sender = '999';
+    const nameBtnAbsent = new Element('span');
+    absentMsgEl.append(nameBtnAbsent);
+    rt.hooks.get('ChatRoomMessageNameClick').call(nameBtnAbsent, [], () => {});
+    assert.equal(currentTarget, 200, 'Absent member click did not overwrite target');
+
+    // 4. Escape handling:
+    // 4a. Escape on another element does NOT unlock target
+    rt.document.dispatchEvent({ type: 'keydown', key: 'Escape', target: otherElement });
+    assert.equal(currentTarget, 200, 'Escape outside InputChat does not clear target');
+
+    // 4b. Escape on InputChat clears target AND strips /whisper N prefill while preserving message body
+    inputChat.value = '/whisper 200 my important draft';
+    rt.document.dispatchEvent({ type: 'keydown', key: 'Escape', target: inputChat });
+    assert.equal(currentTarget, -1, 'Escape inside InputChat clears target');
+    assert.equal(inputChat.value, 'my important draft', 'Prefilled /whisper prefix was stripped');
+
+    // 5. Command /p and /public:
+    // Relock target first
+    rt.hooks.get('ChatRoomSendWhisper')([200, 'hello'], () => true);
+    assert.equal(currentTarget, 200);
+
+    // 5a. /p standalone returns to public
+    const handledP = rt.hooks.get('CommandParse')(['/p'], () => false);
+    assert.equal(handledP, true);
     assert.equal(currentTarget, -1);
+
+    // 5b. /public with text sends public message and exits
+    rt.hooks.get('ChatRoomSendWhisper')([200, 'hello'], () => true);
+    assert.equal(currentTarget, 200);
+    const handledPublicText = rt.hooks.get('CommandParse')(['/public Hello room!'], () => false);
+    assert.equal(handledPublicText, true);
+    assert.equal(currentTarget, -1);
+    assert.equal(publicChats.pop(), 'Hello room!');
+
+    // 6. Leave timer precedence:
+    // When persistentWhisper is ON, partner leaving does not start clear timer, target remains preserved
+    rt.hooks.get('ChatRoomSendWhisper')([200, 'hello'], () => true);
+    assert.equal(currentTarget, 200);
+    leaveTimerCallback = null;
+    rt.hooks.get('ChatRoomMessageDisplay')([{ Type: 'Action', Sender: 200, Content: 'ServerLeave' }], () => {});
+    assert.equal(leaveTimerCallback, null, 'Persistent mode does not schedule leave clear timer');
+    assert.equal(currentTarget, 200, 'Target remains locked in persistent mode after partner leaves');
+
+    // 7. Disabled mode: when persistentWhisper is FALSE, whisper reply and send do NOT lock target
+    settings.setFeature('persistentWhisper', false);
+    currentTarget = -1;
+    rt.hooks.get('ChatRoomMessageSetReply')(['w1'], () => {});
+    assert.equal(currentTarget, -1, 'Disabled mode does not lock on reply');
+    rt.hooks.get('ChatRoomSendWhisper')([200, 'hello'], () => true);
+    assert.equal(currentTarget, -1, 'Disabled mode does not lock on send');
 });
 
 test('hook registration exposes failures and clears them after successful retry', async () => {

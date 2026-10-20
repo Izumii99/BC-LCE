@@ -30,7 +30,7 @@ export const faces = [
     // Crazy / Dazed
     [/^x[_.]?x$/i, { Eyes: 'Dazed', Mouth: 'Sad' }],
     [/^@[_.,~-]*@$/, { Eyes: 'Crazy', Mouth: 'Sad' }],
-    [/^(?:>+[.,~_]*>+|<+[.,~_]*<+)$/, { Eyes: 'Dazed', Eyebrows: 'Harsh' }],
+    [/^(?:>[.,~_]{1,2}>|<[.,~_]{1,2}<|>{2,3}|<{2,3})$/, { Eyes: 'Dazed', Eyebrows: 'Harsh' }],
     // Horny / Closed
     [/^(?:==|=\[_\]=)$/, { Eyes: 'Horny' }],
     [/^(?:=~=|=\.=|=,=)$/, { Eyes: 'Horny', Mouth: 'Frown' }],
@@ -63,24 +63,24 @@ export const knownEchoNames = new Set([
 ]);
 
 export const mappings = [
-    ['LongKiss', /深吻|(?<![a-z])(?:Deep|French)[ _-]?(?:Kiss|Kissing|Kisses)(?![a-z])/i],
-    ['KissOnLips', /接吻|亲吻|親吻|(?<![a-z])(?:Kiss|Kissing|Kisses)(?![a-z])/i],
-    ['Lick', /舔|吸吮|含住|用嘴脱掉|(?<![a-z])(?:Lick|Suck)(?:s|ed|ing)?(?![a-z])/i],
-    ['LipBite', /咬|(?<![a-z])(?:Bite|Biting|Bites|Bit)(?![a-z])/i],
-    ['DroolSides', /流口水|(?<![a-z])Drool(?:s|ed|ing)?(?![a-z])/i],
-    ['OpenMouth', /张开嘴|(?<![a-z])Open[ _-]?Mouth(?![a-z])/i],
-    ['CloseMouth', /闭上嘴|吞咽口水|(?<![a-z])(?:Close[ _-]?Mouth|Swallow(?:s|ed|ing)?)(?![a-z])/i],
-    ['Spank', /拍打|打屁股|轻拍|轻弹|扇耳光|(?<![a-z])(?:Spank|Slap|Flick|Bap)(?:s|ed|ing|ped|ping)?(?![a-z])/i],
-    ['Cuddle', /拥抱|擁抱|贴贴|貼貼|钻进怀里|抱入怀中|抱腿|(?<![a-z])(?:Cuddle|Hug)(?:s|ed|ing|ged|ging)?(?![a-z])/i],
-    ['Pinch', /掐|拧|(?<![a-z])Pinch(?:es|ed|ing)?(?![a-z])/i],
-    ['Hit', /(?:^|_)Hit(?:$|_)|(?<![a-z])Hit(?:s|ting)?(?![a-z])/i],
-    ['ShockLight', /吓|(?<![a-z])(?:Shock|Startle)(?:s|ed|ing)?(?![a-z])/i],
-    ['Smile', /微笑|(?<![a-z])Smile(?:s|d|ing)?(?![a-z])/i],
-    ['Giggle', /轻笑|(?<![a-z])Giggle(?:s|d|ing)?(?![a-z])/i],
-    ['Laugh', /大笑|(?<![a-z])Laugh(?:s|ed|ing)?(?![a-z])/i],
-    ['Blush', /脸红|害羞|(?<![a-z])(?:Blush(?:es|ed|ing)?|Shy)(?![a-z])/i],
-    ['Sad', /委屈|伤心|(?<![a-z])(?:Sad|Cry(?:ing|ies)?|Cried)(?![a-z])/i],
-    ['Angry', /生气|愤怒|(?<![a-z])(?:Angry|Mad)(?![a-z])/i],
+    ['LongKiss', /深吻|(?<![a-z0-9])(?:Deep|French)[ _-]?Kiss(?:es|ed|ing)?(?![a-z0-9])/i],
+    ['KissOnLips', /接吻|亲吻|親吻|(?<![a-z0-9])Kiss(?:es|ed|ing)?(?![a-z0-9])/i],
+    ['Lick', /舔|吸吮|含住|用嘴脱掉|(?<![a-z0-9])(?:Lick|Suck)(?:s|ed|ing)?(?![a-z0-9])/i],
+    ['LipBite', /咬|(?<![a-z0-9])Bit(?:e|es|ing|ten)?(?![a-z0-9])/i],
+    ['DroolSides', /流口水|(?<![a-z0-9])Drool(?:s|ed|ing)?(?![a-z0-9])/i],
+    ['OpenMouth', /张开嘴|(?<![a-z0-9])Open[ _-]?Mouth(?![a-z0-9])/i],
+    ['CloseMouth', /闭上嘴|吞咽口水|(?<![a-z0-9])(?:Close[ _-]?Mouth|Swallow(?:s|ed|ing)?)(?![a-z0-9])/i],
+    ['Spank', /拍打|打屁股|轻拍|轻弹|扇耳光|(?<![a-z0-9])(?:Spank(?:s|ed|ing)?|Slap(?:s|ped|ping)?|Flick(?:s|ed|ing)?|Bap(?:s|ped|ping)?)(?![a-z0-9])/i],
+    ['Cuddle', /拥抱|擁抱|贴贴|貼貼|钻进怀里|抱入怀中|抱腿|(?<![a-z0-9])(?:Cuddl(?:e|es|ed|ing)|Hug(?:s|ged|ging)?)(?![a-z0-9])/i],
+    ['Pinch', /掐|拧|(?<![a-z0-9])Pinch(?:es|ed|ing)?(?![a-z0-9])/i],
+    ['Hit', /(?:^|_)Hit(?:$|_)|(?<![a-z0-9])Hit(?:s|ting)?(?![a-z0-9])/i],
+    ['ShockLight', /吓|(?<![a-z0-9])(?:Shock(?:s|ed|ing)?|Startl(?:e|es|ed|ing))(?![a-z0-9])/i],
+    ['Smile', /微笑|(?<![a-z0-9])Smil(?:e|es|ed|ing)(?![a-z0-9])/i],
+    ['Giggle', /轻笑|(?<![a-z0-9])Giggl(?:e|es|ed|ing)(?![a-z0-9])/i],
+    ['Laugh', /大笑|(?<![a-z0-9])Laugh(?:s|ed|ing)?(?![a-z0-9])/i],
+    ['Blush', /脸红|害羞|(?<![a-z0-9])(?:Blush(?:es|ed|ing)?|Shy)(?![a-z0-9])/i],
+    ['Sad', /委屈|伤心|(?<![a-z0-9])(?:Sad|Cry(?:ing|ies)?|Cried)(?![a-z0-9])/i],
+    ['Angry', /生气|愤怒|(?<![a-z0-9])(?:Angry|Mad)(?![a-z0-9])/i],
 ];
 export const targetOnly = new Set(['Spank', 'Hit', 'Pinch', 'ShockLight', 'LipBite']);
-export const mutualEvents = new Set(['LongKiss', 'KissOnLips', 'Cuddle']);
+export const senderOnly = new Set(['Lick']);

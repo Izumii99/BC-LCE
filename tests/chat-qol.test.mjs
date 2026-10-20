@@ -96,9 +96,28 @@ test('equals-sign eye faces do not shadow each other', () => {
 });
 
 test('looking away >> and << faces trigger dazed harsh expression like >.> and <.<', () => {
-    for (const text of ['>>', '<<', '>.>', '<.<', '>,>', '<,<', '>_>', '<_<']) {
+    for (const text of ['>>', '>>>', '<<', '<<<', '>.>', '<.<', '>,>', '<,<', '>_>', '<_<', '>..>', '<..<']) {
         assert.deepEqual(emoticonExpression(text), { Eyes: 'Dazed', Eyebrows: 'Harsh' }, text);
     }
+    // Repetition limits & negative cases
+    for (const text of ['>', '<', '>>>>', '<<<<', '>>>>>>']) {
+        assert.deepEqual(emoticonExpression(text), {}, text);
+    }
+});
+
+test('Echo activity inflections recognize English verb forms without substring collisions', () => {
+    // Inflected forms recognized
+    assert.equal(echoExpressionEvent(packet('Luzi_DeepKissed'), 1), 'LongKiss');
+    assert.equal(echoExpressionEvent(packet('Luzi_Kissed'), 1), 'KissOnLips');
+    assert.equal(echoExpressionEvent(packet('Luzi_Cuddled', 'ItemTorso'), 1), 'Cuddle');
+    assert.equal(echoExpressionEvent(packet('Luzi_Cuddling', 'ItemTorso'), 1), 'Cuddle');
+    assert.equal(echoExpressionEvent(packet('Luzi_Smiling'), 1), 'Smile');
+    assert.equal(echoExpressionEvent(packet('Luzi_Giggling'), 1), 'Giggle');
+    assert.equal(echoExpressionEvent(packet('Luzi_Startled', 'ItemHead', 1, 2), 2), 'ShockLight');
+
+    // Negative collision checks: Custom_3bit2 must not trigger LipBite
+    assert.equal(echoExpressionEvent(packet('Custom_3bit2'), 2), null);
+    assert.equal(echoExpressionEvent(packet('Custom_flickering'), 2), null);
 });
 
 test('deadpan -_- face and punctuation precedence', () => {

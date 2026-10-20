@@ -158,6 +158,7 @@
     "s_persistentWhisper": "Cible de chuchotement persistante",
     "sd_persistentWhisper": "Maintient le verrouillage du chuchotement après une réponse pour éviter les fuites vers le chat public. Appuyez sur Échap ou tapez /p pour quitter.",
     "whisper_target_cleared": "Votre cible de chuchotement a quitté la salle — vous parlez de nouveau à tout le monde.",
+    "whisper_absent_hint": "La cible n'est pas dans la pièce. Appuyez sur Échap ou tapez /p pour revenir au chat public.",
     "s_chatColors": "Améliorer les couleurs pour la lisibilité",
     "sd_chatColors": "Améliore le contraste des couleurs du chat pour respecter les normes d'accessibilité.",
     "s_friendOnlineNotify": "Notifications de connexion d'un ami",

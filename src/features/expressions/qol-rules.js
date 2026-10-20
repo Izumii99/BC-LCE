@@ -1,4 +1,4 @@
-import { faces, knownEchoNames, mappings, targetOnly, mutualEvents } from './qol-data.js';
+import { faces, knownEchoNames, mappings, targetOnly, senderOnly } from './qol-data.js';
 
 const DEFAULT_EMOTICON_DURATION = 5000;
 const SLASH_DURATION_STEP = 1000;
@@ -175,8 +175,9 @@ export function echoExpressionEvent(data, memberNumber) {
     const isSender = data.Sender === memberNumber;
 
     if (targetOnly.has(event)) return isTarget ? event : null;
-    if (mutualEvents.has(event)) return (isTarget || isSender) ? event : null;
-    return isSender ? event : null;
+    if (senderOnly.has(event)) return isSender ? event : null;
+    if (!isTarget && !isSender) return null;
+    return event;
 }
 
 export function echoSound(data) {
